@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -38,7 +39,7 @@ def list_customers(
 
 @router.get("/{customer_id}", response_model=CustomerRead)
 def get_customer(
-    customer_id: str,
+    customer_id: UUID,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("customer.read")),
 ):
