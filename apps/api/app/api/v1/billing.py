@@ -6,10 +6,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.billing import Invoice
+from app.models.billing import Invoice, InvoiceStatus
 from app.models.estimating import Estimate
-from app.schemas.billing import InvoiceCreateFromEstimate, InvoiceRead
+from app.schemas.billing import InvoiceCreateFromEstimate, InvoiceRead, InvoiceStatusUpdate
 from app.security.context import AuthContext, require_permission
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/invoices", tags=["billing"])
 
@@ -73,3 +74,36 @@ def list_invoices(
         .order_by(Invoice.created_at.desc())
         .limit(100)
     ).all()
+
+
+@router.patch("/{invoice_id}/status", response_model=InvoiceRead)
+def update_invoice_status(
+    invoice_id: UUID,
+    payload: InvoiceStatusUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("invoice.create")),
+):
+    invoice = db.scalar(
+        select(Invoice).where(
+            Invoice.id == invoice_id,
+            Invoice.tenant_id == auth.tenant_id,
+        )
+    )
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    old_status = invoice.status.value
+    invoice.status = payload.status
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="invoice",
+        entity_id=invoice.id,
+        action="status_changed",
+        field_name="status",
+        old_value=old_status,
+        new_value=payload.status.value,
+    )
+    db.commit()
+    db.refresh(invoice)
+    return invoice
