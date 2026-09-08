@@ -24,6 +24,11 @@ dev = [
   "ruff>=0.6"
 ]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["migrations*"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
