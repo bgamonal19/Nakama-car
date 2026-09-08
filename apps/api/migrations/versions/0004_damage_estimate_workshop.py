@@ -28,7 +28,6 @@ def upgrade() -> None:
     )
 
     for enum in (damage_operation, labor_type, estimate_status, estimate_line_category, work_order_status):
-        enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "vehicle_areas",
