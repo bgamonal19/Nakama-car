@@ -22,6 +22,10 @@ class EstimateCreate(BaseModel):
     notes: str | None = None
 
 
+class EstimateStatusUpdate(BaseModel):
+    status: EstimateStatus
+
+
 class EstimateLineCreate(BaseModel):
     category: EstimateLineCategory
     operation: str | None = None
