@@ -62,6 +62,14 @@ const demoPractices = [
   { code: "NC-2026-000016", plate: "GH625AA", car: "Audi A3", client: "Auto Service SRL", status: "READY" },
 ];
 
+type DashboardData = {
+  open_cases: number;
+  waiting_approval: number;
+  in_progress: number;
+  ready: number;
+  recent_practices: typeof demoPractices;
+};
+
 function money(value: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value || 0);
 }
@@ -72,6 +80,7 @@ export default function HomePage() {
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [plate, setPlate] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
   const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
@@ -101,6 +110,14 @@ export default function HomePage() {
     fetch(`${api}/health`)
       .then((r) => setApiOnline(r.ok))
       .catch(() => setApiOnline(false));
+
+    if (getAccessToken()) {
+      apiFetch("/dashboard/summary")
+        .then(async (r) => {
+          if (r.ok) setDashboard(await r.json());
+        })
+        .catch(() => undefined);
+    }
   }, []);
 
   const totals = useMemo(() => {
@@ -251,6 +268,8 @@ export default function HomePage() {
       }
 
       alert(`Pratica ${savedCase.case_number} salvata nel database. Preventivo ${savedEstimate.estimate_number} creato.`);
+      const summaryResponse = await apiFetch("/dashboard/summary");
+      if (summaryResponse.ok) setDashboard(await summaryResponse.json());
       setWizardOpen(false);
       resetWizard();
     } catch (error) {
@@ -304,10 +323,10 @@ export default function HomePage() {
         </header>
 
         <div className="kpi-grid">
-          <div className="kpi-card"><span>Pratiche aperte</span><strong>12</strong><small>+3 questa settimana</small></div>
-          <div className="kpi-card"><span>In attesa approvazione</span><strong>5</strong><small>€ 8.420 preventivati</small></div>
-          <div className="kpi-card"><span>In lavorazione</span><strong>4</strong><small>2 in verniciatura</small></div>
-          <div className="kpi-card"><span>Pronte consegna</span><strong>3</strong><small>Da contattare oggi</small></div>
+          <div className="kpi-card"><span>Pratiche aperte</span><strong>{dashboard?.open_cases ?? 12}</strong><small>{authenticated ? "Dati live del tenant" : "Demo pilot"}</small></div>
+          <div className="kpi-card"><span>In attesa approvazione</span><strong>{dashboard?.waiting_approval ?? 5}</strong><small>Preventivi da seguire</small></div>
+          <div className="kpi-card"><span>In lavorazione</span><strong>{dashboard?.in_progress ?? 4}</strong><small>Carrozzeria / verniciatura</small></div>
+          <div className="kpi-card"><span>Pronte consegna</span><strong>{dashboard?.ready ?? 3}</strong><small>Da contattare</small></div>
         </div>
 
         <div className="content-grid">
@@ -317,7 +336,7 @@ export default function HomePage() {
               <button className="ghost">Vedi tutte</button>
             </div>
             <div className="practice-table">
-              {demoPractices.map((p) => (
+              {(dashboard?.recent_practices?.length ? dashboard.recent_practices : demoPractices).map((p) => (
                 <div className="practice-row" key={p.code}>
                   <div><strong>{p.plate}</strong><span>{p.code}</span></div>
                   <div><strong>{p.car}</strong><span>{p.client}</span></div>
