@@ -70,6 +70,14 @@ type DashboardData = {
   recent_practices: typeof demoPractices;
 };
 
+type WorkOrderSummary = {
+  id: string;
+  work_order_number: string;
+  status: string;
+  priority: string;
+  repair_case_id: string;
+};
+
 function money(value: number) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(value || 0);
 }
@@ -81,6 +89,7 @@ export default function HomePage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [workOrders, setWorkOrders] = useState<WorkOrderSummary[]>([]);
   const [plate, setPlate] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
   const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
@@ -115,6 +124,11 @@ export default function HomePage() {
       apiFetch("/dashboard/summary")
         .then(async (r) => {
           if (r.ok) setDashboard(await r.json());
+        })
+        .catch(() => undefined);
+      apiFetch("/work-orders")
+        .then(async (r) => {
+          if (r.ok) setWorkOrders(await r.json());
         })
         .catch(() => undefined);
     }
@@ -311,8 +325,12 @@ export default function HomePage() {
       }
 
       alert(`Pratica ${savedCase.case_number} salvata nel database. Preventivo ${savedEstimate.estimate_number} creato.${mediaWarning ? "\n" + mediaWarning : ""}`);
-      const summaryResponse = await apiFetch("/dashboard/summary");
+      const [summaryResponse, workOrdersResponse] = await Promise.all([
+        apiFetch("/dashboard/summary"),
+        apiFetch("/work-orders"),
+      ]);
       if (summaryResponse.ok) setDashboard(await summaryResponse.json());
+      if (workOrdersResponse.ok) setWorkOrders(await workOrdersResponse.json());
       setWizardOpen(false);
       resetWizard();
     } catch (error) {
@@ -377,7 +395,7 @@ export default function HomePage() {
           <div className="panel">
             <div className="panel-head">
               <div><h2>Pratiche recenti</h2><p>Ultime lavorazioni della carrozzeria</p></div>
-              <button className="ghost">Vedi tutte</button>
+              <a className="ghost link-button" href="/pratiche">Vedi tutte</a>
             </div>
             <div className="practice-table">
               {(dashboard?.recent_practices?.length ? dashboard.recent_practices : demoPractices).map((p) => (
@@ -394,8 +412,8 @@ export default function HomePage() {
           <div className="panel quick-panel">
             <div className="panel-head"><div><h2>Azioni rapide</h2><p>Flusso reception</p></div></div>
             <button className="quick-action" onClick={() => setWizardOpen(true)}><b>01</b><span><strong>Nuova pratica</strong><small>Targa, cliente, foto e danni</small></span><em>→</em></button>
-            <button className="quick-action"><b>02</b><span><strong>Nuovo preventivo</strong><small>Ricambi, ore e verniciatura</small></span><em>→</em></button>
-            <button className="quick-action"><b>03</b><span><strong>Ordini di lavoro</strong><small>Gestisci lo stato officina</small></span><em>→</em></button>
+            <a className="quick-action quick-link" href="/preventivi"><b>02</b><span><strong>Preventivi</strong><small>Ricambi, ore e verniciatura</small></span><em>→</em></a>
+            <a className="quick-action quick-link" href="/lavori"><b>03</b><span><strong>Ordini di lavoro</strong><small>Gestisci lo stato officina</small></span><em>→</em></a>
           </div>
         </div>
 
@@ -404,14 +422,22 @@ export default function HomePage() {
             <div><h2>Stato officina</h2><p>Vista sintetica delle lavorazioni attive</p></div>
           </div>
           <div className="kanban">
-            {[
+            {authenticated && workOrders.length === 0 ? (
+              <div className="kanban-empty">Nessun ordine di lavoro attivo. Approva un preventivo e trasformalo in ODL.</div>
+            ) : (workOrders.length ? workOrders.slice(0, 4).map((order) => (
+              <a className="kanban-card kanban-link" href="/lavori" key={order.id}>
+                <small>{order.status.replaceAll("_", " ")}</small>
+                <strong>{order.work_order_number}</strong>
+                <span>Priorità {order.priority}</span>
+              </a>
+            )) : [
               ["ATTESA RICAMBI", "FK318ST", "Fiat 500X"],
               ["IN RIPARAZIONE", "GP742LM", "BMW Serie 3"],
               ["VERNICIATURA", "LM904TR", "Mercedes Classe A"],
               ["CONTROLLO QUALITÀ", "GH625AA", "Audi A3"],
             ].map(([stage, tag, car]) => (
               <div className="kanban-card" key={tag}><small>{stage}</small><strong>{tag}</strong><span>{car}</span></div>
-            ))}
+            )))}
           </div>
         </div>
       </section>
