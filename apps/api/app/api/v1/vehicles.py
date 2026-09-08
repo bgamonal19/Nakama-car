@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -79,7 +80,7 @@ def list_vehicles(
 
 @router.patch("/{vehicle_id}", response_model=VehicleRead)
 def update_vehicle(
-    vehicle_id: str,
+    vehicle_id: UUID,
     payload: VehicleUpdate,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("vehicle.write")),
