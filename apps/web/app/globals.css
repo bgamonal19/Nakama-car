@@ -352,3 +352,118 @@ h2, h3 { margin: 0; letter-spacing: -.02em; }
 .plate-search { margin-top: 12px; }
 .plate-lookup-message { width: min(520px, 100%); margin: 12px auto 0; border: 1px solid #e0e3e6; background: #fafbfb; color: #6e747b; border-radius: 10px; padding: 10px 12px; font-size: 10px; }
 .plate-lookup-message.found { border-color: #bfe3cf; background: #eef9f3; color: #1d7047; }
+
+
+/* NAKAMA CAR visual system */
+:root {
+  --nakama-navy: #0b2a4a;
+  --nakama-navy-2: #123d67;
+  --nakama-red: #ef2438;
+  --nakama-green: #0a9d5b;
+  --nakama-bg: #f4f7fa;
+}
+
+html, body { background: var(--nakama-bg); color: #12263d; }
+.nakama-theme { background: var(--nakama-bg); }
+.nakama-theme .sidebar { background: #fff; color: var(--nakama-navy); border-right: 1px solid #dce4ec; padding: 18px 12px; }
+.nakama-theme .workspace { padding: 20px 24px 40px; }
+.nakama-theme .nav-item { color: #17395d; font-weight: 600; border-radius: 10px; padding: 11px 14px; }
+.nakama-theme .nav-item:hover { background: #edf4fa; color: var(--nakama-navy); }
+.nakama-theme .nav-item.active { background: linear-gradient(90deg, #0b2a4a, #123f6c); color: #fff; box-shadow: inset 4px 0 0 var(--nakama-red); }
+.nakama-sidebar-brand { padding: 0 8px 24px; display: block; }
+.nakama-logo { width: 100%; color: var(--nakama-navy); }
+.nakama-logo-mark { width: 100%; height: auto; display: block; }
+.nakama-logo-type { text-align: center; margin-top: -6px; }
+.nakama-logo-type strong { font-size: 24px; line-height: 1; letter-spacing: .02em; font-weight: 900; color: var(--nakama-navy); }
+.nakama-logo-type strong span { display: inline; color: inherit; font-size: inherit; letter-spacing: inherit; margin: 0; }
+.nakama-logo-type strong em { color: var(--nakama-red); font-style: normal; }
+.nakama-logo-type small { display: block; color: var(--nakama-navy); font-size: 8px; letter-spacing: .08em; margin-top: 5px; font-weight: 700; }
+.nakama-logo-type i { width: 76%; height: 3px; margin: 8px auto 0; display: grid; grid-template-columns: 1fr 1fr 1fr; overflow: hidden; border-radius: 999px; }
+.nakama-logo-type i b:nth-child(1), .italy-line b:nth-child(1), .nakama-location i b:nth-child(1) { background: var(--nakama-green); }
+.nakama-logo-type i b:nth-child(2), .italy-line b:nth-child(2), .nakama-location i b:nth-child(2) { background: #fff; }
+.nakama-logo-type i b:nth-child(3), .italy-line b:nth-child(3), .nakama-location i b:nth-child(3) { background: var(--nakama-red); }
+.nakama-location { margin: 16px 8px 0; padding: 12px; border-top: 1px solid #dce4ec; color: var(--nakama-navy); }
+.nakama-location strong, .nakama-location span { display: block; }
+.nakama-location strong { font-size: 10px; }
+.nakama-location span { margin-top: 4px; color: #657b90; font-size: 9px; }
+.nakama-location i { display: grid; grid-template-columns: repeat(3,1fr); width: 70px; height: 3px; margin-top: 10px; overflow: hidden; border-radius: 999px; }
+
+.nakama-topbar { min-height: 46px; margin-bottom: 14px; }
+.dashboard-search { width: min(520px, 52vw); height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 15px; background: #fff; border: 1px solid #dbe4ec; border-radius: 10px; color: #49627b; box-shadow: 0 2px 8px rgba(11,42,74,.04); }
+.dashboard-search span { font-size: 11px; color: #8191a1; }
+.api-pill, .session-pill, .login-link { border-color: #dce4ec; }
+.primary { background: var(--nakama-navy); }
+.primary:hover { background: #143e68; }
+
+.nakama-hero { position: relative; min-height: 270px; display: grid; grid-template-columns: 1.05fr 1fr; overflow: hidden; border-radius: 16px; margin-bottom: 16px; background: radial-gradient(circle at 80% 30%, #1b527f 0, #0c3155 30%, #071f39 75%); color: white; box-shadow: 0 10px 35px rgba(11,42,74,.16); }
+.nakama-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(5,23,42,.2), transparent 55%); pointer-events: none; }
+.nakama-hero-copy { position: relative; z-index: 2; padding: 34px 38px; }
+.hero-eyebrow { color: #c6d6e5; margin-bottom: 5px; }
+.nakama-hero h1 { font-size: clamp(36px,4vw,56px); letter-spacing: -.03em; font-weight: 900; }
+.nakama-hero h1 span { color: var(--nakama-red); }
+.italy-line { display: grid; grid-template-columns: repeat(3, 1fr); width: 290px; height: 7px; margin: 10px 0 16px; overflow: hidden; }
+.hero-subtitle { margin: 0; font-size: 18px; line-height: 1.3; text-transform: uppercase; letter-spacing: .02em; color: #f3f7fb; }
+.hero-values { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 25px; color: #e5edf5; font-size: 10px; }
+.nakama-hero-car { position: relative; z-index: 1; align-self: end; height: 100%; display: flex; align-items: flex-end; justify-content: flex-end; }
+.nakama-hero-car svg { width: 108%; max-width: 720px; margin-right: -35px; margin-bottom: -2px; filter: drop-shadow(0 18px 20px rgba(0,0,0,.25)); }
+.hero-signature { position: absolute; right: 34px; bottom: 22px; font-family: "Segoe Script", "Bradley Hand", cursive; font-size: 16px; font-style: italic; color: #fff; transform: rotate(-5deg); border-bottom: 3px solid var(--nakama-red); padding-bottom: 4px; }
+
+.nakama-actions { display: grid; grid-template-columns: 1.08fr 1.08fr 1.08fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.nakama-action { min-height: 76px; border: 1px solid #dfe7ee; border-radius: 12px; display: flex; align-items: center; gap: 12px; padding: 13px 15px; text-decoration: none; cursor: pointer; text-align: left; box-shadow: 0 3px 10px rgba(11,42,74,.04); }
+.nakama-action b { width: 36px; height: 36px; display: grid; place-items: center; border-right: 1px solid rgba(255,255,255,.25); font-size: 18px; }
+.nakama-action strong, .nakama-action small { display: block; }
+.nakama-action strong { font-size: 11px; }
+.nakama-action small { margin-top: 4px; font-size: 9px; opacity: .8; }
+.nakama-action.blue { background: linear-gradient(135deg, #0e55a5, #073e7c); color: white; border-color: transparent; }
+.nakama-action.green { background: linear-gradient(135deg, #0a9d5b, #07713f); color: white; border-color: transparent; }
+.nakama-action.red { background: linear-gradient(135deg, #ff3349, #d90f28); color: white; border-color: transparent; }
+.nakama-action.white { background: #fff; color: var(--nakama-navy); }
+.nakama-action.white b { border-right-color: #dfe7ee; }
+
+.nakama-kpis .kpi-card { border-radius: 12px; border-color: #dce5ed; min-height: 112px; box-shadow: 0 3px 12px rgba(11,42,74,.035); }
+.nakama-kpis .kpi-card strong { color: var(--nakama-navy); }
+.nakama-kpis .kpi-card:nth-child(2) strong { color: var(--nakama-green); }
+.nakama-kpis .kpi-card:nth-child(3) strong { color: #1558a5; }
+.nakama-kpis .kpi-card:nth-child(4) strong { color: var(--nakama-red); }
+
+.nakama-theme .panel { border-radius: 12px; border-color: #dce5ed; box-shadow: 0 3px 14px rgba(11,42,74,.035); }
+.nakama-theme .panel-head { border-bottom-color: #e5ecf2; }
+.nakama-theme .panel-head h2 { color: var(--nakama-navy); }
+.nakama-theme .ghost { color: #1257a0; border: 0; }
+.nakama-theme .quick-action b { background: var(--nakama-navy); }
+.nakama-theme .kanban-card { background: #f8fbfd; border-color: #dfe7ee; }
+.nakama-theme .status-ready { background: #e5f7ed; color: #0a7545 !important; }
+
+.auth-screen { background: radial-gradient(circle at 80% 20%, #174f80 0, #0a2c4e 42%, #061a31 100%); }
+.auth-card { border-top: 5px solid var(--nakama-red); }
+.nakama-auth-brand .nakama-logo, .nakama-public-brand .nakama-logo { max-width: 250px; }
+.nakama-auth-brand { justify-content: center; }
+.nakama-public-brand { justify-content: flex-start; }
+.public-estimate { background: linear-gradient(135deg, #071d35, #0c345c); }
+.public-card { border-top: 5px solid var(--nakama-red); }
+.decision-actions .accept { background: var(--nakama-navy); }
+
+@media (max-width: 1180px) {
+  .nakama-actions { grid-template-columns: repeat(3, 1fr); }
+  .nakama-hero { grid-template-columns: 1fr .8fr; }
+  .hero-values { gap: 12px; }
+}
+@media (max-width: 900px) {
+  .nakama-hero { grid-template-columns: 1fr; }
+  .nakama-hero-car { display: none; }
+  .nakama-actions { grid-template-columns: repeat(2,1fr); }
+  .dashboard-search { width: 100%; }
+}
+@media (max-width: 720px) {
+  .nakama-theme .workspace { padding: 14px 12px 32px; }
+  .nakama-topbar { flex-direction: column; align-items: stretch; }
+  .dashboard-search { width: 100%; }
+  .nakama-hero { min-height: 250px; }
+  .nakama-hero-copy { padding: 28px 22px; }
+  .nakama-hero h1 { font-size: 40px; }
+  .italy-line { width: 230px; }
+  .hero-subtitle { font-size: 15px; }
+  .hero-values { font-size: 9px; }
+  .nakama-actions { grid-template-columns: 1fr; }
+  .nakama-action { min-height: 66px; }
+}
