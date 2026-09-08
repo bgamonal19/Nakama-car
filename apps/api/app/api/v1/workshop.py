@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
 from app.models.estimating import Estimate, EstimateStatus
-from app.models.garage import RepairCase
+from app.models.garage import RepairCase, RepairCaseStatus
 from app.models.workshop import WorkOrder, WorkOrderStatus, WorkOrderTask
 from app.schemas.workshop import WorkOrderCreate, WorkOrderRead, WorkOrderStatusUpdate, WorkTaskCreate, WorkTaskRead, WorkTaskStatusUpdate
 from app.security.context import AuthContext, require_permission
@@ -169,6 +169,14 @@ def update_work_order_status(
         raise HTTPException(status_code=404, detail="Work order not found")
     old_status = order.status.value
     order.status = payload.status
+    repair_case = db.scalar(
+        select(RepairCase).where(
+            RepairCase.id == order.repair_case_id,
+            RepairCase.tenant_id == auth.tenant_id,
+        )
+    )
+    if repair_case is not None:
+        repair_case.status = RepairCaseStatus(payload.status.value)
     record_audit(
         db,
         tenant_id=auth.tenant_id,
