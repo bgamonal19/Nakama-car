@@ -14,7 +14,7 @@ export default function PratichePage() {
     apiFetch("/cases").then(async r => { if (r.ok) setItems(await r.json()); }).finally(() => setLoading(false));
   }, []);
   return (
-    <SectionShell title="Pratiche" eyebrow="ACCETTAZIONE E RIPARAZIONI" actions={<a className="primary link-button" href="/">+ Nuova pratica</a>}>
+    <SectionShell title="Pratiche" eyebrow="ACCETTAZIONE E RIPARAZIONI" actions={<a className="primary link-button" href="/?new=practice">+ Nuova pratica</a>}>
       {!getAccessToken() && <div className="empty-state">Accedi per visualizzare le pratiche salvate. <a href="/login">Accedi</a></div>}
       {getAccessToken() && <div className="panel list-panel">
         <div className="data-table head"><span>Pratica</span><span>Targa / Veicolo</span><span>Cliente</span><span>Km</span><span>Stato</span></div>
