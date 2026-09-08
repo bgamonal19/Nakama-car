@@ -14,7 +14,6 @@ depends_on = None
 def upgrade() -> None:
     customer_type = sa.Enum("PRIVATE", "COMPANY", name="customer_type")
     case_status = sa.Enum("NEW","WAITING_APPROVAL","APPROVED","WAITING_PARTS","IN_REPAIR","PAINTING","ASSEMBLY","QUALITY_CONTROL","READY","DELIVERED","INVOICED", name="repair_case_status")
-    customer_type.create(op.get_bind(), checkfirst=True)
     case_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table("customers",
