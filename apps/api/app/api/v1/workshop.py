@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.estimating import Estimate
+from app.models.estimating import Estimate, EstimateStatus
 from app.models.garage import RepairCase
 from app.models.workshop import WorkOrder
 from app.schemas.workshop import WorkOrderCreate, WorkOrderRead, WorkOrderStatusUpdate
@@ -55,6 +55,54 @@ def create_work_order(
     db.refresh(order)
     return order
 
+
+
+
+@router.post("/from-estimate/{estimate_id}", response_model=WorkOrderRead, status_code=status.HTTP_201_CREATED)
+def create_work_order_from_estimate(
+    estimate_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("work_order.update_status")),
+):
+    estimate = db.scalar(
+        select(Estimate).where(
+            Estimate.id == estimate_id,
+            Estimate.tenant_id == auth.tenant_id,
+        )
+    )
+    if estimate is None:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+    if estimate.status != EstimateStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Estimate must be approved first")
+
+    existing = db.scalar(
+        select(WorkOrder).where(
+            WorkOrder.tenant_id == auth.tenant_id,
+            WorkOrder.estimate_id == estimate.id,
+        )
+    )
+    if existing is not None:
+        return existing
+
+    year = datetime.now(timezone.utc).year
+    count = db.scalar(
+        select(func.count(WorkOrder.id)).where(
+            WorkOrder.tenant_id == auth.tenant_id,
+            WorkOrder.work_order_number.like(f"NC-ODL-{year}-%"),
+        )
+    ) or 0
+    order = WorkOrder(
+        tenant_id=auth.tenant_id,
+        repair_case_id=estimate.repair_case_id,
+        estimate_id=estimate.id,
+        work_order_number=f"NC-ODL-{year}-{count + 1:06d}",
+        status="APPROVED",
+        priority="NORMAL",
+    )
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return order
 
 @router.get("", response_model=list[WorkOrderRead])
 def list_work_orders(
