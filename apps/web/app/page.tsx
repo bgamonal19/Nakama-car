@@ -117,6 +117,9 @@ export default function HomePage() {
   ]);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "practice") {
+      setWizardOpen(true);
+    }
     setAuthenticated(Boolean(getAccessToken()));
     const api = process.env.NEXT_PUBLIC_API_URL;
     if (!api) return setApiOnline(false);
@@ -484,7 +487,7 @@ export default function HomePage() {
 
         <div className="nakama-actions">
           <button className="nakama-action blue" onClick={() => setWizardOpen(true)}><b>▤</b><span><strong>Nuova Pratica</strong><small>Apri una nuova pratica</small></span></button>
-          <a className="nakama-action green" href="/preventivi"><b>▦</b><span><strong>Nuovo Preventivo</strong><small>Crea un preventivo</small></span></a>
+          <button className="nakama-action green" onClick={() => setWizardOpen(true)}><b>▦</b><span><strong>Nuovo Preventivo</strong><small>Crea un preventivo</small></span></button>
           <a className="nakama-action red" href="/lavori"><b>⌁</b><span><strong>Ordine di Lavoro</strong><small>Invia in officina</small></span></a>
           <a className="nakama-action white" href="/clienti"><b>◎</b><span><strong>Nuovo Cliente</strong><small>Gestisci anagrafica</small></span></a>
           <a className="nakama-action white" href="/veicoli"><b>◇</b><span><strong>Nuovo Veicolo</strong><small>Consulta veicoli</small></span></a>
@@ -556,13 +559,13 @@ export default function HomePage() {
 
       {wizardOpen && (
         <div className="modal-backdrop">
-          <div className="wizard">
+          <div className="wizard" role="dialog" aria-modal="true" aria-labelledby="intake-title">
             <div className="wizard-head">
               <div>
                 <p className="eyebrow">NUOVA PRATICA</p>
-                <h2>{steps[step]}</h2>
+                <h2 id="intake-title">{steps[step]}</h2>
               </div>
-              <button className="close" onClick={() => setWizardOpen(false)}>×</button>
+              <button className="close" aria-label="Chiudi nuova pratica" onClick={() => setWizardOpen(false)}>×</button>
             </div>
 
             <div className="stepper">
