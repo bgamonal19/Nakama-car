@@ -11,6 +11,7 @@ from app.models.garage import RepairCase
 from app.models.workshop import WorkOrder, WorkOrderStatus
 from app.schemas.workshop import WorkOrderCreate, WorkOrderRead, WorkOrderStatusUpdate
 from app.security.context import AuthContext, require_permission
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/work-orders", tags=["work-orders"])
 
@@ -132,7 +133,19 @@ def update_work_order_status(
     )
     if order is None:
         raise HTTPException(status_code=404, detail="Work order not found")
+    old_status = order.status.value
     order.status = payload.status
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="work_order",
+        entity_id=order.id,
+        action="status_changed",
+        field_name="status",
+        old_value=old_status,
+        new_value=payload.status.value,
+    )
     db.commit()
     db.refresh(order)
     return order
