@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
+import { NakamaLogo } from "../../components/NakamaLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export default function LoginPage() {
   return (
     <main className="auth-screen">
       <div className="auth-card">
-        <div className="public-brand"><div className="brand-mark dark">N</div><div><strong>NAKAMA CAR</strong><span>ESTIMATE · ONE SISTEM</span></div></div>
+        <div className="public-brand nakama-auth-brand"><NakamaLogo /></div>
         <div className="auth-copy"><p className="eyebrow">ACCESSO OPERATORE</p><h1>Accedi alla carrozzeria</h1><p>Gestisci pratiche, preventivi, lavorazioni e fatturazione.</p></div>
         <form onSubmit={submit} className="auth-form">
           <label>Email<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
