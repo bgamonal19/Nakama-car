@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
+import { NakamaLogo } from "../../components/NakamaLogo";
 
 export default function SetupPage() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function SetupPage() {
   return (
     <main className="auth-screen">
       <div className="auth-card setup-card">
-        <div className="public-brand"><div className="brand-mark dark">N</div><div><strong>NAKAMA CAR</strong><span>INITIAL SETUP · ONE SISTEM</span></div></div>
+        <div className="public-brand nakama-auth-brand"><NakamaLogo /></div>
         <div className="auth-copy"><p className="eyebrow">PRIMO AVVIO</p><h1>Inizializza il tenant pilota</h1><p>Questa operazione è consentita una sola volta e richiede il BOOTSTRAP_TOKEN configurato sul backend.</p></div>
         <form onSubmit={submit} className="auth-form setup-form">
           <label className="span-2">Bootstrap token<input required type="password" value={token} onChange={(e) => setToken(e.target.value)} /></label>

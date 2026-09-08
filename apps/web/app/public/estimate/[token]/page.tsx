@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import { NakamaLogo } from "../../../../components/NakamaLogo";
 
 type PublicEstimate = {
   estimate_number: string;
@@ -69,7 +70,7 @@ export default function PublicEstimatePage() {
   return (
     <main className="public-estimate">
       <div className="public-card">
-        <div className="public-brand"><div className="brand-mark">N</div><div><strong>NAKAMA CAR</strong><span>ESTIMATE · ONE SISTEM</span></div></div>
+        <div className="public-brand nakama-public-brand"><NakamaLogo /></div>
         <div className="public-head">
           <div><small>PREVENTIVO</small><h1>{estimate.estimate_number}</h1></div>
           <span className="public-status">{estimate.status}</span>
