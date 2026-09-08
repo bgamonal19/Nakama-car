@@ -135,6 +135,19 @@ def create_estimate(
     return estimate
 
 
+@router.get("/estimates", response_model=list[EstimateRead])
+def list_estimates(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("estimate.read")),
+):
+    return db.scalars(
+        select(Estimate)
+        .where(Estimate.tenant_id == auth.tenant_id)
+        .order_by(Estimate.created_at.desc())
+        .limit(200)
+    ).all()
+
+
 @router.get("/estimates/{estimate_id}", response_model=EstimateRead)
 def get_estimate(
     estimate_id: UUID,
