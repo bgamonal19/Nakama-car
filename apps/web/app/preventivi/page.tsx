@@ -35,10 +35,15 @@ export default function PreventiviPage(){
   if(!r.ok){const d=await r.json().catch(()=>({}));return alert(d.detail||"Impossibile creare ordine di lavoro");}
   const order=await r.json();alert(`Ordine ${order.work_order_number} creato.`);
  }
+ async function createInvoice(id:string){
+  const r=await apiFetch("/invoices",{method:"POST",body:JSON.stringify({estimate_id:id})});
+  if(!r.ok){const d=await r.json().catch(()=>({}));return alert(d.detail||"Impossibile creare fattura");}
+  const invoice=await r.json();alert(`Fattura ${invoice.invoice_number} creata.`);
+ }
  return <SectionShell title="Preventivi" eyebrow="ESTIMATING ENGINE">
   {!getAccessToken()?<div className="empty-state">Accedi per visualizzare i preventivi. <a href="/login">Accedi</a></div>:<div className="panel list-panel">
    <div className="data-table estimates head"><span>Preventivo</span><span>Stato</span><span>Versione</span><span>Imponibile</span><span>IVA</span><span>Totale</span><span>Azioni</span></div>
-   {items.length===0?<div className="empty-state">Nessun preventivo.</div>:items.map(x=><div className="data-table estimates" key={x.id}><strong>{x.estimate_number}</strong><span className="status-chip">{x.status}</span><span>v{x.version}</span><span>{money(x.subtotal)}</span><span>{money(x.vat_total)}</span><strong>{money(x.total)}</strong><span className="table-actions"><button onClick={()=>pdf(x.id)}>PDF</button><button onClick={()=>share(x.id)}>Invia</button>{x.status!=="APPROVED"&&<button onClick={()=>approve(x.id)}>Approva</button>}<button onClick={()=>createWorkOrder(x.id)}>ODL</button></span></div>)}
+   {items.length===0?<div className="empty-state">Nessun preventivo.</div>:items.map(x=><div className="data-table estimates" key={x.id}><strong>{x.estimate_number}</strong><span className="status-chip">{x.status}</span><span>v{x.version}</span><span>{money(x.subtotal)}</span><span>{money(x.vat_total)}</span><strong>{money(x.total)}</strong><span className="table-actions"><button onClick={()=>pdf(x.id)}>PDF</button><button onClick={()=>share(x.id)}>Invia</button>{x.status!=="APPROVED"&&<button onClick={()=>approve(x.id)}>Approva</button>}<button onClick={()=>createWorkOrder(x.id)}>ODL</button><button onClick={()=>createInvoice(x.id)}>Fattura</button></span></div>)}
   </div>}
  </SectionShell>;
 }
