@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
 from app.models.garage import Customer, RepairCase, Vehicle
-from app.schemas.garage import RepairCaseCreate, RepairCaseRead
+from app.schemas.garage import RepairCaseCreate, RepairCaseListItem, RepairCaseRead
 from app.security.context import AuthContext, require_permission
 
 router = APIRouter(prefix="/cases", tags=["repair-cases"])
@@ -54,3 +54,35 @@ def create_repair_case(
     db.commit()
     db.refresh(repair_case)
     return repair_case
+
+
+@router.get("", response_model=list[RepairCaseListItem])
+def list_repair_cases(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("case.read")),
+):
+    rows = db.execute(
+        select(RepairCase, Vehicle, Customer)
+        .join(Vehicle, Vehicle.id == RepairCase.vehicle_id)
+        .join(Customer, Customer.id == RepairCase.customer_id)
+        .where(
+            RepairCase.tenant_id == auth.tenant_id,
+            Vehicle.tenant_id == auth.tenant_id,
+            Customer.tenant_id == auth.tenant_id,
+        )
+        .order_by(RepairCase.created_at.desc())
+        .limit(200)
+    ).all()
+
+    return [
+        RepairCaseListItem(
+            id=case.id,
+            case_number=case.case_number,
+            status=case.status,
+            plate=vehicle.license_plate,
+            vehicle_name=" ".join(filter(None, [vehicle.make, vehicle.model, vehicle.version])) or "Veicolo",
+            customer_name=customer.company_name or f"{customer.first_name or ''} {customer.last_name or ''}".strip() or "Cliente",
+            mileage=case.mileage,
+        )
+        for case, vehicle, customer in rows
+    ]
