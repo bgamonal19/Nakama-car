@@ -37,6 +37,20 @@ DEFAULT_ROLES = [
     "ADMIN", "RECEPTION", "BODYSHOP", "PAINTER", "MECHANIC", "ACCOUNTING"
 ]
 
+ROLE_PERMISSION_CODES = {
+    "ADMIN": DEFAULT_PERMISSIONS,
+    "RECEPTION": [
+        "customer.read", "customer.write", "vehicle.read", "vehicle.write",
+        "case.create", "case.read", "case.update",
+        "estimate.create", "estimate.read",
+        "work_order.read",
+    ],
+    "BODYSHOP": ["case.read", "case.update", "estimate.read", "work_order.read", "work_order.update_status"],
+    "PAINTER": ["case.read", "case.update", "estimate.read", "work_order.read", "work_order.update_status"],
+    "MECHANIC": ["case.read", "case.update", "estimate.read", "work_order.read", "work_order.update_status"],
+    "ACCOUNTING": ["customer.read", "estimate.read", "invoice.read", "invoice.create"],
+}
+
 
 def effective_permissions(db: Session, user_id, tenant_id) -> list[str]:
     rows = db.execute(
@@ -122,9 +136,17 @@ def bootstrap(
         db.flush()
         roles[code] = role
 
+    for role_code, permission_codes in ROLE_PERMISSION_CODES.items():
+        role = roles[role_code]
+        for permission_code in permission_codes:
+            db.add(
+                RolePermission(
+                    role_id=role.id,
+                    permission_id=permissions_by_code[permission_code].id,
+                )
+            )
+
     admin_role = roles["ADMIN"]
-    for permission in permissions_by_code.values():
-        db.add(RolePermission(role_id=admin_role.id, permission_id=permission.id))
 
     user = User(
         email=payload.admin_email.lower(),
