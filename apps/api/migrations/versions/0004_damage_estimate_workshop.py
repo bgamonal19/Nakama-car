@@ -27,7 +27,6 @@ def upgrade() -> None:
         name="work_order_status",
     )
 
-    for enum in (damage_operation, labor_type, estimate_status, estimate_line_category, work_order_status):
 
     op.create_table(
         "vehicle_areas",
