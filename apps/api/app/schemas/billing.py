@@ -22,3 +22,7 @@ class InvoiceRead(BaseModel):
     total: Decimal
     notes: str | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class InvoiceStatusUpdate(BaseModel):
+    status: InvoiceStatus
