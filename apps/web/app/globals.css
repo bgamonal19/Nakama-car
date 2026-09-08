@@ -341,3 +341,9 @@ h2, h3 { margin: 0; letter-spacing: -.02em; }
 .add-task { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px; border-top: 1px solid #e5e7ea; }
 .add-task input { border: 1px solid #d9dce0; border-radius: 8px; padding: 9px 10px; outline: none; font-size: 10px; }
 .add-task button { border: 1px solid #d8dce0; background: white; border-radius: 8px; padding: 0 12px; font-size: 9px; font-weight: 700; cursor: pointer; }
+
+
+.quick-link { text-decoration: none; color: inherit; }
+.kanban-link { text-decoration: none; color: inherit; transition: transform .15s ease, box-shadow .15s ease; }
+.kanban-link:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(17,19,22,.07); }
+.kanban-empty { grid-column: 1 / -1; padding: 24px; border: 1px dashed #d8dce0; border-radius: 12px; color: #7c8188; font-size: 11px; text-align: center; background: #fafbfb; }
