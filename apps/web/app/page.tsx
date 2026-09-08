@@ -261,6 +261,34 @@ export default function HomePage() {
       let savedVehicle: { id: string };
 
       if (existingVehicleId && existingCustomerId) {
+        const [customerUpdateResponse, vehicleUpdateResponse] = await Promise.all([
+          apiFetch(`/customers/${existingCustomerId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              first_name: customer.firstName || null,
+              last_name: customer.lastName || null,
+              company_name: customer.company || null,
+              vat_number: customer.vat || null,
+              phone: customer.phone || null,
+              email: customer.email || null,
+            }),
+          }),
+          apiFetch(`/vehicles/${existingVehicleId}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              vin: vehicle.vin || null,
+              make: vehicle.make || null,
+              model: vehicle.model || null,
+              version: vehicle.version || null,
+              year: vehicle.year ? Number(vehicle.year) : null,
+              mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+              color_name: vehicle.color || null,
+              paint_code: vehicle.paintCode || null,
+            }),
+          }),
+        ]);
+        if (!customerUpdateResponse.ok) throw new Error("Errore aggiornamento cliente");
+        if (!vehicleUpdateResponse.ok) throw new Error("Errore aggiornamento veicolo");
         savedCustomer = { id: existingCustomerId };
         savedVehicle = { id: existingVehicleId };
       } else {
