@@ -14,7 +14,6 @@ depends_on = None
 
 def upgrade() -> None:
     task_status = sa.Enum("PENDING", "IN_PROGRESS", "DONE", "BLOCKED", name="work_task_status")
-    task_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "work_order_tasks",
