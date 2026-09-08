@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.models.billing import Invoice, InvoiceLine, InvoiceStatus
 from app.models.estimating import Estimate, EstimateLine
+from app.models.garage import RepairCase, RepairCaseStatus
 from app.schemas.billing import InvoiceCreateFromEstimate, InvoiceRead, InvoiceStatusUpdate
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
@@ -133,6 +134,15 @@ def update_invoice_status(
         raise HTTPException(status_code=404, detail="Invoice not found")
     old_status = invoice.status.value
     invoice.status = payload.status
+    if payload.status == InvoiceStatus.ISSUED:
+        repair_case = db.scalar(
+            select(RepairCase).where(
+                RepairCase.id == invoice.repair_case_id,
+                RepairCase.tenant_id == auth.tenant_id,
+            )
+        )
+        if repair_case is not None:
+            repair_case.status = RepairCaseStatus.INVOICED
     record_audit(
         db,
         tenant_id=auth.tenant_id,
