@@ -14,7 +14,6 @@ depends_on = None
 
 def upgrade() -> None:
     invoice_status = sa.Enum("DRAFT", "ISSUED", "PAID", "CANCELLED", name="invoice_status")
-    invoice_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "estimate_approvals",
