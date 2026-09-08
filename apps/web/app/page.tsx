@@ -85,6 +85,7 @@ function money(value: number) {
 
 export default function HomePage() {
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [heroImageSrc, setHeroImageSrc] = useState("/brand/nakama-workshop.webp");
   const [step, setStep] = useState(0);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
@@ -115,6 +116,30 @@ export default function HomePage() {
       vatRate: 22,
     },
   ]);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      [1, 2, 3, 4, 5, 6].map((part) =>
+        fetch(`/brand/hero-chunks/${part}.txt`).then((response) => {
+          if (!response.ok) throw new Error("Hero image chunk unavailable");
+          return response.text();
+        })
+      )
+    )
+      .then((parts) => {
+        if (!cancelled) {
+          setHeroImageSrc(`data:image/webp;base64,${parts.join("").replace(/\s+/g, "")}`);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setHeroImageSrc("/brand/nakama-workshop.webp");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setAuthenticated(Boolean(getAccessToken()));
@@ -472,7 +497,7 @@ export default function HomePage() {
         </header>
 
         <section className="nakama-hero photo-hero">
-          <img src="/brand/nakama-workshop.webp" alt="Carrozzeria NAKAMA CAR" className="photo-hero-image" />
+          <img src={heroImageSrc} alt="Carrozzeria NAKAMA CAR" className="photo-hero-image" />
           <div className="photo-hero-shade" />
           <div className="photo-hero-content">
             <p className="eyebrow">BENVENUTO IN</p>
