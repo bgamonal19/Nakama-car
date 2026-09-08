@@ -51,7 +51,10 @@ export default function LavoriPage() {
 
   async function loadTasks(orderId: string) {
     const r = await apiFetch(`/work-orders/${orderId}/tasks`);
-    if (r.ok) setTasks((prev) => ({ ...prev, [orderId]: await r.json() }));
+    if (r.ok) {
+      const data: Task[] = await r.json();
+      setTasks((prev) => ({ ...prev, [orderId]: data }));
+    }
   }
 
   async function toggle(orderId: string) {
