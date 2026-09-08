@@ -6,8 +6,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.billing import Invoice, InvoiceStatus
-from app.models.estimating import Estimate
+from app.models.billing import Invoice, InvoiceLine, InvoiceStatus
+from app.models.estimating import Estimate, EstimateLine
 from app.schemas.billing import InvoiceCreateFromEstimate, InvoiceRead, InvoiceStatusUpdate
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
@@ -58,6 +58,46 @@ def create_invoice_from_estimate(
         notes=payload.notes,
     )
     db.add(invoice)
+    db.flush()
+
+    estimate_lines = db.scalars(
+        select(EstimateLine)
+        .where(
+            EstimateLine.estimate_id == estimate.id,
+            EstimateLine.tenant_id == auth.tenant_id,
+        )
+        .order_by(EstimateLine.created_at)
+    ).all()
+    for line in estimate_lines:
+        db.add(
+            InvoiceLine(
+                tenant_id=auth.tenant_id,
+                invoice_id=invoice.id,
+                description=line.description,
+                quantity=line.quantity,
+                unit_price=line.line_subtotal / line.quantity if line.quantity else line.line_subtotal,
+                vat_rate=line.vat_rate,
+                line_subtotal=line.line_subtotal,
+                line_vat=line.line_vat,
+                line_total=line.line_total,
+            )
+        )
+
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="invoice",
+        entity_id=invoice.id,
+        action="created",
+        new_value={
+            "invoice_number": invoice.invoice_number,
+            "estimate_id": str(estimate.id),
+            "subtotal": str(invoice.subtotal),
+            "vat_total": str(invoice.vat_total),
+            "total": str(invoice.total),
+        },
+    )
     db.commit()
     db.refresh(invoice)
     return invoice
