@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, getAccessToken } from "../lib/api";
+import { NakamaLogo } from "../components/NakamaLogo";
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 
@@ -437,62 +438,77 @@ export default function HomePage() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell nakama-theme">
       <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">N</div>
-          <div>
-            <strong>NAKAMA CAR</strong>
-            <span>ESTIMATE</span>
-          </div>
-        </div>
+        <a className="brand brand-link nakama-sidebar-brand" href="/">
+          <NakamaLogo />
+        </a>
 
         <nav>
           <a className="nav-item active" href="/">▦ Dashboard</a>
-          <a className="nav-item" href="/pratiche">▤ Pratiche</a>
-          <a className="nav-item" href="/preventivi">€ Preventivi</a>
-          <a className="nav-item" href="/lavori">⌁ Ordini di lavoro</a>
           <a className="nav-item" href="/clienti">◎ Clienti</a>
           <a className="nav-item" href="/veicoli">◇ Veicoli</a>
+          <a className="nav-item" href="/pratiche">▤ Pratiche</a>
+          <a className="nav-item" href="/preventivi">€ Preventivi</a>
+          <a className="nav-item" href="/lavori">⌁ Lavori in officina</a>
           <a className="nav-item" href="/fatture">◫ Fatture</a>
         </nav>
 
         <div className="sidebar-bottom">
-          <a className="nav-item" href="/configurazione">⚙ Configurazione</a>
+          <a className="nav-item" href="/configurazione">⚙ Impostazioni</a>
           <a className="nav-item" href="/audit">◷ Audit log</a>
-          <div className="pilot-badge">Pilot • NAKAMA CAR</div>
+          <div className="nakama-location"><strong>NAKAMA CAR</strong><span>Bussnago · Lombardia</span><i><b></b><b></b><b></b></i></div>
         </div>
       </aside>
 
       <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">ONE SISTEM · CARROZZERIA MANAGEMENT</p>
-            <h1>Dashboard operativo</h1>
-          </div>
+        <header className="topbar nakama-topbar">
+          <div className="dashboard-search">⌕ <span>Cerca cliente, veicolo, pratica...</span></div>
           <div className="top-actions">
-            <div className={`api-pill ${apiOnline ? "online" : apiOnline === false ? "offline" : ""}`}>
-              <span />
-              {apiOnline === null ? "API..." : apiOnline ? "API online" : "API offline"}
-            </div>
+            <div className={`api-pill ${apiOnline ? "online" : apiOnline === false ? "offline" : ""}`}><span />{apiOnline === null ? "API..." : apiOnline ? "Online" : "Offline"}</div>
             {authenticated ? <div className="session-pill">Sessione attiva</div> : <a className="login-link" href="/login">Accedi</a>}
-            <button className="primary" onClick={() => setWizardOpen(true)}>+ Nuova pratica</button>
           </div>
         </header>
 
-        <div className="kpi-grid">
-          <div className="kpi-card"><span>Pratiche aperte</span><strong>{dashboard?.open_cases ?? 12}</strong><small>{authenticated ? "Dati live del tenant" : "Demo pilot"}</small></div>
+        <section className="nakama-hero">
+          <div className="nakama-hero-copy">
+            <p className="eyebrow hero-eyebrow">BENVENUTO IN</p>
+            <h1>NAKAMA <span>CAR</span></h1>
+            <div className="italy-line"><b></b><b></b><b></b></div>
+            <p className="hero-subtitle">Carrozzeria e servizi auto<br/>Qualità in ogni dettaglio</p>
+            <div className="hero-values"><span>◈ Professionalità</span><span>✦ Qualità</span><span>◎ Affidabilità</span><span>♙ Cliente al centro</span></div>
+          </div>
+          <div className="nakama-hero-car" aria-hidden="true">
+            <svg viewBox="0 0 720 280">
+              <path d="M76 196c27-64 87-96 181-109l185-10c68 1 118 26 160 65l63 15c24 6 39 23 43 50H642c-8-31-31-50-65-50-35 0-59 18-68 50H205c-9-31-32-50-66-50-34 0-58 18-66 50H38c5-5 18-9 38-11z" fill="rgba(255,255,255,.92)"/>
+              <path d="M207 102l73-52h153l93 70-319-18z" fill="rgba(255,255,255,.28)"/>
+              <circle cx="139" cy="209" r="36" fill="#071b2f"/><circle cx="139" cy="209" r="18" fill="#ced7df"/>
+              <circle cx="577" cy="209" r="36" fill="#071b2f"/><circle cx="577" cy="209" r="18" fill="#ced7df"/>
+              <path d="M515 93l-43-34h-92l24 39z" fill="rgba(11,42,74,.85)"/>
+              <path d="M208 167h105M330 167h121" stroke="#ef2438" strokeWidth="5" strokeLinecap="round"/>
+            </svg>
+            <div className="hero-signature">La tua auto, in buone mani</div>
+          </div>
+        </section>
+
+        <div className="nakama-actions">
+          <button className="nakama-action blue" onClick={() => setWizardOpen(true)}><b>▤</b><span><strong>Nuova Pratica</strong><small>Apri una nuova pratica</small></span></button>
+          <a className="nakama-action green" href="/preventivi"><b>▦</b><span><strong>Nuovo Preventivo</strong><small>Crea un preventivo</small></span></a>
+          <a className="nakama-action red" href="/lavori"><b>⌁</b><span><strong>Ordine di Lavoro</strong><small>Invia in officina</small></span></a>
+          <a className="nakama-action white" href="/clienti"><b>◎</b><span><strong>Nuovo Cliente</strong><small>Gestisci anagrafica</small></span></a>
+          <a className="nakama-action white" href="/veicoli"><b>◇</b><span><strong>Nuovo Veicolo</strong><small>Consulta veicoli</small></span></a>
+        </div>
+
+        <div className="kpi-grid nakama-kpis">
+          <div className="kpi-card"><span>Pratiche aperte</span><strong>{dashboard?.open_cases ?? 12}</strong><small>{authenticated ? "Dati live NAKAMA CAR" : "Demo pilot"}</small></div>
           <div className="kpi-card"><span>In attesa approvazione</span><strong>{dashboard?.waiting_approval ?? 5}</strong><small>Preventivi da seguire</small></div>
-          <div className="kpi-card"><span>In lavorazione</span><strong>{dashboard?.in_progress ?? 4}</strong><small>Carrozzeria / verniciatura</small></div>
+          <div className="kpi-card"><span>Lavori in corso</span><strong>{dashboard?.in_progress ?? 4}</strong><small>Carrozzeria / verniciatura</small></div>
           <div className="kpi-card"><span>Pronte consegna</span><strong>{dashboard?.ready ?? 3}</strong><small>Da contattare</small></div>
         </div>
 
         <div className="content-grid">
           <div className="panel">
-            <div className="panel-head">
-              <div><h2>Pratiche recenti</h2><p>Ultime lavorazioni della carrozzeria</p></div>
-              <a className="ghost link-button" href="/pratiche">Vedi tutte</a>
-            </div>
+            <div className="panel-head"><div><h2>Ultime pratiche</h2><p>Attività recenti della carrozzeria</p></div><a className="ghost link-button" href="/pratiche">Vedi tutte →</a></div>
             <div className="practice-table">
               {(dashboard?.recent_practices?.length ? dashboard.recent_practices : demoPractices).map((p) => (
                 <div className="practice-row" key={p.code}>
@@ -506,26 +522,20 @@ export default function HomePage() {
           </div>
 
           <div className="panel quick-panel">
-            <div className="panel-head"><div><h2>Azioni rapide</h2><p>Flusso reception</p></div></div>
+            <div className="panel-head"><div><h2>Reception rapida</h2><p>Accessi principali</p></div></div>
             <button className="quick-action" onClick={() => setWizardOpen(true)}><b>01</b><span><strong>Nuova pratica</strong><small>Targa, cliente, foto e danni</small></span><em>→</em></button>
             <a className="quick-action quick-link" href="/preventivi"><b>02</b><span><strong>Preventivi</strong><small>Ricambi, ore e verniciatura</small></span><em>→</em></a>
-            <a className="quick-action quick-link" href="/lavori"><b>03</b><span><strong>Ordini di lavoro</strong><small>Gestisci lo stato officina</small></span><em>→</em></a>
+            <a className="quick-action quick-link" href="/lavori"><b>03</b><span><strong>Officina</strong><small>Gestisci stato e attività</small></span><em>→</em></a>
           </div>
         </div>
 
         <div className="panel workshop-panel">
-          <div className="panel-head">
-            <div><h2>Stato officina</h2><p>Vista sintetica delle lavorazioni attive</p></div>
-          </div>
+          <div className="panel-head"><div><h2>Stato officina</h2><p>Vista sintetica delle lavorazioni attive</p></div><a className="ghost link-button" href="/lavori">Apri officina →</a></div>
           <div className="kanban">
             {authenticated && workOrders.length === 0 ? (
               <div className="kanban-empty">Nessun ordine di lavoro attivo. Approva un preventivo e trasformalo in ODL.</div>
             ) : (workOrders.length ? workOrders.slice(0, 4).map((order) => (
-              <a className="kanban-card kanban-link" href="/lavori" key={order.id}>
-                <small>{order.status.replaceAll("_", " ")}</small>
-                <strong>{order.work_order_number}</strong>
-                <span>Priorità {order.priority}</span>
-              </a>
+              <a className="kanban-card kanban-link" href="/lavori" key={order.id}><small>{order.status.replaceAll("_", " ")}</small><strong>{order.work_order_number}</strong><span>Priorità {order.priority}</span></a>
             )) : [
               ["ATTESA RICAMBI", "FK318ST", "Fiat 500X"],
               ["IN RIPARAZIONE", "GP742LM", "BMW Serie 3"],
