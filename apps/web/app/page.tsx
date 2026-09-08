@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch, getAccessToken } from "../lib/api";
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 
@@ -69,6 +70,8 @@ export default function HomePage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [plate, setPlate] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
   const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
@@ -92,6 +95,7 @@ export default function HomePage() {
   ]);
 
   useEffect(() => {
+    setAuthenticated(Boolean(getAccessToken()));
     const api = process.env.NEXT_PUBLIC_API_URL;
     if (!api) return setApiOnline(false);
     fetch(`${api}/health`)
@@ -149,13 +153,111 @@ export default function HomePage() {
     setLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)));
   }
 
-  function savePilotPractice() {
-    const payload = { plate, customer, vehicle, photos: Object.keys(photos), damages, lines, totals, createdAt: new Date().toISOString() };
-    const previous = JSON.parse(localStorage.getItem("nakama-pilot-practices") || "[]");
-    localStorage.setItem("nakama-pilot-practices", JSON.stringify([payload, ...previous]));
-    alert("Pratica salvata nel pilot locale. La persistenza API sarà attivata con l'accesso utenti.");
-    setWizardOpen(false);
-    resetWizard();
+  async function savePilotPractice() {
+    if (!getAccessToken()) {
+      const payload = { plate, customer, vehicle, photos: Object.keys(photos), damages, lines, totals, createdAt: new Date().toISOString() };
+      const previous = JSON.parse(localStorage.getItem("nakama-pilot-practices") || "[]");
+      localStorage.setItem("nakama-pilot-practices", JSON.stringify([payload, ...previous]));
+      alert("Pratica salvata in modalità pilot locale. Accedi per salvarla nel database.");
+      setWizardOpen(false);
+      resetWizard();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const customerResponse = await apiFetch("/customers", {
+        method: "POST",
+        body: JSON.stringify({
+          customer_type: customer.company ? "COMPANY" : "PRIVATE",
+          first_name: customer.firstName || null,
+          last_name: customer.lastName || null,
+          company_name: customer.company || null,
+          vat_number: customer.vat || null,
+          phone: customer.phone || null,
+          email: customer.email || null,
+          country: "IT",
+        }),
+      });
+      if (!customerResponse.ok) throw new Error((await customerResponse.json()).detail || "Errore cliente");
+      const savedCustomer = await customerResponse.json();
+
+      const vehicleResponse = await apiFetch("/vehicles", {
+        method: "POST",
+        body: JSON.stringify({
+          customer_id: savedCustomer.id,
+          license_plate: plate,
+          vin: vehicle.vin || null,
+          make: vehicle.make || null,
+          model: vehicle.model || null,
+          version: vehicle.version || null,
+          year: vehicle.year ? Number(vehicle.year) : null,
+          mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+          color_name: vehicle.color || null,
+          paint_code: vehicle.paintCode || null,
+        }),
+      });
+      if (!vehicleResponse.ok) throw new Error((await vehicleResponse.json()).detail || "Errore veicolo");
+      const savedVehicle = await vehicleResponse.json();
+
+      const caseResponse = await apiFetch("/cases", {
+        method: "POST",
+        body: JSON.stringify({
+          customer_id: savedCustomer.id,
+          vehicle_id: savedVehicle.id,
+          mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+          fuel_level_percent: Number(vehicle.fuel),
+          customer_notes: null,
+          internal_notes: Object.keys(photos).length ? `Foto raccolte nel pilot UI: ${Object.keys(photos).join(", ")}` : null,
+        }),
+      });
+      if (!caseResponse.ok) throw new Error((await caseResponse.json()).detail || "Errore pratica");
+      const savedCase = await caseResponse.json();
+
+      for (const [code, operation] of Object.entries(damages)) {
+        if (operation === "NO_DAMAGE") continue;
+        const damageResponse = await apiFetch(`/cases/${savedCase.id}/damages/${code}`, {
+          method: "PUT",
+          body: JSON.stringify({ vehicle_area_code: code, operation }),
+        });
+        if (!damageResponse.ok) throw new Error("Errore salvataggio danni");
+      }
+
+      const estimateResponse = await apiFetch("/estimates", {
+        method: "POST",
+        body: JSON.stringify({ repair_case_id: savedCase.id }),
+      });
+      if (!estimateResponse.ok) throw new Error((await estimateResponse.json()).detail || "Errore preventivo");
+      const savedEstimate = await estimateResponse.json();
+
+      for (const line of lines.filter((x) => x.description.trim())) {
+        const lineResponse = await apiFetch(`/estimates/${savedEstimate.id}/lines`, {
+          method: "POST",
+          body: JSON.stringify({
+            category: line.category,
+            description: line.description,
+            quantity: line.quantity,
+            unit_price: line.unitPrice,
+            discount_percent: 0,
+            labor_hours: line.laborHours,
+            labor_rate: line.laborRate,
+            paint_hours: line.paintHours,
+            paint_rate: line.paintRate,
+            materials: line.materials,
+            vat_rate: line.vatRate,
+          }),
+        });
+        if (!lineResponse.ok) throw new Error("Errore riga preventivo");
+      }
+
+      alert(`Pratica ${savedCase.case_number} salvata nel database. Preventivo ${savedEstimate.estimate_number} creato.`);
+      setWizardOpen(false);
+      resetWizard();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Errore durante il salvataggio");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -196,6 +298,7 @@ export default function HomePage() {
               <span />
               {apiOnline === null ? "API..." : apiOnline ? "API online" : "API offline"}
             </div>
+            {authenticated ? <div className="session-pill">Sessione attiva</div> : <a className="login-link" href="/login">Accedi</a>}
             <button className="primary" onClick={() => setWizardOpen(true)}>+ Nuova pratica</button>
           </div>
         </header>
@@ -399,7 +502,7 @@ export default function HomePage() {
                     <div><small>DANNI</small><strong>{selectedDamageCount}</strong></div>
                     <div><small>PREVENTIVO</small><strong>{money(totals.total)}</strong></div>
                   </div>
-                  <div className="pilot-note">Pilot: il salvataggio attuale usa il browser per permettere di testare subito il flusso UX. Il backend multi-tenant è già predisposto; autenticazione e persistenza completa sono il prossimo collegamento operativo.</div>
+                  <div className="pilot-note">{authenticated ? "Sessione autenticata: cliente, veicolo, pratica, danni e preventivo saranno salvati nel database multi-tenant." : "Modalità pilot: puoi testare tutto il flusso. Accedi per attivare il salvataggio nel database."}</div>
                 </div>
               )}
             </div>
@@ -410,7 +513,7 @@ export default function HomePage() {
                 {step < steps.length - 1 ? (
                   <button className="primary" onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}>Continua →</button>
                 ) : (
-                  <button className="primary" onClick={savePilotPractice}>Salva pratica</button>
+                  <button className="primary" onClick={savePilotPractice} disabled={saving}>{saving ? "Salvataggio…" : "Salva pratica"}</button>
                 )}
               </div>
             </div>
