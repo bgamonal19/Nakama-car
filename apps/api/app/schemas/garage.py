@@ -70,3 +70,13 @@ class RepairCaseRead(RepairCaseCreate):
     case_number: str
     status: RepairCaseStatus
     model_config = ConfigDict(from_attributes=True)
+
+
+class RepairCaseListItem(BaseModel):
+    id: UUID
+    case_number: str
+    status: RepairCaseStatus
+    plate: str
+    vehicle_name: str
+    customer_name: str
+    mileage: int | None = None
