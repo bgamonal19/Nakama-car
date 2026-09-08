@@ -334,17 +334,18 @@ export default function HomePage() {
         </div>
 
         <nav>
-          <button className="nav-item active">▦ Dashboard</button>
-          <button className="nav-item">▤ Pratiche</button>
-          <button className="nav-item">€ Preventivi</button>
-          <button className="nav-item">⌁ Ordini di lavoro</button>
-          <button className="nav-item">◎ Clienti</button>
-          <button className="nav-item">◇ Veicoli</button>
-          <button className="nav-item">◫ Fatture</button>
+          <a className="nav-item active" href="/">▦ Dashboard</a>
+          <a className="nav-item" href="/pratiche">▤ Pratiche</a>
+          <a className="nav-item" href="/preventivi">€ Preventivi</a>
+          <a className="nav-item" href="/lavori">⌁ Ordini di lavoro</a>
+          <a className="nav-item" href="/clienti">◎ Clienti</a>
+          <a className="nav-item" href="/veicoli">◇ Veicoli</a>
+          <a className="nav-item" href="/fatture">◫ Fatture</a>
         </nav>
 
         <div className="sidebar-bottom">
-          <button className="nav-item">⚙ Configurazione</button>
+          <a className="nav-item" href="/configurazione">⚙ Configurazione</a>
+          <a className="nav-item" href="/audit">◷ Audit log</a>
           <div className="pilot-badge">Pilot • NAKAMA CAR</div>
         </div>
       </aside>
