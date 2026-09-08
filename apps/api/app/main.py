@@ -1,12 +1,30 @@
+from contextlib import asynccontextmanager
+
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.router import api_router
 
+
+def upgrade_database() -> None:
+    """Keep the pilot database schema aligned even if Railway overrides Docker CMD."""
+    config = Config("alembic.ini")
+    command.upgrade(config, "head")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    upgrade_database()
+    yield
+
+
 app = FastAPI(
     title="NAKAMA CAR ESTIMATE API",
     version="0.2.0",
     description="Multi-tenant estimating platform developed by ONE SISTEM.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
