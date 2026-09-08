@@ -347,3 +347,8 @@ h2, h3 { margin: 0; letter-spacing: -.02em; }
 .kanban-link { text-decoration: none; color: inherit; transition: transform .15s ease, box-shadow .15s ease; }
 .kanban-link:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(17,19,22,.07); }
 .kanban-empty { grid-column: 1 / -1; padding: 24px; border: 1px dashed #d8dce0; border-radius: 12px; color: #7c8188; font-size: 11px; text-align: center; background: #fafbfb; }
+
+
+.plate-search { margin-top: 12px; }
+.plate-lookup-message { width: min(520px, 100%); margin: 12px auto 0; border: 1px solid #e0e3e6; background: #fafbfb; color: #6e747b; border-radius: 10px; padding: 10px 12px; font-size: 10px; }
+.plate-lookup-message.found { border-color: #bfe3cf; background: #eef9f3; color: #1d7047; }
