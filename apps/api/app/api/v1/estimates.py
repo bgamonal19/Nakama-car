@@ -1,23 +1,28 @@
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
+from io import BytesIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.estimating import Estimate, EstimateLine, LaborRate
-from app.models.garage import RepairCase
+from app.models.estimating import Estimate, EstimateLine, EstimateStatus, LaborRate
+from app.models.garage import Customer, RepairCase, Vehicle
+from app.models.identity import TenantSettings
 from app.schemas.estimating import (
     EstimateCreate,
     EstimateLineCreate,
     EstimateLineRead,
     EstimateRead,
+    EstimateStatusUpdate,
     LaborRateRead,
     LaborRateUpsert,
 )
 from app.security.context import AuthContext, require_permission
+from app.services.pdf import build_estimate_pdf
 
 router = APIRouter(tags=["estimates"])
 MONEY = Decimal("0.01")
@@ -25,6 +30,15 @@ MONEY = Decimal("0.01")
 
 def money(value: Decimal) -> Decimal:
     return value.quantize(MONEY, rounding=ROUND_HALF_UP)
+
+
+def get_tenant_estimate(db: Session, tenant_id: UUID, estimate_id: UUID) -> Estimate:
+    estimate = db.scalar(
+        select(Estimate).where(Estimate.id == estimate_id, Estimate.tenant_id == tenant_id)
+    )
+    if estimate is None:
+        raise HTTPException(status_code=404, detail="Estimate not found")
+    return estimate
 
 
 def recalculate(db: Session, estimate: Estimate) -> None:
@@ -99,6 +113,7 @@ def create_estimate(
     )
     if case is None:
         raise HTTPException(status_code=404, detail="Repair case not found")
+
     year = datetime.now(timezone.utc).year
     count = db.scalar(
         select(func.count(Estimate.id)).where(
@@ -106,6 +121,7 @@ def create_estimate(
             Estimate.estimate_number.like(f"NC-P-{year}-%"),
         )
     ) or 0
+
     estimate = Estimate(
         tenant_id=auth.tenant_id,
         repair_case_id=payload.repair_case_id,
@@ -124,11 +140,22 @@ def get_estimate(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("estimate.read")),
 ):
-    estimate = db.scalar(
-        select(Estimate).where(Estimate.id == estimate_id, Estimate.tenant_id == auth.tenant_id)
-    )
-    if estimate is None:
-        raise HTTPException(status_code=404, detail="Estimate not found")
+    return get_tenant_estimate(db, auth.tenant_id, estimate_id)
+
+
+@router.patch("/estimates/{estimate_id}/status", response_model=EstimateRead)
+def update_estimate_status(
+    estimate_id: UUID,
+    payload: EstimateStatusUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("estimate.approve")),
+):
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    if estimate.status == EstimateStatus.APPROVED and payload.status != EstimateStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Approved estimates are immutable")
+    estimate.status = payload.status
+    db.commit()
+    db.refresh(estimate)
     return estimate
 
 
@@ -138,6 +165,7 @@ def list_estimate_lines(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("estimate.read")),
 ):
+    get_tenant_estimate(db, auth.tenant_id, estimate_id)
     return db.scalars(
         select(EstimateLine)
         .where(EstimateLine.estimate_id == estimate_id, EstimateLine.tenant_id == auth.tenant_id)
@@ -152,11 +180,10 @@ def add_estimate_line(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("estimate.create")),
 ):
-    estimate = db.scalar(
-        select(Estimate).where(Estimate.id == estimate_id, Estimate.tenant_id == auth.tenant_id)
-    )
-    if estimate is None:
-        raise HTTPException(status_code=404, detail="Estimate not found")
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    if estimate.status == EstimateStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Approved estimates cannot be edited")
+
     subtotal, vat, total = calculate_line(payload)
     line = EstimateLine(
         tenant_id=auth.tenant_id,
@@ -172,3 +199,77 @@ def add_estimate_line(
     db.commit()
     db.refresh(line)
     return line
+
+
+@router.delete("/estimates/{estimate_id}/lines/{line_id}", status_code=204)
+def delete_estimate_line(
+    estimate_id: UUID,
+    line_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("estimate.create")),
+):
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    if estimate.status == EstimateStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Approved estimates cannot be edited")
+
+    line = db.scalar(
+        select(EstimateLine).where(
+            EstimateLine.id == line_id,
+            EstimateLine.estimate_id == estimate_id,
+            EstimateLine.tenant_id == auth.tenant_id,
+        )
+    )
+    if line is None:
+        raise HTTPException(status_code=404, detail="Estimate line not found")
+    db.delete(line)
+    db.flush()
+    recalculate(db, estimate)
+    db.commit()
+    return None
+
+
+@router.get("/estimates/{estimate_id}/pdf")
+def estimate_pdf(
+    estimate_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("estimate.read")),
+):
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    case = db.scalar(
+        select(RepairCase).where(
+            RepairCase.id == estimate.repair_case_id,
+            RepairCase.tenant_id == auth.tenant_id,
+        )
+    )
+    if case is None:
+        raise HTTPException(status_code=404, detail="Repair case not found")
+
+    customer = db.scalar(
+        select(Customer).where(Customer.id == case.customer_id, Customer.tenant_id == auth.tenant_id)
+    )
+    vehicle = db.scalar(
+        select(Vehicle).where(Vehicle.id == case.vehicle_id, Vehicle.tenant_id == auth.tenant_id)
+    )
+    if customer is None or vehicle is None:
+        raise HTTPException(status_code=404, detail="Customer or vehicle not found")
+
+    lines = db.scalars(
+        select(EstimateLine)
+        .where(EstimateLine.estimate_id == estimate_id, EstimateLine.tenant_id == auth.tenant_id)
+        .order_by(EstimateLine.created_at)
+    ).all()
+    settings = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == auth.tenant_id))
+    pdf = build_estimate_pdf(
+        estimate=estimate,
+        lines=lines,
+        customer=customer,
+        vehicle=vehicle,
+        company_name=(settings.company_name if settings and settings.company_name else "NAKAMA CAR"),
+    )
+
+    filename = f"{estimate.estimate_number}.pdf"
+    return StreamingResponse(
+        BytesIO(pdf),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
