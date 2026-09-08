@@ -89,12 +89,25 @@ def upsert_labor_rate(
             LaborRate.labor_type == payload.labor_type,
         )
     )
+    old_value = None
     if rate is None:
         rate = LaborRate(tenant_id=auth.tenant_id, **payload.model_dump())
         db.add(rate)
+        db.flush()
     else:
+        old_value = {"hourly_rate": str(rate.hourly_rate), "currency": rate.currency}
         rate.hourly_rate = payload.hourly_rate
         rate.currency = payload.currency
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="labor_rate",
+        entity_id=rate.id,
+        action="created" if old_value is None else "updated",
+        old_value=old_value,
+        new_value={"hourly_rate": str(payload.hourly_rate), "currency": payload.currency, "labor_type": payload.labor_type.value},
+    )
     db.commit()
     db.refresh(rate)
     return rate
@@ -232,6 +245,75 @@ def add_estimate_line(
             "description": line.description,
             "quantity": str(line.quantity),
             "unit_price": str(line.unit_price),
+            "labor_hours": str(line.labor_hours),
+            "labor_rate": str(line.labor_rate),
+            "paint_hours": str(line.paint_hours),
+            "paint_rate": str(line.paint_rate),
+            "materials": str(line.materials),
+            "vat_rate": str(line.vat_rate),
+        },
+    )
+    recalculate(db, estimate)
+    db.commit()
+    db.refresh(line)
+    return line
+
+
+@router.put("/estimates/{estimate_id}/lines/{line_id}", response_model=EstimateLineRead)
+def update_estimate_line(
+    estimate_id: UUID,
+    line_id: UUID,
+    payload: EstimateLineCreate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("estimate.change_price")),
+):
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    if estimate.status == EstimateStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Approved estimates cannot be edited")
+
+    line = db.scalar(
+        select(EstimateLine).where(
+            EstimateLine.id == line_id,
+            EstimateLine.estimate_id == estimate_id,
+            EstimateLine.tenant_id == auth.tenant_id,
+        )
+    )
+    if line is None:
+        raise HTTPException(status_code=404, detail="Estimate line not found")
+
+    old_value = {
+        "description": line.description,
+        "quantity": str(line.quantity),
+        "unit_price": str(line.unit_price),
+        "discount_percent": str(line.discount_percent),
+        "labor_hours": str(line.labor_hours),
+        "labor_rate": str(line.labor_rate),
+        "paint_hours": str(line.paint_hours),
+        "paint_rate": str(line.paint_rate),
+        "materials": str(line.materials),
+        "vat_rate": str(line.vat_rate),
+    }
+
+    subtotal, vat, total = calculate_line(payload)
+    for key, value in payload.model_dump().items():
+        setattr(line, key, value)
+    line.line_subtotal = subtotal
+    line.line_vat = vat
+    line.line_total = total
+
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="estimate_line",
+        entity_id=line.id,
+        action="updated",
+        old_value=old_value,
+        new_value={
+            "description": line.description,
+            "quantity": str(line.quantity),
+            "unit_price": str(line.unit_price),
+            "discount_percent": str(line.discount_percent),
             "labor_hours": str(line.labor_hours),
             "labor_rate": str(line.labor_rate),
             "paint_hours": str(line.paint_hours),
