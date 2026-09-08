@@ -80,3 +80,33 @@ class RepairCaseListItem(BaseModel):
     vehicle_name: str
     customer_name: str
     mileage: int | None = None
+
+
+class CustomerUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    company_name: str | None = None
+    tax_code: str | None = None
+    vat_number: str | None = None
+    address: str | None = None
+    city: str | None = None
+    province: str | None = None
+    postal_code: str | None = None
+    country: str | None = None
+    phone: str | None = None
+    email: EmailStr | None = None
+    pec: EmailStr | None = None
+    sdi: str | None = None
+    notes: str | None = None
+
+
+class VehicleUpdate(BaseModel):
+    customer_id: UUID | None = None
+    vin: str | None = Field(default=None, max_length=32)
+    make: str | None = None
+    model: str | None = None
+    version: str | None = None
+    year: int | None = Field(default=None, ge=1886, le=2100)
+    mileage: int | None = Field(default=None, ge=0)
+    color_name: str | None = None
+    paint_code: str | None = None
