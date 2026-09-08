@@ -101,6 +101,40 @@ def create_work_order_from_estimate(
         priority="NORMAL",
     )
     db.add(order)
+    db.flush()
+
+    default_tasks = [
+        ("DISASSEMBLY", "Smontaggio"),
+        ("BODY_REPAIR", "Riparazione carrozzeria"),
+        ("PAINT_PREP", "Preparazione verniciatura"),
+        ("PAINT", "Verniciatura"),
+        ("ASSEMBLY", "Montaggio"),
+        ("QUALITY_CONTROL", "Controllo qualità"),
+        ("CLEANING", "Pulizia e preparazione consegna"),
+    ]
+    for index, (task_type, description) in enumerate(default_tasks, start=1):
+        db.add(
+            WorkOrderTask(
+                tenant_id=auth.tenant_id,
+                work_order_id=order.id,
+                task_type=task_type,
+                description=description,
+                sort_order=index,
+            )
+        )
+
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="work_order",
+        entity_id=order.id,
+        action="created_from_estimate",
+        new_value={
+            "work_order_number": order.work_order_number,
+            "estimate_id": str(estimate.id),
+        },
+    )
     db.commit()
     db.refresh(order)
     return order
