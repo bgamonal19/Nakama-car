@@ -22,6 +22,7 @@ from app.schemas.estimating import (
     LaborRateUpsert,
 )
 from app.security.context import AuthContext, require_permission
+from app.services.audit import record_audit
 from app.services.pdf import build_estimate_pdf
 
 router = APIRouter(tags=["estimates"])
@@ -153,7 +154,19 @@ def update_estimate_status(
     estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
     if estimate.status == EstimateStatus.APPROVED and payload.status != EstimateStatus.APPROVED:
         raise HTTPException(status_code=409, detail="Approved estimates are immutable")
+    old_status = estimate.status.value
     estimate.status = payload.status
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="estimate",
+        entity_id=estimate.id,
+        action="status_changed",
+        field_name="status",
+        old_value=old_status,
+        new_value=payload.status.value,
+    )
     db.commit()
     db.refresh(estimate)
     return estimate
@@ -195,6 +208,25 @@ def add_estimate_line(
     )
     db.add(line)
     db.flush()
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="estimate_line",
+        entity_id=line.id,
+        action="created",
+        new_value={
+            "description": line.description,
+            "quantity": str(line.quantity),
+            "unit_price": str(line.unit_price),
+            "labor_hours": str(line.labor_hours),
+            "labor_rate": str(line.labor_rate),
+            "paint_hours": str(line.paint_hours),
+            "paint_rate": str(line.paint_rate),
+            "materials": str(line.materials),
+            "vat_rate": str(line.vat_rate),
+        },
+    )
     recalculate(db, estimate)
     db.commit()
     db.refresh(line)
@@ -221,6 +253,18 @@ def delete_estimate_line(
     )
     if line is None:
         raise HTTPException(status_code=404, detail="Estimate line not found")
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="estimate_line",
+        entity_id=line.id,
+        action="deleted",
+        old_value={
+            "description": line.description,
+            "line_total": str(line.line_total),
+        },
+    )
     db.delete(line)
     db.flush()
     recalculate(db, estimate)
