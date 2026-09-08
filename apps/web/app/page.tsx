@@ -84,7 +84,7 @@ export default function HomePage() {
   const [plate, setPlate] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
   const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
-  const [photos, setPhotos] = useState<Record<string, string>>({});
+  const [photos, setPhotos] = useState<Record<string, File>>({});
   const [damages, setDamages] = useState<Record<string, DamageStatus>>({});
   const [rates, setRates] = useState({ body: 45, mechanical: 50, paint: 48, electrical: 55, diagnostic: 60 });
   const [lines, setLines] = useState<EstimateLine[]>([
@@ -231,6 +231,49 @@ export default function HomePage() {
       if (!caseResponse.ok) throw new Error((await caseResponse.json()).detail || "Errore pratica");
       const savedCase = await caseResponse.json();
 
+      let mediaWarning = "";
+      for (const [category, file] of Object.entries(photos)) {
+        try {
+          const targetResponse = await apiFetch(`/cases/${savedCase.id}/media/upload-target`, {
+            method: "POST",
+            body: JSON.stringify({
+              filename: file.name,
+              mime_type: file.type || "image/jpeg",
+              category,
+              media_type: "PHOTO",
+            }),
+          });
+          if (!targetResponse.ok) {
+            mediaWarning = "Foto non caricate: storage S3 non ancora configurato.";
+            break;
+          }
+          const target = await targetResponse.json();
+          const uploadResponse = await fetch(target.upload_url, {
+            method: "PUT",
+            headers: { "Content-Type": file.type || "image/jpeg" },
+            body: file,
+          });
+          if (!uploadResponse.ok) {
+            mediaWarning = "Alcune foto non sono state caricate.";
+            continue;
+          }
+          const registerResponse = await apiFetch(`/cases/${savedCase.id}/media`, {
+            method: "POST",
+            body: JSON.stringify({
+              storage_key: target.storage_key,
+              original_filename: file.name,
+              mime_type: file.type || "image/jpeg",
+              size_bytes: file.size,
+              category,
+              media_type: "PHOTO",
+            }),
+          });
+          if (!registerResponse.ok) mediaWarning = "Alcune foto non sono state registrate.";
+        } catch {
+          mediaWarning = "Foto non caricate: verifica lo storage.";
+        }
+      }
+
       for (const [code, operation] of Object.entries(damages)) {
         if (operation === "NO_DAMAGE") continue;
         const damageResponse = await apiFetch(`/cases/${savedCase.id}/damages/${code}`, {
@@ -267,7 +310,7 @@ export default function HomePage() {
         if (!lineResponse.ok) throw new Error("Errore riga preventivo");
       }
 
-      alert(`Pratica ${savedCase.case_number} salvata nel database. Preventivo ${savedEstimate.estimate_number} creato.`);
+      alert(`Pratica ${savedCase.case_number} salvata nel database. Preventivo ${savedEstimate.estimate_number} creato.${mediaWarning ? "\n" + mediaWarning : ""}`);
       const summaryResponse = await apiFetch("/dashboard/summary");
       if (summaryResponse.ok) setDashboard(await summaryResponse.json());
       setWizardOpen(false);
@@ -432,8 +475,8 @@ export default function HomePage() {
                     ["INTERIOR", "Interni"], ["DAMAGE", "Danni specifici"], ["VIN", "VIN"], ["ODOMETER", "Contachilometri"],
                   ].map(([key, label]) => (
                     <label className={`photo-slot ${photos[key] ? "captured" : ""}`} key={key}>
-                      <input type="file" accept="image/*" capture="environment" onChange={(e) => e.target.files?.[0] && setPhotos({ ...photos, [key]: e.target.files[0].name })} />
-                      <b>{photos[key] ? "✓" : "+"}</b><span>{label}</span><small>{photos[key] || "Scatta o carica foto"}</small>
+                      <input type="file" accept="image/*" capture="environment" onChange={(e) => e.target.files?.[0] && setPhotos({ ...photos, [key]: e.target.files[0] })} />
+                      <b>{photos[key] ? "✓" : "+"}</b><span>{label}</span><small>{photos[key]?.name || "Scatta o carica foto"}</small>
                     </label>
                   ))}
                 </div>
