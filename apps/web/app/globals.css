@@ -315,3 +315,29 @@ h2, h3 { margin: 0; letter-spacing: -.02em; }
   .data-table { min-width: 720px; }
   .list-panel { overflow-x: auto; }
 }
+
+
+.data-table.work { grid-template-columns: 1.1fr .7fr 1fr 1.4fr .7fr; }
+.work-order-wrap { border-bottom: 1px solid #eceef1; }
+.work-order-wrap:last-child { border-bottom: 0; }
+.work-main { border-bottom: 0; }
+.task-toggle { border: 1px solid #dfe2e5; background: white; border-radius: 8px; padding: 7px 9px; font-size: 9px; cursor: pointer; }
+.task-panel { margin: 0 16px 16px; border: 1px solid #e1e4e8; border-radius: 12px; background: #fafbfb; overflow: hidden; }
+.task-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px; border-bottom: 1px solid #e6e8eb; }
+.task-panel-head strong, .task-panel-head small { display: block; }
+.task-panel-head strong { font-size: 11px; }
+.task-panel-head small { margin-top: 3px; color: #8a8f96; font-size: 9px; }
+.task-panel-head > span { font-size: 9px; color: #666c73; font-weight: 700; }
+.task-list { display: grid; }
+.task-row { display: grid; grid-template-columns: 28px 1fr 150px; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid #eceef1; background: white; }
+.task-row:last-child { border-bottom: 0; }
+.task-check { width: 24px; height: 24px; border-radius: 7px; border: 1px solid #d7dbe0; background: white; display: grid; place-items: center; color: white; font-size: 10px; }
+.task-check.done { background: #1c774b; border-color: #1c774b; }
+.task-row strong, .task-row small { display: block; }
+.task-row strong { font-size: 10px; }
+.task-row small { margin-top: 3px; color: #969ba1; font-size: 8px; }
+.task-row select { border: 1px solid #d9dce0; border-radius: 8px; padding: 7px 8px; background: white; font-size: 9px; }
+.task-empty { padding: 18px; color: #888d94; font-size: 10px; }
+.add-task { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px; border-top: 1px solid #e5e7ea; }
+.add-task input { border: 1px solid #d9dce0; border-radius: 8px; padding: 9px 10px; outline: none; font-size: 10px; }
+.add-task button { border: 1px solid #d8dce0; background: white; border-radius: 8px; padding: 0 12px; font-size: 9px; font-weight: 700; cursor: pointer; }
