@@ -91,6 +91,9 @@ export default function HomePage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [workOrders, setWorkOrders] = useState<WorkOrderSummary[]>([]);
   const [plate, setPlate] = useState("");
+  const [existingVehicleId, setExistingVehicleId] = useState<string | null>(null);
+  const [existingCustomerId, setExistingCustomerId] = useState<string | null>(null);
+  const [plateLookupMessage, setPlateLookupMessage] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
   const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
   const [photos, setPhotos] = useState<Record<string, File>>({});
@@ -154,6 +157,9 @@ export default function HomePage() {
   function resetWizard() {
     setStep(0);
     setPlate("");
+    setExistingVehicleId(null);
+    setExistingCustomerId(null);
+    setPlateLookupMessage("");
     setCustomer({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
     setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
     setPhotos({});
@@ -184,6 +190,60 @@ export default function HomePage() {
     setLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)));
   }
 
+  async function lookupPlate() {
+    const normalized = plate.trim().toUpperCase();
+    if (!normalized || !getAccessToken()) {
+      setPlateLookupMessage(getAccessToken() ? "Inserisci una targa." : "Accedi per cercare veicoli esistenti.");
+      return;
+    }
+    setPlateLookupMessage("Ricerca in corso…");
+    setExistingVehicleId(null);
+    setExistingCustomerId(null);
+    try {
+      const r = await apiFetch(`/vehicles/by-plate/${encodeURIComponent(normalized)}`);
+      if (r.status === 404) {
+        setPlateLookupMessage("Targa non presente: verrà creato un nuovo veicolo.");
+        return;
+      }
+      if (!r.ok) {
+        setPlateLookupMessage("Impossibile verificare la targa.");
+        return;
+      }
+      const found = await r.json();
+      setExistingVehicleId(found.id);
+      setVehicle({
+        make: found.make || "",
+        model: found.model || "",
+        version: found.version || "",
+        vin: found.vin || "",
+        year: found.year ? String(found.year) : "",
+        mileage: found.mileage ? String(found.mileage) : "",
+        color: found.color_name || "",
+        paintCode: found.paint_code || "",
+        fuel: "50",
+      });
+
+      if (found.customer_id) {
+        const customerResponse = await apiFetch(`/customers/${found.customer_id}`);
+        if (customerResponse.ok) {
+          const foundCustomer = await customerResponse.json();
+          setExistingCustomerId(foundCustomer.id);
+          setCustomer({
+            firstName: foundCustomer.first_name || "",
+            lastName: foundCustomer.last_name || "",
+            company: foundCustomer.company_name || "",
+            phone: foundCustomer.phone || "",
+            email: foundCustomer.email || "",
+            vat: foundCustomer.vat_number || "",
+          });
+        }
+      }
+      setPlateLookupMessage("Veicolo trovato: dati caricati dalla tua anagrafica.");
+    } catch {
+      setPlateLookupMessage("Errore durante la ricerca targa.");
+    }
+  }
+
   async function savePilotPractice() {
     if (!getAccessToken()) {
       const payload = { plate, customer, vehicle, photos: Object.keys(photos), damages, lines, totals, createdAt: new Date().toISOString() };
@@ -197,39 +257,47 @@ export default function HomePage() {
 
     setSaving(true);
     try {
-      const customerResponse = await apiFetch("/customers", {
-        method: "POST",
-        body: JSON.stringify({
-          customer_type: customer.company ? "COMPANY" : "PRIVATE",
-          first_name: customer.firstName || null,
-          last_name: customer.lastName || null,
-          company_name: customer.company || null,
-          vat_number: customer.vat || null,
-          phone: customer.phone || null,
-          email: customer.email || null,
-          country: "IT",
-        }),
-      });
-      if (!customerResponse.ok) throw new Error((await customerResponse.json()).detail || "Errore cliente");
-      const savedCustomer = await customerResponse.json();
+      let savedCustomer: { id: string };
+      let savedVehicle: { id: string };
 
-      const vehicleResponse = await apiFetch("/vehicles", {
-        method: "POST",
-        body: JSON.stringify({
-          customer_id: savedCustomer.id,
-          license_plate: plate,
-          vin: vehicle.vin || null,
-          make: vehicle.make || null,
-          model: vehicle.model || null,
-          version: vehicle.version || null,
-          year: vehicle.year ? Number(vehicle.year) : null,
-          mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
-          color_name: vehicle.color || null,
-          paint_code: vehicle.paintCode || null,
-        }),
-      });
-      if (!vehicleResponse.ok) throw new Error((await vehicleResponse.json()).detail || "Errore veicolo");
-      const savedVehicle = await vehicleResponse.json();
+      if (existingVehicleId && existingCustomerId) {
+        savedCustomer = { id: existingCustomerId };
+        savedVehicle = { id: existingVehicleId };
+      } else {
+        const customerResponse = await apiFetch("/customers", {
+          method: "POST",
+          body: JSON.stringify({
+            customer_type: customer.company ? "COMPANY" : "PRIVATE",
+            first_name: customer.firstName || null,
+            last_name: customer.lastName || null,
+            company_name: customer.company || null,
+            vat_number: customer.vat || null,
+            phone: customer.phone || null,
+            email: customer.email || null,
+            country: "IT",
+          }),
+        });
+        if (!customerResponse.ok) throw new Error((await customerResponse.json()).detail || "Errore cliente");
+        savedCustomer = await customerResponse.json();
+
+        const vehicleResponse = await apiFetch("/vehicles", {
+          method: "POST",
+          body: JSON.stringify({
+            customer_id: savedCustomer.id,
+            license_plate: plate,
+            vin: vehicle.vin || null,
+            make: vehicle.make || null,
+            model: vehicle.model || null,
+            version: vehicle.version || null,
+            year: vehicle.year ? Number(vehicle.year) : null,
+            mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+            color_name: vehicle.color || null,
+            paint_code: vehicle.paintCode || null,
+          }),
+        });
+        if (!vehicleResponse.ok) throw new Error((await vehicleResponse.json()).detail || "Errore veicolo");
+        savedVehicle = await vehicleResponse.json();
+      }
 
       const caseResponse = await apiFetch("/cases", {
         method: "POST",
@@ -465,8 +533,10 @@ export default function HomePage() {
               {step === 0 && (
                 <div className="hero-step">
                   <label>Targa del veicolo</label>
-                  <input className="plate-input" placeholder="AB123CD" value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} autoFocus />
-                  <p>Inserisci la targa. Con DAT / GT Motive sarà possibile identificare automaticamente il veicolo; per ora è disponibile l'inserimento manuale.</p>
+                  <input className="plate-input" placeholder="AB123CD" value={plate} onChange={(e) => { setPlate(e.target.value.toUpperCase()); setExistingVehicleId(null); setExistingCustomerId(null); setPlateLookupMessage(""); }} autoFocus />
+                  {authenticated && <button className="secondary plate-search" type="button" onClick={lookupPlate}>Cerca nella tua anagrafica</button>}
+                  {plateLookupMessage && <div className={`plate-lookup-message ${existingVehicleId ? "found" : ""}`}>{plateLookupMessage}</div>}
+                  <p>La ricerca usa prima l'anagrafica NAKAMA CAR. DAT / GT Motive potrà essere collegato successivamente per identificazione esterna e dati tecnici licenziati.</p>
                 </div>
               )}
 
