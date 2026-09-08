@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.models.estimating import Estimate, EstimateStatus
 from app.models.garage import RepairCase
-from app.models.workshop import WorkOrder
+from app.models.workshop import WorkOrder, WorkOrderStatus
 from app.schemas.workshop import WorkOrderCreate, WorkOrderRead, WorkOrderStatusUpdate
 from app.security.context import AuthContext, require_permission
 
@@ -96,7 +96,7 @@ def create_work_order_from_estimate(
         repair_case_id=estimate.repair_case_id,
         estimate_id=estimate.id,
         work_order_number=f"NC-ODL-{year}-{count + 1:06d}",
-        status="APPROVED",
+        status=WorkOrderStatus.APPROVED,
         priority="NORMAL",
     )
     db.add(order)
