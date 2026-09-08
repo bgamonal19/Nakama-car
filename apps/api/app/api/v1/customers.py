@@ -34,3 +34,20 @@ def list_customers(
         .order_by(Customer.created_at.desc())
         .limit(100)
     ).all()
+
+
+@router.get("/{customer_id}", response_model=CustomerRead)
+def get_customer(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.read")),
+):
+    customer = db.scalar(
+        select(Customer).where(
+            Customer.id == customer_id,
+            Customer.tenant_id == auth.tenant_id,
+        )
+    )
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
