@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.models.approval import EstimateApproval
 from app.models.estimating import Estimate, EstimateLine, EstimateStatus
-from app.models.garage import Customer, RepairCase, Vehicle
+from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
 from app.schemas.approval import (
     EstimateShareResponse,
     PublicEstimateDecision,
@@ -48,6 +48,14 @@ def create_estimate_share(
         db.add(approval)
         if estimate.status == EstimateStatus.DRAFT:
             estimate.status = EstimateStatus.SENT
+        case = db.scalar(
+            select(RepairCase).where(
+                RepairCase.id == estimate.repair_case_id,
+                RepairCase.tenant_id == auth.tenant_id,
+            )
+        )
+        if case is not None and case.status == RepairCaseStatus.NEW:
+            case.status = RepairCaseStatus.WAITING_APPROVAL
         db.commit()
         db.refresh(approval)
 
@@ -153,6 +161,14 @@ def public_estimate_decision(
     approval.user_agent = request.headers.get("user-agent")
     approval.responded_at = datetime.now(timezone.utc)
     estimate.status = EstimateStatus.APPROVED if payload.accepted else EstimateStatus.REJECTED
+    case = db.scalar(
+        select(RepairCase).where(
+            RepairCase.id == estimate.repair_case_id,
+            RepairCase.tenant_id == approval.tenant_id,
+        )
+    )
+    if case is not None:
+        case.status = RepairCaseStatus.APPROVED if payload.accepted else RepairCaseStatus.NEW
     db.commit()
 
     return {"status": "accepted" if payload.accepted else "rejected"}
