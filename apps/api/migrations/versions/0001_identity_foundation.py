@@ -14,7 +14,6 @@ depends_on = None
 
 def upgrade() -> None:
     user_status = sa.Enum("ACTIVE", "INVITED", "DISABLED", name="user_status")
-    user_status.create(op.get_bind(), checkfirst=True)
 
     op.create_table("tenants",
         sa.Column("id", sa.Uuid(), nullable=False),

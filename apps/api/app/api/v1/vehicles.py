@@ -1,10 +1,11 @@
+from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
 from app.models.garage import Customer, Vehicle
-from app.schemas.garage import VehicleCreate, VehicleRead
+from app.schemas.garage import VehicleCreate, VehicleRead, VehicleUpdate
 from app.security.context import AuthContext, require_permission
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -61,4 +62,48 @@ def get_vehicle_by_plate(
     )
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehicle not found")
+    return vehicle
+
+
+@router.get("", response_model=list[VehicleRead])
+def list_vehicles(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.read")),
+):
+    return db.scalars(
+        select(Vehicle)
+        .where(Vehicle.tenant_id == auth.tenant_id)
+        .order_by(Vehicle.created_at.desc())
+        .limit(200)
+    ).all()
+
+
+@router.patch("/{vehicle_id}", response_model=VehicleRead)
+def update_vehicle(
+    vehicle_id: UUID,
+    payload: VehicleUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.write")),
+):
+    vehicle = db.scalar(
+        select(Vehicle).where(
+            Vehicle.id == vehicle_id,
+            Vehicle.tenant_id == auth.tenant_id,
+        )
+    )
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    if payload.customer_id:
+        owner = db.scalar(
+            select(Customer).where(
+                Customer.id == payload.customer_id,
+                Customer.tenant_id == auth.tenant_id,
+            )
+        )
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Customer not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(vehicle, key, value)
+    db.commit()
+    db.refresh(vehicle)
     return vehicle

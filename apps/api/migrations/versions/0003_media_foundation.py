@@ -18,8 +18,6 @@ def upgrade() -> None:
         "VIN", "ODOMETER", "DOCUMENT", "OTHER",
         name="media_category",
     )
-    media_type.create(op.get_bind(), checkfirst=True)
-    media_category.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "media",
