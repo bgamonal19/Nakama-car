@@ -465,30 +465,22 @@ export default function HomePage() {
         <header className="topbar nakama-topbar">
           <div className="dashboard-search">⌕ <span>Cerca cliente, veicolo, pratica...</span></div>
           <div className="top-actions">
+            <button className="icon-button" aria-label="Notifiche">♢<span className="notification-dot">3</span></button>
             <div className={`api-pill ${apiOnline ? "online" : apiOnline === false ? "offline" : ""}`}><span />{apiOnline === null ? "API..." : apiOnline ? "Online" : "Offline"}</div>
-            {authenticated ? <div className="session-pill">Sessione attiva</div> : <a className="login-link" href="/login">Accedi</a>}
+            {authenticated ? <div className="user-chip"><b>NC</b><span><strong>NAKAMA CAR</strong><small>Amministratore</small></span></div> : <a className="login-link" href="/login">Accedi</a>}
           </div>
         </header>
 
-        <section className="nakama-hero">
-          <div className="nakama-hero-copy">
-            <p className="eyebrow hero-eyebrow">BENVENUTO IN</p>
+        <section className="nakama-hero photo-hero">
+          <img src="/brand/nakama-workshop.webp" alt="Carrozzeria NAKAMA CAR" className="photo-hero-image" />
+          <div className="photo-hero-shade" />
+          <div className="photo-hero-content">
+            <p className="eyebrow">BENVENUTO IN</p>
             <h1>NAKAMA <span>CAR</span></h1>
-            <div className="italy-line"><b></b><b></b><b></b></div>
-            <p className="hero-subtitle">Carrozzeria e servizi auto<br/>Qualità in ogni dettaglio</p>
-            <div className="hero-values"><span>◈ Professionalità</span><span>✦ Qualità</span><span>◎ Affidabilità</span><span>♙ Cliente al centro</span></div>
+            <p>Carrozzeria e servizi auto · Qualità in ogni dettaglio</p>
+            <div className="hero-values"><span>Esperienza</span><span>Tecnologia</span><span>Qualità</span><span>Affidabilità</span></div>
           </div>
-          <div className="nakama-hero-car" aria-hidden="true">
-            <svg viewBox="0 0 720 280">
-              <path d="M76 196c27-64 87-96 181-109l185-10c68 1 118 26 160 65l63 15c24 6 39 23 43 50H642c-8-31-31-50-65-50-35 0-59 18-68 50H205c-9-31-32-50-66-50-34 0-58 18-66 50H38c5-5 18-9 38-11z" fill="rgba(255,255,255,.92)"/>
-              <path d="M207 102l73-52h153l93 70-319-18z" fill="rgba(255,255,255,.28)"/>
-              <circle cx="139" cy="209" r="36" fill="#071b2f"/><circle cx="139" cy="209" r="18" fill="#ced7df"/>
-              <circle cx="577" cy="209" r="36" fill="#071b2f"/><circle cx="577" cy="209" r="18" fill="#ced7df"/>
-              <path d="M515 93l-43-34h-92l24 39z" fill="rgba(11,42,74,.85)"/>
-              <path d="M208 167h105M330 167h121" stroke="#ef2438" strokeWidth="5" strokeLinecap="round"/>
-            </svg>
-            <div className="hero-signature">La tua auto, in buone mani</div>
-          </div>
+          <div className="hero-signature">Più di una carrozzeria, un partner per la tua auto</div>
         </section>
 
         <div className="nakama-actions">
@@ -506,34 +498,49 @@ export default function HomePage() {
           <div className="kpi-card"><span>Pronte consegna</span><strong>{dashboard?.ready ?? 3}</strong><small>Da contattare</small></div>
         </div>
 
-        <div className="content-grid">
+        <div className="dashboard-lower-grid">
+          <div className="panel status-panel">
+            <div className="panel-head"><div><h2>Stato pratiche</h2><p>Distribuzione operativa</p></div></div>
+            <div className="status-overview">
+              <div className="donut"><div><strong>{dashboard?.open_cases ?? 12}</strong><span>Totali</span></div></div>
+              <div className="status-legend">
+                <span><i className="legend green"/>Preventivo <b>{dashboard?.waiting_approval ?? 5}</b></span>
+                <span><i className="legend blue"/>In lavorazione <b>{dashboard?.in_progress ?? 4}</b></span>
+                <span><i className="legend red"/>In attesa ricambi <b>{workOrders.filter(x => x.status === "WAITING_PARTS").length || 2}</b></span>
+                <span><i className="legend yellow"/>Pronto <b>{dashboard?.ready ?? 3}</b></span>
+              </div>
+            </div>
+          </div>
+
           <div className="panel">
-            <div className="panel-head"><div><h2>Ultime pratiche</h2><p>Attività recenti della carrozzeria</p></div><a className="ghost link-button" href="/pratiche">Vedi tutte →</a></div>
-            <div className="practice-table">
-              {(dashboard?.recent_practices?.length ? dashboard.recent_practices : demoPractices).map((p) => (
+            <div className="panel-head"><div><h2>Ultime pratiche</h2><p>Attività recenti</p></div><a className="ghost link-button" href="/pratiche">Vedi tutte →</a></div>
+            <div className="practice-table compact">
+              {(dashboard?.recent_practices?.length ? dashboard.recent_practices : demoPractices).slice(0,4).map((p) => (
                 <div className="practice-row" key={p.code}>
-                  <div><strong>{p.plate}</strong><span>{p.code}</span></div>
-                  <div><strong>{p.car}</strong><span>{p.client}</span></div>
+                  <div className="vehicle-thumb">🚗</div>
+                  <div><strong>{p.code}</strong><span>{p.car} · {p.client}</span></div>
                   <div><span className={`status status-${p.status.toLowerCase()}`}>{p.status.replaceAll("_", " ")}</span></div>
-                  <button className="row-arrow">→</button>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="panel quick-panel">
-            <div className="panel-head"><div><h2>Reception rapida</h2><p>Accessi principali</p></div></div>
-            <button className="quick-action" onClick={() => setWizardOpen(true)}><b>01</b><span><strong>Nuova pratica</strong><small>Targa, cliente, foto e danni</small></span><em>→</em></button>
-            <a className="quick-action quick-link" href="/preventivi"><b>02</b><span><strong>Preventivi</strong><small>Ricambi, ore e verniciatura</small></span><em>→</em></a>
-            <a className="quick-action quick-link" href="/lavori"><b>03</b><span><strong>Officina</strong><small>Gestisci stato e attività</small></span><em>→</em></a>
+          <div className="panel appointments-panel">
+            <div className="panel-head"><div><h2>Prossimi appuntamenti</h2><p>Agenda carrozzeria</p></div><span className="ghost">Demo</span></div>
+            <div className="appointments">
+              <div className="appointment"><b>08<span>SET</span></b><div><strong>10:00 · Consegna veicolo</strong><small>Controllo finale e documenti</small></div></div>
+              <div className="appointment"><b>08<span>SET</span></b><div><strong>14:30 · Ritiro ricambi</strong><small>Ordine ricambi carrozzeria</small></div></div>
+              <div className="appointment"><b>09<span>SET</span></b><div><strong>09:00 · Inizio lavorazione</strong><small>Ingresso in officina</small></div></div>
+              <div className="appointment"><b>09<span>SET</span></b><div><strong>16:00 · Consegna preventivo</strong><small>Approvazione cliente</small></div></div>
+            </div>
           </div>
         </div>
 
         <div className="panel workshop-panel">
-          <div className="panel-head"><div><h2>Stato officina</h2><p>Vista sintetica delle lavorazioni attive</p></div><a className="ghost link-button" href="/lavori">Apri officina →</a></div>
+          <div className="panel-head"><div><h2>Stato officina</h2><p>Lavorazioni attive</p></div><a className="ghost link-button" href="/lavori">Apri officina →</a></div>
           <div className="kanban">
             {authenticated && workOrders.length === 0 ? (
-              <div className="kanban-empty">Nessun ordine di lavoro attivo. Approva un preventivo e trasformalo in ODL.</div>
+              <div className="kanban-empty">Nessun ordine di lavoro attivo.</div>
             ) : (workOrders.length ? workOrders.slice(0, 4).map((order) => (
               <a className="kanban-card kanban-link" href="/lavori" key={order.id}><small>{order.status.replaceAll("_", " ")}</small><strong>{order.work_order_number}</strong><span>Priorità {order.priority}</span></a>
             )) : [
