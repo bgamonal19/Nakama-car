@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.models.estimating import Estimate, EstimateStatus
 from app.models.garage import RepairCase
-from app.models.workshop import WorkOrder, WorkOrderStatus
-from app.schemas.workshop import WorkOrderCreate, WorkOrderRead, WorkOrderStatusUpdate
+from app.models.workshop import WorkOrder, WorkOrderStatus, WorkOrderTask
+from app.schemas.workshop import WorkOrderCreate, WorkOrderRead, WorkOrderStatusUpdate, WorkTaskCreate, WorkTaskRead, WorkTaskStatusUpdate
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
 
@@ -149,3 +149,70 @@ def update_work_order_status(
     db.commit()
     db.refresh(order)
     return order
+
+
+@router.get("/{work_order_id}/tasks", response_model=list[WorkTaskRead])
+def list_work_order_tasks(
+    work_order_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("work_order.read")),
+):
+    order = db.scalar(
+        select(WorkOrder).where(WorkOrder.id == work_order_id, WorkOrder.tenant_id == auth.tenant_id)
+    )
+    if order is None:
+        raise HTTPException(status_code=404, detail="Work order not found")
+    return db.scalars(
+        select(WorkOrderTask)
+        .where(
+            WorkOrderTask.work_order_id == work_order_id,
+            WorkOrderTask.tenant_id == auth.tenant_id,
+        )
+        .order_by(WorkOrderTask.sort_order, WorkOrderTask.created_at)
+    ).all()
+
+
+@router.post("/{work_order_id}/tasks", response_model=WorkTaskRead, status_code=status.HTTP_201_CREATED)
+def create_work_order_task(
+    work_order_id: UUID,
+    payload: WorkTaskCreate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("work_order.update_status")),
+):
+    order = db.scalar(
+        select(WorkOrder).where(WorkOrder.id == work_order_id, WorkOrder.tenant_id == auth.tenant_id)
+    )
+    if order is None:
+        raise HTTPException(status_code=404, detail="Work order not found")
+    task = WorkOrderTask(
+        tenant_id=auth.tenant_id,
+        work_order_id=work_order_id,
+        **payload.model_dump(),
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    return task
+
+
+@router.patch("/{work_order_id}/tasks/{task_id}/status", response_model=WorkTaskRead)
+def update_work_task_status(
+    work_order_id: UUID,
+    task_id: UUID,
+    payload: WorkTaskStatusUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("work_order.update_status")),
+):
+    task = db.scalar(
+        select(WorkOrderTask).where(
+            WorkOrderTask.id == task_id,
+            WorkOrderTask.work_order_id == work_order_id,
+            WorkOrderTask.tenant_id == auth.tenant_id,
+        )
+    )
+    if task is None:
+        raise HTTPException(status_code=404, detail="Work task not found")
+    task.status = payload.status
+    db.commit()
+    db.refresh(task)
+    return task
