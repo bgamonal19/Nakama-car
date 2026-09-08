@@ -62,3 +62,16 @@ def get_vehicle_by_plate(
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
+
+
+@router.get("", response_model=list[VehicleRead])
+def list_vehicles(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.read")),
+):
+    return db.scalars(
+        select(Vehicle)
+        .where(Vehicle.tenant_id == auth.tenant_id)
+        .order_by(Vehicle.created_at.desc())
+        .limit(200)
+    ).all()
