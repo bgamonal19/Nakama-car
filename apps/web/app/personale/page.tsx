@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordInput } from "../../components/PasswordInput";
+
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { apiFetch, getAccessToken } from "../../lib/api";
@@ -69,7 +71,7 @@ export default function PersonalePage() {
             <label>Nome<input required maxLength={120} autoComplete="given-name" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></label>
             <label>Cognome<input required maxLength={120} autoComplete="family-name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></label>
             <label className="span-2">Email<input required type="email" autoComplete="off" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-            <label className="span-2">Password<input required type="password" minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><small>Almeno 10 caratteri. Comunicala direttamente al lavoratore.</small></label>
+            <label className="span-2">Password<PasswordInput required  minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><small>Almeno 10 caratteri. Comunicala direttamente al lavoratore.</small></label>
             <label className="span-2">Profilo di accesso<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{profiles.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}</select><small>{profiles.find(p => p.code === form.role_code)?.description}</small></label>
             {error && <p className="auth-error span-2" role="alert">{error}</p>}
             {success && <p className="staff-success span-2" role="status">{success}</p>}

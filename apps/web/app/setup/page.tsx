@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordInput } from "../../components/PasswordInput";
+
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
@@ -59,7 +61,7 @@ export default function SetupPage() {
           <label>Nome<input required value={form.first_name} onChange={(e) => field("first_name", e.target.value)} /></label>
           <label>Cognome<input required value={form.last_name} onChange={(e) => field("last_name", e.target.value)} /></label>
           <label className="span-2">Email amministratore<input required type="email" value={form.admin_email} onChange={(e) => field("admin_email", e.target.value)} /></label>
-          <label className="span-2">Password amministratore<input required minLength={10} type="password" value={form.admin_password} onChange={(e) => field("admin_password", e.target.value)} /></label>
+          <label className="span-2">Password amministratore<PasswordInput required minLength={10}  value={form.admin_password} onChange={(e) => field("admin_password", e.target.value)} /></label>
           <label>Ragione sociale<input required value={form.company_name} onChange={(e) => field("company_name", e.target.value)} /></label>
           <label>Partita IVA<input value={form.vat_number} onChange={(e) => field("vat_number", e.target.value)} /></label>
           {error && <div className="auth-error span-2">{error}</div>}
