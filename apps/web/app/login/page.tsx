@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordInput } from "../../components/PasswordInput";
+
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
@@ -40,7 +42,7 @@ export default function LoginPage() {
         <div className="auth-copy"><p className="eyebrow">ACCESSO OPERATORE</p><h1>Accedi alla carrozzeria</h1><p>Gestisci pratiche, preventivi, lavorazioni e fatturazione.</p></div>
         <form onSubmit={submit} className="auth-form">
           <label>Email<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
-          <label>Password<input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <label>Password<PasswordInput  required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
           {error && <div className="auth-error">{error}</div>}
           <button className="primary auth-submit" disabled={loading}>{loading ? "Accesso…" : "Accedi"}</button>
         </form>

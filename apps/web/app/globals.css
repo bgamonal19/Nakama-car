@@ -740,3 +740,10 @@ html, body { background: var(--nakama-bg); color: #12263d; }
 .staff-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 16px; border-top: 1px solid #e5eaf0; font-size: 13px; overflow-wrap: anywhere; }
 .staff-row p { margin: 5px 0 0; }
 @media (max-width: 600px) { .staff-row { grid-template-columns: 1fr; gap: 8px; } .staff-form { grid-template-columns: 1fr; } .staff-form .span-2 { grid-column: auto; } .settings-users .panel-head { flex-wrap: wrap; gap: 12px; } }
+
+.password-field { position: relative; display: flex; width: 100%; min-width: 0; }
+.password-field > input { width: 100%; min-width: 0; padding-right: 48px; }
+.password-field > .password-toggle { position: absolute; top: 50%; right: 2px; transform: translateY(-50%); width: 40px; height: 40px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: #43566d; cursor: pointer; }
+.password-field > .password-toggle:hover { background: #edf2f7; }
+.password-field > .password-toggle:focus-visible { outline: 2px solid #1766a3; outline-offset: -2px; }
+.password-field > .password-toggle:disabled { cursor: not-allowed; opacity: .5; }

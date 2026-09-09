@@ -1,5 +1,7 @@
 "use client";
 
+import { PasswordInput } from "../../components/PasswordInput";
+
 import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { apiFetch, getAccessToken } from "../../lib/api";
@@ -39,7 +41,7 @@ export default function ConfigurazionePage(){
       <input placeholder="Nome" required value={userForm.first_name} onChange={e=>setUserForm({...userForm,first_name:e.target.value})}/>
       <input placeholder="Cognome" required value={userForm.last_name} onChange={e=>setUserForm({...userForm,last_name:e.target.value})}/>
       <input className="span-2" placeholder="Email" type="email" required value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})}/>
-      <input className="span-2" placeholder="Password (min. 10 caratteri)" type="password" minLength={10} required value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})}/>
+      <PasswordInput className="span-2" placeholder="Password (min. 10 caratteri)"  minLength={10} required value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})}/>
       <select value={userForm.role_code} onChange={e=>setUserForm({...userForm,role_code:e.target.value})}>{roles.map(r=><option key={r}>{r}</option>)}</select>
       <button className="primary">Crea utente</button>
      </form>
