@@ -87,6 +87,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         user_id=user.id,
         tenant_id=membership.tenant_id,
         permissions=permissions,
+        auth_version=user.auth_version,
     )
     return LoginResponse(
         access_token=token,

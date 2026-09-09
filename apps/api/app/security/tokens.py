@@ -5,7 +5,7 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-def create_access_token(*, user_id: UUID, tenant_id: UUID, permissions: list[str]) -> str:
+def create_access_token(*, user_id: UUID, tenant_id: UUID, permissions: list[str], auth_version: int = 0) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
@@ -14,5 +14,6 @@ def create_access_token(*, user_id: UUID, tenant_id: UUID, permissions: list[str
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(minutes=settings.access_token_expire_minutes)).timestamp()),
         "type": "access",
+        "auth_version": auth_version,
     }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)

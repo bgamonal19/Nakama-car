@@ -1,5 +1,6 @@
 "use client";
 
+import { UserEditor } from "../../components/UserEditor";
 import { PasswordInput } from "../../components/PasswordInput";
 
 import { FormEvent, useEffect, useState } from "react";
@@ -14,11 +15,17 @@ const roles=["ADMIN","RECEPTION","BODYSHOP","PAINTER","MECHANIC","ACCOUNTING"];
 export default function ConfigurazionePage(){
  const [rates,setRates]=useState<Record<string,string>>({});
  const [users,setUsers]=useState<User[]>([]);
+ const [editing,setEditing]=useState<User|null>(null);
+ const [userMessage,setUserMessage]=useState("");
+ const [loadError,setLoadError]=useState("");
  const [userForm,setUserForm]=useState({email:"",password:"",first_name:"",last_name:"",role_code:"RECEPTION"});
  async function load(){
+  try {
   const [rr,ur]=await Promise.all([apiFetch("/settings/labor-rates"),apiFetch("/users")]);
   if(rr.ok){const data:Rate[]=await rr.json();setRates(Object.fromEntries(data.map(x=>[x.labor_type,x.hourly_rate])));}
-  if(ur.ok)setUsers(await ur.json());
+  if(ur.ok){setUsers(await ur.json());setLoadError("");}
+  else {setUsers([]);setLoadError(ur.status===403?"Solo gli amministratori possono gestire gli utenti.":"Impossibile caricare gli utenti. Accedi nuovamente o riprova.");}
+  } catch {setLoadError("Errore di connessione. Riprova.");}
  }
  useEffect(()=>{if(getAccessToken())load();},[]);
  async function saveRate(type:string){
@@ -48,9 +55,12 @@ export default function ConfigurazionePage(){
     </div>
    </div>
    <div className="panel list-panel settings-users"><div className="panel-head"><div><h2>Utenti</h2><p>Accessi al tenant.</p></div></div>
-    <div className="data-table users head"><span>Nome</span><span>Email</span><span>Ruolo</span><span>Stato</span></div>
-    {users.map(u=><div className="data-table users" key={u.id}><strong>{u.first_name} {u.last_name}</strong><span>{u.email}</span><span>{u.role_codes.join(", ")}</span><span className="status-chip">{u.status}</span></div>)}
+    {loadError && <div role="alert" className="empty-state">{loadError} <button onClick={load}>Riprova</button></div>}
+    {userMessage && <p role="status" className="staff-success">{userMessage}</p>}
+    <div className="data-table users editable-users head"><span>Nome</span><span>Email</span><span>Ruolo</span><span>Stato</span><span>Azioni</span></div>
+    {users.map(u=><div className="data-table users editable-users" key={u.id}><strong>{u.first_name} {u.last_name}</strong><span>{u.email}</span><span>{u.role_codes.join(", ")}</span><span className="status-chip">{u.status}</span><button type="button" className="secondary" aria-label={`Modifica ${u.first_name} ${u.last_name}`} onClick={()=>{setEditing(u);setUserMessage("");}}>Modifica</button></div>)}
    </div>
+   {editing && <UserEditor key={editing.id} user={editing} onCancel={()=>setEditing(null)} onSaved={updated=>{setUsers(previous=>previous.map(u=>u.id===updated.id?updated:u));setEditing(null);setUserMessage("Utente aggiornato correttamente.");}} />}
   </>}
  </SectionShell>;
 }
