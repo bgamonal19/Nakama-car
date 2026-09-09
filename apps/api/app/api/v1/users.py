@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.db.deps import get_db
 from app.models.identity import Role, User, UserRole, UserStatus, UserTenant
 from app.schemas.users import UserCreate, UserRead
 from app.security.context import AuthContext, require_permission
 from app.security.passwords import hash_password
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -51,7 +53,7 @@ def create_user(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("users.manage")),
 ):
-    if db.scalar(select(User).where(User.email == payload.email.lower())) is not None:
+    if db.scalar(select(User).where(func.lower(User.email) == payload.email.lower())) is not None:
         raise HTTPException(status_code=409, detail="Email already exists")
 
     role = db.scalar(
@@ -70,10 +72,17 @@ def create_user(
         last_name=payload.last_name,
         status=UserStatus.ACTIVE,
     )
-    db.add(user)
-    db.flush()
-    db.add(UserTenant(user_id=user.id, tenant_id=auth.tenant_id, is_default=True))
-    db.add(UserRole(user_id=user.id, tenant_id=auth.tenant_id, role_id=role.id))
-    db.commit()
+    try:
+        db.add(user)
+        db.flush()
+        db.add(UserTenant(user_id=user.id, tenant_id=auth.tenant_id, is_default=True))
+        db.add(UserRole(user_id=user.id, tenant_id=auth.tenant_id, role_id=role.id))
+        record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id,
+                     entity_type="user", entity_id=user.id, action="CREATE",
+                     new_value={"role_code": role.code})
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Account already exists or could not be assigned")
     db.refresh(user)
     return user_to_read(db, user, auth.tenant_id)

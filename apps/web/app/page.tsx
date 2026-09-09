@@ -455,6 +455,7 @@ export default function HomePage() {
           <a className="nav-item" href="/preventivi">€ Preventivi</a>
           <a className="nav-item" href="/lavori">⌁ Lavori in officina</a>
           <a className="nav-item" href="/fatture">◫ Fatture</a>
+          <a className="nav-item" href="/personale">♙ Personale</a>
         </nav>
 
         <div className="sidebar-bottom">

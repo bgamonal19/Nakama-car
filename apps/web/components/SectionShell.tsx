@@ -9,6 +9,7 @@ const nav = [
   ["/clienti", "◎ Clienti"],
   ["/veicoli", "◇ Veicoli"],
   ["/fatture", "◫ Fatture"],
+  ["/personale", "♙ Personale"],
 ];
 
 export function SectionShell({ title, eyebrow, children, actions }: { title: string; eyebrow?: string; children: ReactNode; actions?: ReactNode }) {
