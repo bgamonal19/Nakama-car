@@ -28,7 +28,7 @@ export default function ConfigurazionePage(){
   if(!r.ok){const d=await r.json().catch(()=>({}));return alert(d.detail||"Impossibile creare utente");}
   setUserForm({email:"",password:"",first_name:"",last_name:"",role_code:"RECEPTION"});load();
  }
- return <SectionShell title="Configurazione" eyebrow="TENANT · NAKAMA CAR">
+ return <SectionShell title="Configurazione" eyebrow="TENANT · NAKAMA CAR" actions={<a className="primary link-button" href="/personale">Gestisci personale</a>}>
   {!getAccessToken()?<div className="empty-state">Accedi come amministratore. <a href="/login">Accedi</a></div>:<>
    <div className="settings-grid">
     <div className="panel settings-card"><div className="panel-head"><div><h2>Tariffe orarie</h2><p>Valori configurabili, mai hardcoded nel preventivo.</p></div></div>
