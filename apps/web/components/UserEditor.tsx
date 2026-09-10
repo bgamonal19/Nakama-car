@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "./LanguageProvider";
+
 import { FormEvent, useState } from "react";
 import { apiFetch, clearSession, getAccessToken } from "../lib/api";
 import { PasswordInput } from "./PasswordInput";
@@ -11,6 +13,7 @@ const roles = [
 ];
 
 export function UserEditor({ user, onSaved, onCancel }: { user: EditableUser; onSaved: (user: EditableUser) => void; onCancel: () => void }) {
+  const { t } = useLanguage();
   const [form, setForm] = useState({ first_name: user.first_name, last_name: user.last_name, email: user.email, role_code: user.role_codes[0] || "RECEPTION", password: "" });
   const [confirmation, setConfirmation] = useState("");
   const [saving, setSaving] = useState(false);
@@ -43,19 +46,19 @@ export function UserEditor({ user, onSaved, onCancel }: { user: EditableUser; on
     } catch (err) { setError(err instanceof Error ? err.message : "Errore di connessione. Riprova."); }
     finally { setSaving(false); }
   }
-  return <section className="panel user-editor" aria-label="Modifica utente">
-    <div className="panel-head"><div><h2>Modifica utente</h2><p>{user.first_name} {user.last_name} · {user.email}</p></div></div>
-    {reauthenticate ? <div className="settings-body" role="status"><p>Modifiche salvate. Accedi nuovamente con le credenziali aggiornate.</p><a className="primary link-button" href="/login">Accedi</a></div> : <form className="settings-body user-form staff-form" onSubmit={save}>
-      <label>Nome<input required maxLength={120} value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></label>
-      <label>Cognome<input required maxLength={120} value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></label>
-      <label className="span-2">Email<input required type="email" autoComplete="off" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-      <label className="span-2">Profilo<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{roles.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>
-      <label>Nuova password<PasswordInput minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
-      <label>Conferma nuova password<PasswordInput minLength={10} autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} /></label>
-      <p className="span-2">Lascia vuoti i campi password per mantenere quella attuale. Cambiando email, password o profilo, l’utente dovrà accedere nuovamente.</p>
-      {error && <div role="alert" className="auth-error span-2">{error}</div>}
-      <button className="primary" disabled={saving}>{saving ? "Salvataggio…" : "Salva modifiche"}</button>
-      <button type="button" className="ghost" disabled={saving} onClick={onCancel}>Annulla</button>
+  return <section className="panel user-editor" aria-label={t("Modifica utente")}>
+    <div className="panel-head"><div><h2>{t("Modifica utente")}</h2><p>{user.first_name} {user.last_name} · {user.email}</p></div></div>
+    {reauthenticate ? <div className="settings-body" role="status"><p>{t("Modifiche salvate. Accedi nuovamente con le credenziali aggiornate.")}</p><a className="primary link-button" href="/login">{t("Accedi")}</a></div> : <form className="settings-body user-form staff-form" onSubmit={save}>
+      <label>{t("Nome")}<input required maxLength={120} value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></label>
+      <label>{t("Cognome")}<input required maxLength={120} value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></label>
+      <label className="span-2">{t("Email")}<input required type="email" autoComplete="off" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+      <label className="span-2">{t("Profilo")}<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{roles.map(([code, name]) => <option key={code} value={code}>{t(name)}</option>)}</select></label>
+      <label>{t("Nuova password")}<PasswordInput minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></label>
+      <label>{t("Conferma nuova password")}<PasswordInput minLength={10} autoComplete="new-password" value={confirmation} onChange={e => setConfirmation(e.target.value)} /></label>
+      <p className="span-2">{t("Lascia vuoti i campi password per mantenere quella attuale. Cambiando email, password o profilo, l’utente dovrà accedere nuovamente.")}</p>
+      {error && <div role="alert" className="auth-error span-2">{t(error)}</div>}
+      <button className="primary" disabled={saving}>{saving ? t("Salvataggio…") : t("Salva modifiche")}</button>
+      <button type="button" className="ghost" disabled={saving} onClick={onCancel}>{t("Annulla")}</button>
     </form>}
   </section>;
 }

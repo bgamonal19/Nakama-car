@@ -1,19 +1,22 @@
 "use client";
 
+import { useLanguage } from "./LanguageProvider";
+
 import { InputHTMLAttributes, useId, useState } from "react";
 
 type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type">;
 
 export function PasswordInput({ className = "", id, ...props }: PasswordInputProps) {
+  const { t } = useLanguage();
   const [visible, setVisible] = useState(false);
   const generatedId = useId();
   const inputId = id || generatedId;
-  const label = visible ? "Nascondi password" : "Mostra password";
+  const label = visible ? t("Nascondi password") : t("Mostra password");
 
   return (
     <span className={`password-field ${className}`}>
       <input {...props} id={inputId} type={visible ? "text" : "password"} />
-      <button type="button" className="password-toggle" aria-label={label} title={label}
+      <button type="button" className="password-toggle" aria-label={t(label)} title={t(label)}
         aria-controls={inputId} aria-pressed={visible} disabled={props.disabled}
         onClick={() => setVisible(value => !value)}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">

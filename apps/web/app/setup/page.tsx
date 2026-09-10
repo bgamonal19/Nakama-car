@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "../../components/LanguageProvider";
+
 import { PasswordInput } from "../../components/PasswordInput";
 
 import { FormEvent, useState } from "react";
@@ -8,6 +10,7 @@ import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
 
 export default function SetupPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [token, setToken] = useState("");
   const [form, setForm] = useState({
@@ -55,17 +58,17 @@ export default function SetupPage() {
     <main className="auth-screen">
       <div className="auth-card setup-card">
         <div className="public-brand nakama-auth-brand"><NakamaLogo /></div>
-        <div className="auth-copy"><p className="eyebrow">PRIMO AVVIO</p><h1>Inizializza il tenant pilota</h1><p>Questa operazione è consentita una sola volta e richiede il BOOTSTRAP_TOKEN configurato sul backend.</p></div>
+        <div className="auth-copy"><p className="eyebrow">{t("PRIMO AVVIO")}</p><h1>{t("Inizializza il tenant pilota")}</h1><p>{t("Questa operazione è consentita una sola volta e richiede il BOOTSTRAP_TOKEN configurato sul backend.")}</p></div>
         <form onSubmit={submit} className="auth-form setup-form">
           <label className="span-2">Bootstrap token<input required type="password" value={token} onChange={(e) => setToken(e.target.value)} /></label>
-          <label>Nome<input required value={form.first_name} onChange={(e) => field("first_name", e.target.value)} /></label>
-          <label>Cognome<input required value={form.last_name} onChange={(e) => field("last_name", e.target.value)} /></label>
-          <label className="span-2">Email amministratore<input required type="email" value={form.admin_email} onChange={(e) => field("admin_email", e.target.value)} /></label>
-          <label className="span-2">Password amministratore<PasswordInput required minLength={10}  value={form.admin_password} onChange={(e) => field("admin_password", e.target.value)} /></label>
-          <label>Ragione sociale<input required value={form.company_name} onChange={(e) => field("company_name", e.target.value)} /></label>
-          <label>Partita IVA<input value={form.vat_number} onChange={(e) => field("vat_number", e.target.value)} /></label>
-          {error && <div className="auth-error span-2">{error}</div>}
-          <button className="primary auth-submit span-2" disabled={loading}>{loading ? "Configurazione…" : "Crea NAKAMA CAR"}</button>
+          <label>{t("Nome")}<input required value={form.first_name} onChange={(e) => field("first_name", e.target.value)} /></label>
+          <label>{t("Cognome")}<input required value={form.last_name} onChange={(e) => field("last_name", e.target.value)} /></label>
+          <label className="span-2">{t("Email amministratore")}<input required type="email" value={form.admin_email} onChange={(e) => field("admin_email", e.target.value)} /></label>
+          <label className="span-2">{t("Password amministratore")}<PasswordInput required minLength={10}  value={form.admin_password} onChange={(e) => field("admin_password", e.target.value)} /></label>
+          <label>{t("Ragione sociale")}<input required value={form.company_name} onChange={(e) => field("company_name", e.target.value)} /></label>
+          <label>{t("Partita IVA")}<input value={form.vat_number} onChange={(e) => field("vat_number", e.target.value)} /></label>
+          {error && <div className="auth-error span-2">{t(error)}</div>}
+          <button className="primary auth-submit span-2" disabled={loading}>{loading ? t("Configurazione…") : t("Crea NAKAMA CAR")}</button>
         </form>
       </div>
     </main>

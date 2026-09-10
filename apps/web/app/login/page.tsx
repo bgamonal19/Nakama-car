@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "../../components/LanguageProvider";
+
 import { PasswordInput } from "../../components/PasswordInput";
 
 import { FormEvent, useState } from "react";
@@ -8,6 +10,7 @@ import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,14 +42,14 @@ export default function LoginPage() {
     <main className="auth-screen">
       <div className="auth-card">
         <div className="public-brand nakama-auth-brand"><NakamaLogo /></div>
-        <div className="auth-copy"><p className="eyebrow">ACCESSO OPERATORE</p><h1>Accedi alla carrozzeria</h1><p>Gestisci pratiche, preventivi, lavorazioni e fatturazione.</p></div>
+        <div className="auth-copy"><p className="eyebrow">{t("ACCESSO OPERATORE")}</p><h1>{t("Accedi alla carrozzeria")}</h1><p>{t("Gestisci pratiche, preventivi, lavorazioni e fatturazione.")}</p></div>
         <form onSubmit={submit} className="auth-form">
-          <label>Email<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
-          <label>Password<PasswordInput  required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
-          {error && <div className="auth-error">{error}</div>}
-          <button className="primary auth-submit" disabled={loading}>{loading ? "Accesso…" : "Accedi"}</button>
+          <label>{t("Email")}<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
+          <label>{t("Password")}<PasswordInput  required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          {error && <div className="auth-error">{t(error)}</div>}
+          <button className="primary auth-submit" disabled={loading}>{loading ? t("Accesso…") : t("Accedi")}</button>
         </form>
-        <p className="auth-foot">Primo avvio? Utilizza la pagina di inizializzazione riservata all'amministratore.</p>
+        <p className="auth-foot">{t("Primo avvio? Utilizza la pagina di inizializzazione riservata all'amministratore.")}</p>
       </div>
     </main>
   );

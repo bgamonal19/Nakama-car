@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "../../components/LanguageProvider";
+
 import { UserEditor } from "../../components/UserEditor";
 import { PasswordInput } from "../../components/PasswordInput";
 
@@ -13,6 +15,7 @@ const rateTypes=["BODY","MECHANICAL","PAINT","ELECTRICAL","DIAGNOSTIC"];
 const roles=["ADMIN","RECEPTION","BODYSHOP","PAINTER","MECHANIC","ACCOUNTING"];
 
 export default function ConfigurazionePage(){
+  const { t } = useLanguage();
  const [rates,setRates]=useState<Record<string,string>>({});
  const [users,setUsers]=useState<User[]>([]);
  const [editing,setEditing]=useState<User|null>(null);
@@ -30,35 +33,35 @@ export default function ConfigurazionePage(){
  useEffect(()=>{if(getAccessToken())load();},[]);
  async function saveRate(type:string){
   const r=await apiFetch(`/settings/labor-rates/${type}`,{method:"PUT",body:JSON.stringify({labor_type:type,hourly_rate:Number(rates[type]||0),currency:"EUR"})});
-  if(!r.ok)return alert("Impossibile salvare la tariffa"); load();
+  if(!r.ok)return alert(t("Impossibile salvare la tariffa")); load();
  }
  async function createUser(e:FormEvent){
   e.preventDefault();const r=await apiFetch("/users",{method:"POST",body:JSON.stringify(userForm)});
-  if(!r.ok){const d=await r.json().catch(()=>({}));return alert(d.detail||"Impossibile creare utente");}
+  if(!r.ok){const d=await r.json().catch(()=>({}));return alert(t(d.detail||"Impossibile creare utente"));}
   setUserForm({email:"",password:"",first_name:"",last_name:"",role_code:"RECEPTION"});load();
  }
- return <SectionShell title="Configurazione" eyebrow="TENANT · NAKAMA CAR" actions={<a className="primary link-button" href="/personale">Gestisci personale</a>}>
-  {!getAccessToken()?<div className="empty-state">Accedi come amministratore. <a href="/login">Accedi</a></div>:<>
+ return <SectionShell title={t("Configurazione")} eyebrow="TENANT · NAKAMA CAR" actions={<a className="primary link-button" href="/personale">{t("Gestisci personale")}</a>}>
+  {!getAccessToken()?<div className="empty-state">{t("Accedi come amministratore.")} <a href="/login">{t("Accedi")}</a></div>:<>
    <div className="settings-grid">
-    <div className="panel settings-card"><div className="panel-head"><div><h2>Tariffe orarie</h2><p>Valori configurabili, mai hardcoded nel preventivo.</p></div></div>
-     <div className="settings-body">{rateTypes.map(type=><div className="setting-row" key={type}><strong>{type}</strong><label><input type="number" step="0.1" value={rates[type]||""} onChange={e=>setRates({...rates,[type]:e.target.value})}/><span>€/h</span></label><button onClick={()=>saveRate(type)}>Salva</button></div>)}</div>
+    <div className="panel settings-card"><div className="panel-head"><div><h2>{t("Tariffe orarie")}</h2><p>{t("Valori configurabili, mai hardcoded nel preventivo.")}</p></div></div>
+     <div className="settings-body">{rateTypes.map(type=><div className="setting-row" key={type}><strong>{t(type)}</strong><label><input type="number" step="0.1" value={rates[type]||""} onChange={e=>setRates({...rates,[type]:e.target.value})}/><span>€/h</span></label><button onClick={()=>saveRate(type)}>{t("Salva")}</button></div>)}</div>
     </div>
-    <div className="panel settings-card"><div className="panel-head"><div><h2>Nuovo utente</h2><p>Assegna un ruolo operativo.</p></div></div>
+    <div className="panel settings-card"><div className="panel-head"><div><h2>{t("Nuovo utente")}</h2><p>{t("Assegna un ruolo operativo.")}</p></div></div>
      <form className="settings-body user-form" onSubmit={createUser}>
-      <input placeholder="Nome" required value={userForm.first_name} onChange={e=>setUserForm({...userForm,first_name:e.target.value})}/>
-      <input placeholder="Cognome" required value={userForm.last_name} onChange={e=>setUserForm({...userForm,last_name:e.target.value})}/>
-      <input className="span-2" placeholder="Email" type="email" required value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})}/>
-      <PasswordInput className="span-2" placeholder="Password (min. 10 caratteri)"  minLength={10} required value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})}/>
-      <select value={userForm.role_code} onChange={e=>setUserForm({...userForm,role_code:e.target.value})}>{roles.map(r=><option key={r}>{r}</option>)}</select>
-      <button className="primary">Crea utente</button>
+      <input placeholder={t("Nome")} required value={userForm.first_name} onChange={e=>setUserForm({...userForm,first_name:e.target.value})}/>
+      <input placeholder={t("Cognome")} required value={userForm.last_name} onChange={e=>setUserForm({...userForm,last_name:e.target.value})}/>
+      <input className="span-2" placeholder={t("Email")} type="email" required value={userForm.email} onChange={e=>setUserForm({...userForm,email:e.target.value})}/>
+      <PasswordInput className="span-2" placeholder={t("Password (min. 10 caratteri)")}  minLength={10} required value={userForm.password} onChange={e=>setUserForm({...userForm,password:e.target.value})}/>
+      <select value={userForm.role_code} onChange={e=>setUserForm({...userForm,role_code:e.target.value})}>{roles.map(r=><option key={r} value={r}>{t(r)}</option>)}</select>
+      <button className="primary">{t("Crea utente")}</button>
      </form>
     </div>
    </div>
-   <div className="panel list-panel settings-users"><div className="panel-head"><div><h2>Utenti</h2><p>Accessi al tenant.</p></div></div>
-    {loadError && <div role="alert" className="empty-state">{loadError} <button onClick={load}>Riprova</button></div>}
-    {userMessage && <p role="status" className="staff-success">{userMessage}</p>}
-    <div className="data-table users editable-users head"><span>Nome</span><span>Email</span><span>Ruolo</span><span>Stato</span><span>Azioni</span></div>
-    {users.map(u=><div className="data-table users editable-users" key={u.id}><strong>{u.first_name} {u.last_name}</strong><span>{u.email}</span><span>{u.role_codes.join(", ")}</span><span className="status-chip">{u.status}</span><button type="button" className="secondary" aria-label={`Modifica ${u.first_name} ${u.last_name}`} onClick={()=>{setEditing(u);setUserMessage("");}}>Modifica</button></div>)}
+   <div className="panel list-panel settings-users"><div className="panel-head"><div><h2>{t("Utenti")}</h2><p>{t("Accessi al tenant.")}</p></div></div>
+    {loadError && <div role="alert" className="empty-state">{t(loadError)} <button onClick={load}>{t("Riprova")}</button></div>}
+    {userMessage && <p role="status" className="staff-success">{t(userMessage)}</p>}
+    <div className="data-table users editable-users head"><span>{t("Nome")}</span><span>{t("Email")}</span><span>{t("Ruolo")}</span><span>{t("Stato")}</span><span>{t("Azioni")}</span></div>
+    {users.map(u=><div className="data-table users editable-users" key={u.id}><strong>{u.first_name} {u.last_name}</strong><span>{u.email}</span><span>{u.role_codes.map(code => t(code)).join(", ")}</span><span className="status-chip">{t(u.status)}</span><button type="button" className="secondary" aria-label={`${t("Modifica")} ${u.first_name} ${u.last_name}`} onClick={()=>{setEditing(u);setUserMessage("");}}>{t("Modifica")}</button></div>)}
    </div>
    {editing && <UserEditor key={editing.id} user={editing} onCancel={()=>setEditing(null)} onSaved={updated=>{setUsers(previous=>previous.map(u=>u.id===updated.id?updated:u));setEditing(null);setUserMessage("Utente aggiornato correttamente.");}} />}
   </>}
