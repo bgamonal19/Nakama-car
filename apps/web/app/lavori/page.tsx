@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "../../components/LanguageProvider";
+
 import { useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { apiFetch, getAccessToken } from "../../lib/api";
@@ -27,6 +29,7 @@ const states = ["NEW","WAITING_APPROVAL","APPROVED","WAITING_PARTS","IN_REPAIR",
 const taskStates = ["PENDING","IN_PROGRESS","DONE","BLOCKED"];
 
 export default function LavoriPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<Order[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Record<string, Task[]>>({});
@@ -92,28 +95,28 @@ export default function LavoriPage() {
   }
 
   return (
-    <SectionShell title="Ordini di lavoro" eyebrow="WORKSHOP FLOW">
+    <SectionShell title={t("Ordini di lavoro")} eyebrow={t("WORKSHOP FLOW")}>
       {!getAccessToken() ? (
-        <div className="empty-state">Accedi per gestire l'officina. <a href="/login">Accedi</a></div>
+        <div className="empty-state">{t("Accedi per gestire l'officina.")} <a href="/login">{t("Accedi")}</a></div>
       ) : (
         <div className="panel list-panel">
           <div className="data-table work head">
-            <span>Ordine</span><span>Priorità</span><span>Pratica</span><span>Stato operativo</span><span>Dettaglio</span>
+            <span>{t("Ordine")}</span><span>{t("Priorità")}</span><span>{t("Pratica")}</span><span>{t("Stato operativo")}</span><span>{t("Dettaglio")}</span>
           </div>
 
           {items.length === 0 ? (
-            <div className="empty-state">Nessun ordine di lavoro.</div>
+            <div className="empty-state">{t("Nessun ordine di lavoro.")}</div>
           ) : items.map((order) => (
             <div className="work-order-wrap" key={order.id}>
               <div className="data-table work work-main">
                 <strong>{order.work_order_number}</strong>
-                <span>{order.priority}</span>
+                <span>{t(order.priority)}</span>
                 <span>{order.repair_case_id.slice(0,8)}…</span>
                 <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value)}>
-                  {states.map((state) => <option key={state}>{state}</option>)}
+                  {states.map((state) => <option key={state} value={state}>{t(state)}</option>)}
                 </select>
                 <button className="task-toggle" onClick={() => toggle(order.id)}>
-                  {expanded === order.id ? "Chiudi" : "Attività"}
+                  {expanded === order.id ? t("Chiudi") : t("Attività")}
                 </button>
               </div>
 
@@ -121,29 +124,29 @@ export default function LavoriPage() {
                 <div className="task-panel">
                   <div className="task-panel-head">
                     <div>
-                      <strong>Checklist lavorazione</strong>
-                      <small>Le attività seguono l'ordine operativo della carrozzeria.</small>
+                      <strong>{t("Checklist lavorazione")}</strong>
+                      <small>{t("Le attività seguono l'ordine operativo della carrozzeria.")}</small>
                     </div>
-                    <span>{(tasks[order.id] || []).filter((x) => x.status === "DONE").length}/{(tasks[order.id] || []).length} completate</span>
+                    <span>{(tasks[order.id] || []).filter((x) => x.status === "DONE").length}/{(tasks[order.id] || []).length} {t("completate")}</span>
                   </div>
 
                   <div className="task-list">
                     {(tasks[order.id] || []).length === 0 ? (
-                      <div className="task-empty">Nessuna attività. Gli ordini creati da preventivo approvato ricevono automaticamente la checklist standard.</div>
+                      <div className="task-empty">{t("Nessuna attività. Gli ordini creati da preventivo approvato ricevono automaticamente la checklist standard.")}</div>
                     ) : (tasks[order.id] || []).map((task) => (
                       <div className="task-row" key={task.id}>
                         <span className={`task-check ${task.status === "DONE" ? "done" : ""}`}>{task.status === "DONE" ? "✓" : ""}</span>
-                        <div><strong>{task.description}</strong><small>{task.task_type}</small></div>
+                        <div><strong>{task.description}</strong><small>{t(task.task_type)}</small></div>
                         <select value={task.status} onChange={(e) => setTaskStatus(order.id, task.id, e.target.value)}>
-                          {taskStates.map((state) => <option key={state}>{state}</option>)}
+                          {taskStates.map((state) => <option key={state} value={state}>{t(state)}</option>)}
                         </select>
                       </div>
                     ))}
                   </div>
 
                   <div className="add-task">
-                    <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Aggiungi attività personalizzata…" />
-                    <button onClick={() => addTask(order.id)}>+ Aggiungi</button>
+                    <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder={t("Aggiungi attività personalizzata…")} />
+                    <button onClick={() => addTask(order.id)}>{t("+ Aggiungi")}</button>
                   </div>
                 </div>
               )}

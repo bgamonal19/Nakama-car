@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "../../../../components/LanguageProvider";
+
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { NakamaLogo } from "../../../../components/NakamaLogo";
@@ -23,6 +25,7 @@ function money(value: string) {
 }
 
 export default function PublicEstimatePage() {
+  const { t } = useLanguage();
   const params = useParams<{ token: string }>();
   const [estimate, setEstimate] = useState<PublicEstimate | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +47,7 @@ export default function PublicEstimatePage() {
 
   async function decide(accepted: boolean) {
     if (!signature.trim()) {
-      alert("Inserisci nome e cognome per confermare.");
+      alert(t("Inserisci nome e cognome per confermare."));
       return;
     }
     const r = await fetch(`${api}/public/estimate/${params.token}/decision`, {
@@ -58,52 +61,52 @@ export default function PublicEstimatePage() {
     });
     if (!r.ok) {
       const detail = await r.json().catch(() => ({}));
-      alert(detail.detail || "Impossibile registrare la risposta.");
+      alert(t(detail.detail || "Impossibile registrare la risposta."));
       return;
     }
     setResult(accepted ? "Preventivo accettato" : "Preventivo rifiutato");
   }
 
-  if (loading) return <main className="public-estimate"><div className="public-card">Caricamento preventivo…</div></main>;
-  if (!estimate) return <main className="public-estimate"><div className="public-card"><h1>Preventivo non disponibile</h1></div></main>;
+  if (loading) return <main className="public-estimate"><div className="public-card">{t("Caricamento preventivo…")}</div></main>;
+  if (!estimate) return <main className="public-estimate"><div className="public-card"><h1>{t("Preventivo non disponibile")}</h1></div></main>;
 
   return (
     <main className="public-estimate">
       <div className="public-card">
         <div className="public-brand nakama-public-brand"><NakamaLogo /></div>
         <div className="public-head">
-          <div><small>PREVENTIVO</small><h1>{estimate.estimate_number}</h1></div>
+          <div><small>{t("PREVENTIVO")}</small><h1>{estimate.estimate_number}</h1></div>
           <span className="public-status">{estimate.status}</span>
         </div>
 
         <div className="public-meta">
-          <div><small>CLIENTE</small><strong>{estimate.customer_name}</strong></div>
-          <div><small>VEICOLO</small><strong>{estimate.vehicle || "—"}</strong></div>
-          <div><small>TARGA</small><strong>{estimate.license_plate}</strong></div>
+          <div><small>{t("CLIENTE")}</small><strong>{estimate.customer_name}</strong></div>
+          <div><small>{t("VEICOLO")}</small><strong>{estimate.vehicle || "—"}</strong></div>
+          <div><small>{t("TARGA")}</small><strong>{estimate.license_plate}</strong></div>
         </div>
 
         <div className="public-lines">
-          <div className="public-line public-line-head"><span>Descrizione</span><span>Q.tà</span><span>Totale</span></div>
+          <div className="public-line public-line-head"><span>{t("Descrizione")}</span><span>{t("Q.tà")}</span><span>{t("Totale")}</span></div>
           {estimate.lines.map((line, i) => (
             <div className="public-line" key={i}><span>{line.description}</span><span>{line.quantity}</span><strong>{money(line.line_total)}</strong></div>
           ))}
         </div>
 
         <div className="public-totals">
-          <div><span>Imponibile</span><strong>{money(estimate.subtotal)}</strong></div>
+          <div><span>{t("Imponibile")}</span><strong>{money(estimate.subtotal)}</strong></div>
           <div><span>IVA</span><strong>{money(estimate.vat_total)}</strong></div>
-          <div className="public-grand"><span>TOTALE</span><strong>{money(estimate.total)}</strong></div>
+          <div className="public-grand"><span>{t("TOTALE")}</span><strong>{money(estimate.total)}</strong></div>
         </div>
 
         {result ? (
-          <div className="decision-result"><span>✓</span><div><strong>{result}</strong><small>La carrozzeria riceverà lo stato aggiornato.</small></div></div>
+          <div className="decision-result"><span>✓</span><div><strong>{t(result)}</strong><small>{t("La carrozzeria riceverà lo stato aggiornato.")}</small></div></div>
         ) : (
           <div className="decision-box">
-            <h2>Conferma del cliente</h2>
-            <p>Inserisci nome e cognome come conferma della decisione sul preventivo.</p>
-            <label>Nome e cognome<input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Mario Rossi" /></label>
-            <label>Note opzionali<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></label>
-            <div className="decision-actions"><button className="reject" onClick={() => decide(false)}>Rifiuta</button><button className="accept" onClick={() => decide(true)}>Accetta preventivo</button></div>
+            <h2>{t("Conferma del cliente")}</h2>
+            <p>{t("Inserisci nome e cognome come conferma della decisione sul preventivo.")}</p>
+            <label>{t("Nome e cognome")}<input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Mario Rossi" /></label>
+            <label>{t("Note opzionali")}<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></label>
+            <div className="decision-actions"><button className="reject" onClick={() => decide(false)}>{t("Rifiuta")}</button><button className="accept" onClick={() => decide(true)}>{t("Accetta preventivo")}</button></div>
           </div>
         )}
       </div>

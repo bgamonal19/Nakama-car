@@ -1,5 +1,7 @@
 "use client";
 
+import { useLanguage } from "../../components/LanguageProvider";
+
 import { PasswordInput } from "../../components/PasswordInput";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -18,6 +20,7 @@ const profiles = [
 const emptyForm = { first_name: "", last_name: "", email: "", password: "", role_code: "RECEPTION" };
 
 export default function PersonalePage() {
+  const { t } = useLanguage();
   const [users, setUsers] = useState<Worker[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [access, setAccess] = useState<"loading" | "login" | "denied" | "allowed" | "error">("loading");
@@ -54,34 +57,34 @@ export default function PersonalePage() {
       const worker: Worker = await response.json();
       setUsers(previous => [...previous, worker]);
       setForm(emptyForm);
-      setSuccess(`Account creato per ${worker.first_name} ${worker.last_name}. Può accedere con la propria email e la password assegnata. Nessuna email è stata inviata.`);
+      setSuccess(`${worker.first_name} ${worker.last_name}`);
     } catch (err) { setError(err instanceof Error ? err.message : "Impossibile creare l’account."); }
     finally { setSaving(false); }
   }
   const filtered = users.filter(user => `${user.first_name} ${user.last_name} ${user.email}`.toLowerCase().includes(search.toLowerCase()));
-  return <SectionShell title="Personale" eyebrow="ACCOUNT E PROFILI DI ACCESSO">
-    {access === "loading" && <div className="empty-state">Caricamento personale…</div>}
-    {access === "login" && <div className="empty-state">Accedi come amministratore per gestire i lavoratori. <a href="/login">Accedi</a></div>}
-    {access === "denied" && <div className="empty-state">Il tuo profilo non consente di gestire il personale. Rivolgiti all’amministratore.</div>}
-    {access === "error" && <div className="empty-state" role="alert">{error} <button onClick={() => { setError(""); setAccess("loading"); void load(); }}>Riprova</button></div>}
+  return <SectionShell title={t("Personale")} eyebrow={t("ACCOUNT E PROFILI DI ACCESSO")}>
+    {access === "loading" && <div className="empty-state">{t("Caricamento personale…")}</div>}
+    {access === "login" && <div className="empty-state">{t("Accedi come amministratore per gestire i lavoratori.")} <a href="/login">{t("Accedi")}</a></div>}
+    {access === "denied" && <div className="empty-state">{t("Il tuo profilo non consente di gestire il personale. Rivolgiti all’amministratore.")}</div>}
+    {access === "error" && <div className="empty-state" role="alert">{t(error)} <button onClick={() => { setError(""); setAccess("loading"); void load(); }}>{t("Riprova")}</button></div>}
     {access === "allowed" && <>
       <div className="settings-grid">
-        <section className="panel settings-card"><div className="panel-head"><div><h2>Nuovo lavoratore</h2><p>Crea un account personale per accedere alla carrozzeria.</p></div></div>
+        <section className="panel settings-card"><div className="panel-head"><div><h2>{t("Nuovo lavoratore")}</h2><p>{t("Crea un account personale per accedere alla carrozzeria.")}</p></div></div>
           <form className="settings-body user-form staff-form" onSubmit={createWorker}>
-            <label>Nome<input required maxLength={120} autoComplete="given-name" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></label>
-            <label>Cognome<input required maxLength={120} autoComplete="family-name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></label>
-            <label className="span-2">Email<input required type="email" autoComplete="off" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
-            <label className="span-2">Password<PasswordInput required  minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><small>Almeno 10 caratteri. Comunicala direttamente al lavoratore.</small></label>
-            <label className="span-2">Profilo di accesso<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{profiles.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}</select><small>{profiles.find(p => p.code === form.role_code)?.description}</small></label>
-            {error && <p className="auth-error span-2" role="alert">{error}</p>}
-            {success && <p className="staff-success span-2" role="status">{success}</p>}
-            <button className="primary span-2" disabled={saving}>{saving ? "Creazione…" : "Crea account lavoratore"}</button>
+            <label>{t("Nome")}<input required maxLength={120} autoComplete="given-name" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} /></label>
+            <label>{t("Cognome")}<input required maxLength={120} autoComplete="family-name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></label>
+            <label className="span-2">{t("Email")}<input required type="email" autoComplete="off" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
+            <label className="span-2">{t("Password")}<PasswordInput required  minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><small>{t("Almeno 10 caratteri. Comunicala direttamente al lavoratore.")}</small></label>
+            <label className="span-2">{t("Profilo di accesso")}<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{profiles.map(p => <option key={p.code} value={p.code}>{t(p.name)}</option>)}</select><small>{t(profiles.find(p => p.code === form.role_code)?.description)}</small></label>
+            {error && <p className="auth-error span-2" role="alert">{t(error)}</p>}
+            {success && <p className="staff-success span-2" role="status">{t("Account creato per {name}. Può accedere con la propria email e la password assegnata. Nessuna email è stata inviata.").replace("{name}", success)}</p>}
+            <button className="primary span-2" disabled={saving}>{saving ? t("Creazione…") : t("Crea account lavoratore")}</button>
           </form>
         </section>
-        <section className="panel settings-card"><div className="panel-head"><div><h2>Profili disponibili</h2><p>Ogni lavoratore accede con i permessi del profilo assegnato.</p></div></div><div className="settings-body staff-profiles">{profiles.map(p => <div key={p.code}><strong>{p.name}</strong><p>{p.description}</p></div>)}</div></section>
+        <section className="panel settings-card"><div className="panel-head"><div><h2>{t("Profili disponibili")}</h2><p>{t("Ogni lavoratore accede con i permessi del profilo assegnato.")}</p></div></div><div className="settings-body staff-profiles">{profiles.map(p => <div key={p.code}><strong>{t(p.name)}</strong><p>{t(p.description)}</p></div>)}</div></section>
       </div>
-      <section className="panel settings-users"><div className="panel-head"><div><h2>Lavoratori · {users.length}</h2><p>Account della tua carrozzeria.</p></div><label className="staff-search">Cerca lavoratore<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Nome o email" /></label></div>
-        <div className="staff-list">{filtered.length === 0 ? <p className="empty-state">Nessun lavoratore trovato.</p> : filtered.map(user => <article className="staff-row" key={user.id}><div><strong>{user.first_name} {user.last_name}</strong><p>{user.email}</p></div><span>{user.role_codes.map(code => profiles.find(p => p.code === code)?.name || code).join(", ")}</span><span className="status-chip">{user.status === "ACTIVE" ? "Attivo" : user.status === "DISABLED" ? "Disabilitato" : "Invitato"}</span></article>)}</div>
+      <section className="panel settings-users"><div className="panel-head"><div><h2>{t("Lavoratori ·")} {users.length}</h2><p>{t("Account della tua carrozzeria.")}</p></div><label className="staff-search">{t("Cerca lavoratore")}<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("Nome o email")} /></label></div>
+        <div className="staff-list">{filtered.length === 0 ? <p className="empty-state">{t("Nessun lavoratore trovato.")}</p> : filtered.map(user => <article className="staff-row" key={user.id}><div><strong>{user.first_name} {user.last_name}</strong><p>{user.email}</p></div><span>{user.role_codes.map(code => t(profiles.find(p => p.code === code)?.name || code)).join(", ")}</span><span className="status-chip">{user.status === "ACTIVE" ? t("Attivo") : user.status === "DISABLED" ? t("Disabilitato") : t("Invitato")}</span></article>)}</div>
       </section>
     </>}
   </SectionShell>;
