@@ -826,3 +826,5 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 [data-theme="dark"] .nakama-kpis .kpi-card:nth-child(2) strong { color: #66dda1; }
 [data-theme="dark"] .nakama-kpis .kpi-card:nth-child(3) strong { color: #80bcff; }
 [data-theme="dark"] .nakama-kpis .kpi-card:nth-child(4) strong { color: #ff8195; }
+[data-theme="dark"] .donut::before { background: #142538; }
+[data-theme="dark"] :is(.user-chip strong, .status-legend span, .donut span) { color: #c3daef; }
