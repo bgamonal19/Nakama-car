@@ -1,5 +1,7 @@
 "use client";
 
+import { ItemIcon } from "../../components/ItemIcon";
+
 import { useLanguage } from "../../components/LanguageProvider";
 
 import { PasswordInput } from "../../components/PasswordInput";
@@ -75,16 +77,16 @@ export default function PersonalePage() {
             <label>{t("Cognome")}<input required maxLength={120} autoComplete="family-name" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} /></label>
             <label className="span-2">{t("Email")}<input required type="email" autoComplete="off" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></label>
             <label className="span-2">{t("Password")}<PasswordInput required  minLength={10} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /><small>{t("Almeno 10 caratteri. Comunicala direttamente al lavoratore.")}</small></label>
-            <label className="span-2">{t("Profilo di accesso")}<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{profiles.map(p => <option key={p.code} value={p.code}>{t(p.name)}</option>)}</select><small>{t(profiles.find(p => p.code === form.role_code)?.description)}</small></label>
+            <label className="span-2">{t("Profilo di accesso")}<select value={form.role_code} onChange={e => setForm({ ...form, role_code: e.target.value })}>{profiles.map(p => <option key={p.code} value={p.code}>{t(p.name)}</option>)}</select><small className="staff-selected-profile"><ItemIcon name={form.role_code} /><span>{t(profiles.find(p => p.code === form.role_code)?.description)}</span></small></label>
             {error && <p className="auth-error span-2" role="alert">{t(error)}</p>}
             {success && <p className="staff-success span-2" role="status">{t("Account creato per {name}. Può accedere con la propria email e la password assegnata. Nessuna email è stata inviata.").replace("{name}", success)}</p>}
             <button className="primary span-2" disabled={saving}>{saving ? t("Creazione…") : t("Crea account lavoratore")}</button>
           </form>
         </section>
-        <section className="panel settings-card"><div className="panel-head"><div><h2>{t("Profili disponibili")}</h2><p>{t("Ogni lavoratore accede con i permessi del profilo assegnato.")}</p></div></div><div className="settings-body staff-profiles">{profiles.map(p => <div key={p.code}><strong>{t(p.name)}</strong><p>{t(p.description)}</p></div>)}</div></section>
+        <section className="panel settings-card"><div className="panel-head"><div><h2>{t("Profili disponibili")}</h2><p>{t("Ogni lavoratore accede con i permessi del profilo assegnato.")}</p></div></div><div className="settings-body staff-profiles">{profiles.map(p => <div key={p.code} className="staff-profile-item"><span className="staff-profile-icon"><ItemIcon name={p.code} /></span><div><strong>{t(p.name)}</strong><p>{t(p.description)}</p></div></div>)}</div></section>
       </div>
       <section className="panel settings-users"><div className="panel-head"><div><h2>{t("Lavoratori ·")} {users.length}</h2><p>{t("Account della tua carrozzeria.")}</p></div><label className="staff-search">{t("Cerca lavoratore")}<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("Nome o email")} /></label></div>
-        <div className="staff-list">{filtered.length === 0 ? <p className="empty-state">{t("Nessun lavoratore trovato.")}</p> : filtered.map(user => <article className="staff-row" key={user.id}><div><strong>{user.first_name} {user.last_name}</strong><p>{user.email}</p></div><span>{user.role_codes.map(code => t(profiles.find(p => p.code === code)?.name || code)).join(", ")}</span><span className="status-chip">{user.status === "ACTIVE" ? t("Attivo") : user.status === "DISABLED" ? t("Disabilitato") : t("Invitato")}</span></article>)}</div>
+        <div className="staff-list">{filtered.length === 0 ? <p className="empty-state">{t("Nessun lavoratore trovato.")}</p> : filtered.map(user => <article className="staff-row" key={user.id}><div><strong>{user.first_name} {user.last_name}</strong><p>{user.email}</p></div><span className="staff-role-list">{user.role_codes.map(code => <span className="staff-role" key={code}><ItemIcon name={code} /><span>{t(profiles.find(p => p.code === code)?.name || code)}</span></span>)}</span><span className="status-chip">{user.status === "ACTIVE" ? t("Attivo") : user.status === "DISABLED" ? t("Disabilitato") : t("Invitato")}</span></article>)}</div>
       </section>
     </>}
   </SectionShell>;
