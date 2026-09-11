@@ -828,3 +828,13 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 [data-theme="dark"] .nakama-kpis .kpi-card:nth-child(4) strong { color: #ff8195; }
 [data-theme="dark"] .donut::before { background: #142538; }
 [data-theme="dark"] :is(.user-chip strong, .status-legend span, .donut span) { color: #c3daef; }
+
+/* Profile illustrations remain paired with text in both languages and themes. */
+.staff-profile-item { display: flex; align-items: flex-start; gap: 12px; }
+.staff-profile-item > div { min-width: 0; }
+.staff-profile-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border: 1px solid #dae5ee; border-radius: 11px; background: #f0f5fa; color: #224d72; }
+.staff-selected-profile, .staff-role { display: flex; align-items: flex-start; gap: 8px; }
+.staff-selected-profile svg, .staff-role svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.staff-role-list { display: grid; gap: 6px; }
+[data-theme="dark"] .staff-profile-icon { background: #203950; border-color: #47617a; color: #b2d9fb; }
+[data-theme="dark"] .staff-selected-profile { color: #adbed1; }
