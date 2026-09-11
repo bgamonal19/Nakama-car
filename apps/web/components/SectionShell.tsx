@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemeToggle } from "./ThemeProvider";
+
 import { useLanguage, LanguageSwitcher } from "./LanguageProvider";
 import { ReactNode } from "react";
 import { NakamaLogo } from "./NakamaLogo";
@@ -27,11 +29,11 @@ export function SectionShell({ title, eyebrow, children, actions }: { title: str
         <div className="sidebar-bottom">
           <a className="nav-item" href="/configurazione">{t("⚙ Impostazioni")}</a>
           <a className="nav-item" href="/audit">{t("◷ Audit log")}</a>
-          <LanguageSwitcher />
+          <LanguageSwitcher /><ThemeToggle />
           <div className="pilot-badge">NAKAMA CAR · Bussnago</div>
         </div>
       </aside>
-      <div className="mobile-language"><LanguageSwitcher /></div>
+      <div className="mobile-language"><LanguageSwitcher /><ThemeToggle /></div>
       <section className="workspace">
         <header className="topbar nakama-topbar">
           <div><p className="eyebrow">{t(eyebrow || "NAKAMA CAR ESTIMATE")}</p><h1>{t(title)}</h1></div>

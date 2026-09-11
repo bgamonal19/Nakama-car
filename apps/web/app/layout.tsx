@@ -1,4 +1,5 @@
 import "./globals.css";
+import { ThemeProvider } from "../components/ThemeProvider";
 import { LanguageProvider } from "../components/LanguageProvider";
 
 export const metadata = {
@@ -9,7 +10,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
-      <body><LanguageProvider>{children}</LanguageProvider></body>
+      <body><LanguageProvider><ThemeProvider>{children}</ThemeProvider></LanguageProvider></body>
     </html>
   );
 }

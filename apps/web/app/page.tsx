@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemeToggle } from "../components/ThemeProvider";
+
 import { useLanguage, LanguageSwitcher } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
@@ -464,11 +466,11 @@ export default function HomePage() {
         <div className="sidebar-bottom">
           <a className="nav-item" href="/configurazione">{t("⚙ Impostazioni")}</a>
           <a className="nav-item" href="/audit">{t("◷ Audit log")}</a>
-          <LanguageSwitcher />
+          <LanguageSwitcher /><ThemeToggle />
           <div className="nakama-location"><strong>NAKAMA CAR</strong><span>Bussnago · Lombardia</span><i><b></b><b></b><b></b></i></div>
         </div>
       </aside>
-      <div className="mobile-language"><LanguageSwitcher /></div>
+      <div className="mobile-language"><LanguageSwitcher /><ThemeToggle /></div>
 
       <section className="workspace">
         <header className="topbar nakama-topbar">
