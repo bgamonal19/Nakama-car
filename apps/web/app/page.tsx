@@ -1,12 +1,12 @@
 "use client";
 
-import { ThemeToggle } from "../components/ThemeProvider";
+import { AppSidebar } from "../components/AppSidebar";
 
-import { useLanguage, LanguageSwitcher } from "../components/LanguageProvider";
+import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, getAccessToken } from "../lib/api";
-import { NakamaLogo } from "../components/NakamaLogo";
+
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 
@@ -447,30 +447,7 @@ export default function HomePage() {
 
   return (
     <main className="app-shell nakama-theme">
-      <aside className="sidebar">
-        <a className="brand brand-link nakama-sidebar-brand" href="/">
-          <NakamaLogo />
-        </a>
-
-        <nav>
-          <a className="nav-item active" href="/">{t("▦ Dashboard")}</a>
-          <a className="nav-item" href="/clienti">{t("◎ Clienti")}</a>
-          <a className="nav-item" href="/veicoli">{t("◇ Veicoli")}</a>
-          <a className="nav-item" href="/pratiche">{t("▤ Pratiche")}</a>
-          <a className="nav-item" href="/preventivi">{t("€ Preventivi")}</a>
-          <a className="nav-item" href="/lavori">{t("⌁ Lavori in officina")}</a>
-          <a className="nav-item" href="/fatture">{t("◫ Fatture")}</a>
-          <a className="nav-item" href="/personale">{t("♙ Personale")}</a>
-        </nav>
-
-        <div className="sidebar-bottom">
-          <a className="nav-item" href="/configurazione">{t("⚙ Impostazioni")}</a>
-          <a className="nav-item" href="/audit">{t("◷ Audit log")}</a>
-          <LanguageSwitcher /><ThemeToggle />
-          <div className="nakama-location"><strong>NAKAMA CAR</strong><span>Bussnago · Lombardia</span><i><b></b><b></b><b></b></i></div>
-        </div>
-      </aside>
-      <div className="mobile-language"><LanguageSwitcher /><ThemeToggle /></div>
+      <AppSidebar />
 
       <section className="workspace">
         <header className="topbar nakama-topbar">
