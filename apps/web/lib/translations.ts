@@ -1,6 +1,12 @@
 export type Language = "it" | "es";
 
 export const spanish: Record<string, string> = {
+  "Sessione scaduta. Accedi di nuovo.": "Sesión vencida. Inicia sesión de nuevo.",
+  "Il tuo profilo non consente questa operazione.": "Tu perfil no permite esta operación.",
+  "Esiste già un veicolo con questa targa.": "Ya existe un vehículo con esta matrícula.",
+  "Controlla i campi e i dati obbligatori.": "Revisa los campos y los datos obligatorios.",
+  "Operazione non riuscita. Riprova.": "La operación falló. Inténtalo de nuevo.",
+  "Errore di connessione.": "Error de conexión.",
   "+ Aggiungi": "+ Añadir",
   "+ Nuova pratica": "+ Nuevo expediente",
   "+ Nuovo preventivo": "+ Nuevo presupuesto",
