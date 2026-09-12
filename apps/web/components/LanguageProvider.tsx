@@ -1,5 +1,7 @@
 "use client";
 
+import { NavIcon } from "./NavIcon";
+
 import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { translate, Language } from "../lib/translations";
 
@@ -31,7 +33,7 @@ export function LanguageSwitcher() {
   const { language, setLanguage } = useLanguage();
   return <button type="button" className="nav-item language-switcher" onClick={() => setLanguage(language === "it" ? "es" : "it")}
     aria-label={language === "it" ? "Cambiar idioma a español" : "Cambia lingua in italiano"}>
-    <span aria-hidden="true">◎</span><span lang={language === "it" ? "es" : "it"}>{language === "it" ? "Español" : "Italiano"}</span>
+    <NavIcon name="language" /><span lang={language === "it" ? "es" : "it"}>{language === "it" ? "Español" : "Italiano"}</span>
     <span className="language-current" aria-hidden="true">{language.toUpperCase()}</span>
   </button>;
 }
