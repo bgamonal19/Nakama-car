@@ -1,6 +1,6 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
@@ -67,14 +67,18 @@ def get_vehicle_by_plate(
 
 @router.get("", response_model=list[VehicleRead])
 def list_vehicles(
+    q: str = "",
+    offset: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=200),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("vehicle.read")),
 ):
     return db.scalars(
         select(Vehicle)
-        .where(Vehicle.tenant_id == auth.tenant_id)
-        .order_by(Vehicle.created_at.desc())
-        .limit(200)
+        .where(Vehicle.tenant_id == auth.tenant_id,
+            or_(Vehicle.license_plate.icontains(q, autoescape=True), Vehicle.vin.icontains(q, autoescape=True), Vehicle.make.icontains(q, autoescape=True), Vehicle.model.icontains(q, autoescape=True)))
+        .order_by(Vehicle.created_at.desc(), Vehicle.id.desc())
+        .offset(offset).limit(limit)
     ).all()
 
 

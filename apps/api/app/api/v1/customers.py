@@ -1,6 +1,7 @@
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from pydantic import ValidationError
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
@@ -26,14 +27,18 @@ def create_customer(
 
 @router.get("", response_model=list[CustomerRead])
 def list_customers(
+    q: str = "",
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("customer.read")),
 ):
     return db.scalars(
         select(Customer)
-        .where(Customer.tenant_id == auth.tenant_id)
-        .order_by(Customer.created_at.desc())
-        .limit(100)
+        .where(Customer.tenant_id == auth.tenant_id,
+            or_(Customer.first_name.icontains(q, autoescape=True), Customer.last_name.icontains(q, autoescape=True), Customer.company_name.icontains(q, autoescape=True), Customer.phone.icontains(q, autoescape=True), Customer.email.icontains(q, autoescape=True), Customer.vat_number.icontains(q, autoescape=True)))
+        .order_by(Customer.created_at.desc(), Customer.id.desc())
+        .offset(offset).limit(limit)
     ).all()
 
 
@@ -69,7 +74,13 @@ def update_customer(
     )
     if customer is None:
         raise HTTPException(status_code=404, detail="Customer not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    # Validate the merged record before persisting a partial edit.
+    try:
+        CustomerCreate.model_validate({**CustomerRead.model_validate(customer).model_dump(), **changes})
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="Customer identity and country are required")
+    for key, value in changes.items():
         setattr(customer, key, value)
     db.commit()
     db.refresh(customer)

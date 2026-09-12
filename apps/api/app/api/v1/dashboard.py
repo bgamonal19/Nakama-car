@@ -72,5 +72,6 @@ def dashboard_summary(
         waiting_approval=waiting_approval,
         in_progress=in_progress,
         ready=ready,
+        waiting_parts=db.scalar(select(func.count(RepairCase.id)).where(base, RepairCase.status == RepairCaseStatus.WAITING_PARTS)) or 0,
         recent_practices=recent,
     )

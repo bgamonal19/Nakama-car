@@ -902,3 +902,27 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 @media (prefers-reduced-motion: reduce) {
   .nakama-theme .minimal-sidebar .nav-item { transition: none; }
 }
+
+.record-search { display:flex; align-items:end; gap:12px; margin:20px 0; }
+.record-search label { display:grid; gap:8px; width:min(480px,100%); font-size:13px; }
+.record-search input,.record-form input,.record-form select,.record-form textarea { width:100%; border:1px solid var(--line); padding:10px; border-radius:6px; background:var(--panel); color:inherit; font:inherit; }
+.record-error { margin:16px 0; padding:12px; border:1px solid #dc6570; border-radius:6px; color:#b22638; }
+[data-theme="dark"] .record-error { color:#ffb3bd; }
+.record-editor { padding:20px; margin-bottom:20px; }
+.record-form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+.record-form label { display:grid; align-content:start; gap:8px; font-size:13px; }
+.record-form textarea { min-height:100px; resize:vertical; }
+.record-form-actions { grid-column:1/-1; display:flex; gap:10px; }
+.record-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; border-bottom:1px solid var(--line); font-size:14px; }
+.record-row small { display:block; margin-top:6px; color:var(--muted); overflow-wrap:anywhere; }
+.record-row > div { min-width:0; overflow-wrap:anywhere; }
+.record-row button { flex-shrink:0; }
+.record-pagination { display:flex; align-items:center; justify-content:flex-end; gap:12px; margin:16px 0; font-size:13px; }
+.record-pagination button { padding:10px; background:var(--panel); color:inherit; border:1px solid var(--line); border-radius:6px; cursor:pointer; }
+.record-pagination button:disabled { opacity:.5; cursor:default; }
+.record-history { border-top:1px solid var(--line); margin-top:20px; padding-top:16px; font-size:13px; }
+.record-history a { display:block; padding:10px 0; color:var(--accent); }
+@media(max-width:600px) { .record-form { grid-template-columns:1fr; } .record-row { align-items:start; flex-direction:column; } .record-search { flex-wrap:wrap; } }
+
+.dashboard-search input { width:100%; min-width:0; background:transparent; border:0; color:inherit; font:inherit; outline-offset:3px; }
+.dashboard-search button { flex-shrink:0; }

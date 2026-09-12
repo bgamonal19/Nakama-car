@@ -5,6 +5,7 @@ from app.models.garage import CustomerType, RepairCaseStatus
 
 
 class CustomerCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     customer_type: CustomerType = CustomerType.PRIVATE
     first_name: str | None = None
     last_name: str | None = None
@@ -15,7 +16,7 @@ class CustomerCreate(BaseModel):
     city: str | None = None
     province: str | None = None
     postal_code: str | None = None
-    country: str = "IT"
+    country: str = Field(default="IT", min_length=2, max_length=2)
     phone: str | None = None
     email: EmailStr | None = None
     pec: EmailStr | None = None
@@ -83,6 +84,7 @@ class RepairCaseListItem(BaseModel):
 
 
 class CustomerUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     first_name: str | None = None
     last_name: str | None = None
     company_name: str | None = None
@@ -110,3 +112,11 @@ class VehicleUpdate(BaseModel):
     mileage: int | None = Field(default=None, ge=0)
     color_name: str | None = None
     paint_code: str | None = None
+
+
+class RepairCaseUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mileage: int | None = Field(default=None, ge=0)
+    fuel_level_percent: int | None = Field(default=None, ge=0, le=100)
+    customer_notes: str | None = None
+    internal_notes: str | None = None

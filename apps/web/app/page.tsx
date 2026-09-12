@@ -5,7 +5,7 @@ import { AppSidebar } from "../components/AppSidebar";
 import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch, getAccessToken } from "../lib/api";
+import { apiFetch, getAccessToken, clearSession } from "../lib/api";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -61,18 +61,13 @@ const statusLabel: Record<DamageStatus, string> = {
   PAINT: "Verniciare",
 };
 
-const demoPractices = [
-  { code: "NC-2026-000018", plate: "GP742LM", car: "BMW Serie 3", client: "Marco Bianchi", status: "IN_REPAIR" },
-  { code: "NC-2026-000017", plate: "FK318ST", car: "Fiat 500X", client: "Laura Rossi", status: "WAITING_PARTS" },
-  { code: "NC-2026-000016", plate: "GH625AA", car: "Audi A3", client: "Auto Service SRL", status: "READY" },
-];
-
 type DashboardData = {
   open_cases: number;
   waiting_approval: number;
   in_progress: number;
   ready: number;
-  recent_practices: typeof demoPractices;
+  waiting_parts: number;
+  recent_practices: {code:string;plate:string;car:string;client:string;status:string}[];
 };
 
 type WorkOrderSummary = {
@@ -88,7 +83,12 @@ function money(value: number) {
 }
 
 export default function HomePage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const words = (it:string,es:string) => language === "es" ? es : it;
+  const [loadError,setLoadError] = useState(false);
+  const [ordersError,setOrdersError] = useState(false);
+  const [userName,setUserName] = useState("");
+  const [search,setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
@@ -105,29 +105,16 @@ export default function HomePage() {
   const [photos, setPhotos] = useState<Record<string, File>>({});
   const [damages, setDamages] = useState<Record<string, DamageStatus>>({});
   const [rates, setRates] = useState({ body: 45, mechanical: 50, paint: 48, electrical: 55, diagnostic: 60 });
-  const [lines, setLines] = useState<EstimateLine[]>([
-    {
-      id: "1",
-      description: "Riparazione paraurti anteriore",
-      category: "BODY_LABOR",
-      quantity: 1,
-      unitPrice: 0,
-      laborHours: 2.5,
-      laborRate: 45,
-      paintHours: 0,
-      paintRate: 48,
-      materials: 0,
-      vatRate: 22,
-    },
-  ]);
+  const [lines, setLines] = useState<EstimateLine[]>([]);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("new") === "practice") {
       setWizardOpen(true);
     }
     setAuthenticated(Boolean(getAccessToken()));
+    try {const user=JSON.parse(localStorage.getItem("nakama_user")||"{}");setUserName([user.first_name,user.last_name].filter(Boolean).join(" "));}catch{}
     const api = process.env.NEXT_PUBLIC_API_URL;
-    if (!api) return setApiOnline(false);
+    if (!api) { setApiOnline(false); setLoadError(true); setOrdersError(true); return; }
     fetch(`${api}/health`)
       .then((r) => setApiOnline(r.ok))
       .catch(() => setApiOnline(false));
@@ -135,14 +122,14 @@ export default function HomePage() {
     if (getAccessToken()) {
       apiFetch("/dashboard/summary")
         .then(async (r) => {
-          if (r.ok) setDashboard(await r.json());
+          if (r.ok) setDashboard(await r.json()); else setLoadError(true);
         })
-        .catch(() => undefined);
+        .catch(() => setLoadError(true));
       apiFetch("/work-orders")
         .then(async (r) => {
-          if (r.ok) setWorkOrders(await r.json());
+          if (r.ok) setWorkOrders(await r.json()); else setOrdersError(true);
         })
-        .catch(() => undefined);
+        .catch(() => setOrdersError(true));
     }
   }, []);
 
@@ -253,14 +240,9 @@ export default function HomePage() {
     }
   }
 
-  async function savePilotPractice() {
+  async function savePractice() {
     if (!getAccessToken()) {
-      const payload = { plate, customer, vehicle, photos: Object.keys(photos), damages, lines, totals, createdAt: new Date().toISOString() };
-      const previous = JSON.parse(localStorage.getItem("nakama-pilot-practices") || "[]");
-      localStorage.setItem("nakama-pilot-practices", JSON.stringify([payload, ...previous]));
-      alert(t("Pratica salvata in modalità pilot locale. Accedi per salvarla nel database."));
-      setWizardOpen(false);
-      resetWizard();
+      alert(words("Accedi per salvare la pratica nel database.","Inicia sesión para guardar el expediente en la base de datos."));
       return;
     }
 
@@ -451,11 +433,10 @@ export default function HomePage() {
 
       <section className="workspace">
         <header className="topbar nakama-topbar">
-          <div className="dashboard-search">⌕ <span>{t("Cerca cliente, veicolo, pratica...")}</span></div>
+          <form className="dashboard-search" action="/pratiche"><input aria-label={words("Cerca pratica, cliente o targa","Buscar expediente, cliente o matrícula")} name="q" value={search} onChange={e=>setSearch(e.target.value)} placeholder={t("Cerca cliente, veicolo, pratica...")} /><button className="ghost" type="submit">{words("Cerca","Buscar")}</button></form>
           <div className="top-actions">
-            <button className="icon-button" aria-label={t("Notifiche")}>♢<span className="notification-dot">3</span></button>
             <div className={`api-pill ${apiOnline ? "online" : apiOnline === false ? "offline" : ""}`}><span />{apiOnline === null ? "API..." : apiOnline ? t("Online") : t("Offline")}</div>
-            {authenticated ? <div className="user-chip"><b>NC</b><span><strong>NAKAMA CAR</strong><small>{t("Amministratore")}</small></span></div> : <a className="login-link" href="/login">{t("Accedi")}</a>}
+            {authenticated ? <div className="user-chip"><span><strong>{userName||"NAKAMA CAR"}</strong></span><button className="ghost" onClick={()=>{clearSession();window.location.assign("/login");}}>{words("Esci","Cerrar sesión")}</button></div> : <a className="login-link" href="/login">{t("Accedi")}</a>}
           </div>
         </header>
 
@@ -478,23 +459,25 @@ export default function HomePage() {
           <a className="nakama-action white" href="/veicoli"><b>◇</b><span><strong>{t("Nuovo Veicolo")}</strong><small>{t("Consulta veicoli")}</small></span></a>
         </div>
 
+        {(!authenticated||loadError)&&<div className="record-error" role="status">{!authenticated?words("Accedi per visualizzare e salvare i dati della tua officina.","Inicia sesión para consultar y guardar los datos de tu taller."):words("Dati del pannello non disponibili. Ricarica la pagina o accedi di nuovo.","Los datos del panel no están disponibles. Recarga la página o inicia sesión de nuevo.")} <a href="/login">{t("Accedi")}</a></div>}
         <div className="kpi-grid nakama-kpis">
-          <div className="kpi-card"><span>{t("Pratiche aperte")}</span><strong>{dashboard?.open_cases ?? 12}</strong><small>{authenticated ? t("Dati live NAKAMA CAR") : t("Demo pilot")}</small></div>
-          <div className="kpi-card"><span>{t("In attesa approvazione")}</span><strong>{dashboard?.waiting_approval ?? 5}</strong><small>{t("Preventivi da seguire")}</small></div>
-          <div className="kpi-card"><span>{t("Lavori in corso")}</span><strong>{dashboard?.in_progress ?? 4}</strong><small>{t("Carrozzeria / verniciatura")}</small></div>
-          <div className="kpi-card"><span>{t("Pronte consegna")}</span><strong>{dashboard?.ready ?? 3}</strong><small>{t("Da contattare")}</small></div>
+          <div className="kpi-card"><span>{t("Pratiche aperte")}</span><strong>{dashboard?.open_cases ?? "—"}</strong><small>{authenticated ? t("Dati live NAKAMA CAR") : words("Accesso richiesto","Acceso requerido")}</small></div>
+          <div className="kpi-card"><span>{t("In attesa approvazione")}</span><strong>{dashboard?.waiting_approval ?? "—"}</strong><small>{t("Preventivi da seguire")}</small></div>
+          <div className="kpi-card"><span>{t("Lavori in corso")}</span><strong>{dashboard?.in_progress ?? "—"}</strong><small>{t("Carrozzeria / verniciatura")}</small></div>
+          <div className="kpi-card"><span>{t("Pronte consegna")}</span><strong>{dashboard?.ready ?? "—"}</strong><small>{t("Da contattare")}</small></div>
         </div>
 
         <div className="dashboard-lower-grid">
           <div className="panel status-panel">
             <div className="panel-head"><div><h2>{t("Stato pratiche")}</h2><p>{t("Distribuzione operativa")}</p></div></div>
             <div className="status-overview">
-              <div className="donut"><div><strong>{dashboard?.open_cases ?? 12}</strong><span>{t("Totali")}</span></div></div>
+              <div className="donut" style={{background:dashboard&&dashboard.open_cases>0?`conic-gradient(#008455 0 ${dashboard.waiting_approval/dashboard.open_cases*100}%,#17649d 0 ${(dashboard.waiting_approval+dashboard.in_progress)/dashboard.open_cases*100}%,#d94152 0 ${(dashboard.waiting_approval+dashboard.in_progress+dashboard.waiting_parts)/dashboard.open_cases*100}%,#d6a62b 0 ${(dashboard.waiting_approval+dashboard.in_progress+dashboard.waiting_parts+dashboard.ready)/dashboard.open_cases*100}%,#94a3b8 0 100%)`:"#94a3b8"}}><div><strong>{dashboard?.open_cases ?? "—"}</strong><span>{t("Totali")}</span></div></div>
               <div className="status-legend">
-                <span><i className="legend green"/>{t("Preventivo")} <b>{dashboard?.waiting_approval ?? 5}</b></span>
-                <span><i className="legend blue"/>{t("In lavorazione")} <b>{dashboard?.in_progress ?? 4}</b></span>
-                <span><i className="legend red"/>{t("In attesa ricambi")} <b>{workOrders.filter(x => x.status === "WAITING_PARTS").length || 2}</b></span>
-                <span><i className="legend yellow"/>{t("Pronto")} <b>{dashboard?.ready ?? 3}</b></span>
+                <span><i className="legend green"/>{t("Preventivo")} <b>{dashboard?.waiting_approval ?? "—"}</b></span>
+                <span><i className="legend blue"/>{t("In lavorazione")} <b>{dashboard?.in_progress ?? "—"}</b></span>
+                <span><i className="legend red"/>{t("In attesa ricambi")} <b>{dashboard?.waiting_parts ?? "—"}</b></span>
+                <span><i className="legend yellow"/>{t("Pronto")} <b>{dashboard?.ready ?? "—"}</b></span>
+                <span><i className="legend" style={{background:"#94a3b8"}}/>{words("Altre pratiche aperte","Otros expedientes abiertos")} <b>{dashboard?Math.max(0,dashboard.open_cases-dashboard.waiting_approval-dashboard.in_progress-dashboard.waiting_parts-dashboard.ready):"—"}</b></span>
               </div>
             </div>
           </div>
@@ -502,7 +485,8 @@ export default function HomePage() {
           <div className="panel">
             <div className="panel-head"><div><h2>{t("Ultime pratiche")}</h2><p>{t("Attività recenti")}</p></div><a className="ghost link-button" href="/pratiche">{t("Vedi tutte →")}</a></div>
             <div className="practice-table compact">
-              {(dashboard?.recent_practices?.length ? dashboard.recent_practices : demoPractices).slice(0,4).map((p) => (
+              {dashboard?.recent_practices.length===0&&<p className="empty-state">{words("Nessuna pratica ancora.","Todavía no hay expedientes.")}</p>}
+              {(dashboard?.recent_practices || []).slice(0,4).map((p) => (
                 <div className="practice-row" key={p.code}>
                   <div className="vehicle-thumb">🚗</div>
                   <div><strong>{p.code}</strong><span>{p.car} · {p.client}</span></div>
@@ -513,31 +497,15 @@ export default function HomePage() {
           </div>
 
           <div className="panel appointments-panel">
-            <div className="panel-head"><div><h2>{t("Prossimi appuntamenti")}</h2><p>{t("Agenda carrozzeria")}</p></div><span className="ghost">Demo</span></div>
-            <div className="appointments">
-              <div className="appointment"><b>08<span>{t("SET")}</span></b><div><strong>{t("10:00 · Consegna veicolo")}</strong><small>{t("Controllo finale e documenti")}</small></div></div>
-              <div className="appointment"><b>08<span>{t("SET")}</span></b><div><strong>{t("14:30 · Ritiro ricambi")}</strong><small>{t("Ordine ricambi carrozzeria")}</small></div></div>
-              <div className="appointment"><b>09<span>{t("SET")}</span></b><div><strong>{t("09:00 · Inizio lavorazione")}</strong><small>{t("Ingresso in officina")}</small></div></div>
-              <div className="appointment"><b>09<span>{t("SET")}</span></b><div><strong>{t("16:00 · Consegna preventivo")}</strong><small>{t("Approvazione cliente")}</small></div></div>
-            </div>
+            <div className="panel-head"><h2>{words("Da seguire","Por atender")}</h2></div>
+            <div className="record-editor"><p>{words("Preventivi in attesa di approvazione","Presupuestos pendientes de aprobación")}: <strong>{dashboard?.waiting_approval ?? "—"}</strong></p><a href="/preventivi">{words("Apri preventivi","Abrir presupuestos")}</a><p>{words("Veicoli pronti per la consegna","Vehículos listos para entregar")}: <strong>{dashboard?.ready ?? "—"}</strong></p><a href="/pratiche">{words("Apri pratiche","Abrir expedientes")}</a></div>
           </div>
         </div>
 
         <div className="panel workshop-panel">
           <div className="panel-head"><div><h2>{t("Stato officina")}</h2><p>{t("Lavorazioni attive")}</p></div><a className="ghost link-button" href="/lavori">{t("Apri officina →")}</a></div>
           <div className="kanban">
-            {authenticated && workOrders.length === 0 ? (
-              <div className="kanban-empty">{t("Nessun ordine di lavoro attivo.")}</div>
-            ) : (workOrders.length ? workOrders.slice(0, 4).map((order) => (
-              <a className="kanban-card kanban-link" href="/lavori" key={order.id}><small>{t(order.status)}</small><strong>{order.work_order_number}</strong><span>{t("Priorità")} {t(order.priority)}</span></a>
-            )) : [
-              ["ATTESA RICAMBI", "FK318ST", "Fiat 500X"],
-              ["IN RIPARAZIONE", "GP742LM", "BMW Serie 3"],
-              ["VERNICIATURA", "LM904TR", "Mercedes Classe A"],
-              ["CONTROLLO QUALITÀ", "GH625AA", "Audi A3"],
-            ].map(([stage, tag, car]) => (
-              <div className="kanban-card" key={tag}><small>{t(stage)}</small><strong>{tag}</strong><span>{car}</span></div>
-            )))}
+            {ordersError?<p className="kanban-empty">{words("Impossibile caricare gli ordini di lavoro.","No se pudieron cargar las órdenes de trabajo.")}</p>:!authenticated?<p className="kanban-empty">{words("Accedi per visualizzare i lavori.","Inicia sesión para ver los trabajos.")}</p>:workOrders.length===0?<p className="kanban-empty">{t("Nessun ordine di lavoro attivo.")}</p>:workOrders.slice(0,4).map(order=><a className="kanban-card kanban-link" href="/lavori" key={order.id}><small>{t(order.status)}</small><strong>{order.work_order_number}</strong><span>{t("Priorità")} {t(order.priority)}</span></a>)}
           </div>
         </div>
       </section>
@@ -693,7 +661,7 @@ export default function HomePage() {
                     <div><small>{t("DANNI")}</small><strong>{selectedDamageCount}</strong></div>
                     <div><small>{t("PREVENTIVO")}</small><strong>{money(totals.total)}</strong></div>
                   </div>
-                  <div className="pilot-note">{authenticated ? t("Sessione autenticata: cliente, veicolo, pratica, danni e preventivo saranno salvati nel database multi-tenant.") : t("Modalità pilot: puoi testare tutto il flusso. Accedi per attivare il salvataggio nel database.")}</div>
+                  <div className="pilot-note">{authenticated ? t("Sessione autenticata: cliente, veicolo, pratica, danni e preventivo saranno salvati nel database multi-tenant.") : words("Accedi prima di salvare la pratica.","Inicia sesión antes de guardar el expediente.")}</div>
                 </div>
               )}
             </div>
@@ -704,7 +672,7 @@ export default function HomePage() {
                 {step < steps.length - 1 ? (
                   <button className="primary" onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}>{t("Continua →")}</button>
                 ) : (
-                  <button className="primary" onClick={savePilotPractice} disabled={saving}>{saving ? t("Salvataggio…") : t("Salva pratica")}</button>
+                  <button className="primary" onClick={savePractice} disabled={saving}>{saving ? t("Salvataggio…") : t("Salva pratica")}</button>
                 )}
               </div>
             </div>
