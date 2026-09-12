@@ -133,7 +133,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
         <label>{words("Cerca","Buscar")}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} /></label>
         <button className="secondary">{words("Cerca","Buscar")}</button>
       </form>
-      {error&&<div className="record-error" role="alert">{error} <button className="ghost" onClick={()=>setRefresh(n=>n+1)}>{words("Riprova","Reintentar")}</button></div>}
+      {error&&<div className="record-error" role="alert">{t(error)} <a href="/login">{words("Accedi","Iniciar sesión")}</a> <button className="ghost" onClick={()=>setRefresh(n=>n+1)}>{words("Riprova","Reintentar")}</button></div>}
       {notice&&<p role="status">{notice}</p>}
       {selected&&<section className="panel record-editor" aria-label={words("Scheda","Ficha")}>
         <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
@@ -145,7 +145,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button></div>}
         </form>
         {selected.id&&kind!=="cases"&&<div className="record-history"><h3>{words("Storico pratiche","Historial de expedientes")}</h3>
-          {historyBusy?<p>{words("Caricamento…","Cargando…")}</p>:historyError?<p role="alert">{historyError}</p>:history.length===0?<p>{words("Nessuna pratica.","No hay expedientes.")}</p>:history.map(h=><a key={h.id} href={`/pratiche?q=${encodeURIComponent(String(h.case_number))}`}>{h.case_number} · {h.plate} · {t(String(h.status))}</a>)}
+          {historyBusy?<p>{words("Caricamento…","Cargando…")}</p>:historyError?<p role="alert">{t(historyError)}</p>:history.length===0?<p>{words("Nessuna pratica.","No hay expedientes.")}</p>:history.map(h=><a key={h.id} href={`/pratiche?q=${encodeURIComponent(String(h.case_number))}`}>{h.case_number} · {h.plate} · {t(String(h.status))}</a>)}
           <div className="record-pagination"><button disabled={!historyOffset||historyBusy} onClick={()=>setHistoryOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><button disabled={history.length<pageSize||historyBusy} onClick={()=>setHistoryOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div>
         </div>}
       </section>}
