@@ -926,3 +926,27 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 
 .dashboard-search input { width:100%; min-width:0; background:transparent; border:0; color:inherit; font:inherit; outline-offset:3px; }
 .dashboard-search button { flex-shrink:0; }
+
+/* Compact mobile/tablet header and shared off-canvas navigation. */
+.mobile-nav-header, .mobile-nav-backdrop { display: none; }
+@media (max-width: 1100px) {
+  .nakama-theme.app-shell { display: block; }
+  .mobile-nav-header { display: flex; align-items: center; height: 60px; padding: 6px 14px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 102; }
+  .mobile-nav-toggle { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; }
+  .mobile-nav-toggle:focus-visible { outline: 2px solid #88c9e8; outline-offset: 2px; }
+  .mobile-nav-backdrop { display: block; position: fixed; inset: 60px 0 0; z-index: 100; background: rgba(3,15,28,.48); opacity: 0; visibility: hidden; transition: opacity 180ms ease, visibility 180ms; }
+  .mobile-nav-backdrop.is-open { opacity: 1; visibility: visible; }
+  .nakama-theme .minimal-sidebar { display: flex; position: fixed; inset: 60px auto 0 0; z-index: 101; width: min(320px, calc(100vw - 56px)); height: calc(100dvh - 60px); padding: 20px 14px; gap: 12px; overflow-y: auto; overscroll-behavior: contain; transform: translateX(-100%); visibility: hidden; transition: transform 180ms ease, visibility 180ms; }
+  .nakama-theme .minimal-sidebar.is-open { transform: translateX(0); visibility: visible; }
+  .minimal-sidebar .nakama-sidebar-brand { width: 128px; align-self: center; margin: 0 4px 12px; padding: 8px 12px; }
+  .minimal-sidebar > nav, .minimal-sidebar .sidebar-bottom nav { display: grid; gap: 4px; overflow: visible; padding: 0; }
+  .minimal-sidebar .sidebar-bottom { display: block; margin-top: auto; padding-top: 18px; border: 0; }
+  .minimal-sidebar .sidebar-preferences { display: block; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.10); }
+  .nakama-theme .minimal-sidebar .nav-item { display: flex; justify-content: flex-start; width: 100%; min-height: 44px; font-size: 13px; padding: 10px 12px; gap: 12px; }
+  .minimal-sidebar .nav-label, .minimal-sidebar .theme-toggle span, .minimal-sidebar .language-switcher > span:not(.language-current) { display: inline; }
+  .minimal-sidebar .language-current { display: inline; margin-left: auto; }
+  .minimal-sidebar .nakama-location { display: block; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nakama-theme .minimal-sidebar, .mobile-nav-backdrop { transition: none; }
+}
