@@ -98,7 +98,7 @@ public final class MainActivity extends Activity {
         settings.setAllowFileAccess(false);settings.setAllowContentAccess(true);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setSafeBrowsingEnabled(true);settings.setSupportMultipleWindows(false);
-        settings.setUserAgentString(settings.getUserAgentString()+" NakamaAndroid/1.1.0");
+        settings.setUserAgentString(settings.getUserAgentString()+" NakamaAndroid/1.1.1");
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web,false);
         web.setWebViewClient(new WebViewClient() {

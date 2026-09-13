@@ -33,3 +33,11 @@ Validated for this release: compilation, resource/package alignment, 24 URL-poli
 APK SHA-256: `6c9e77373697c225e224b75107d8ef422fbbc613235925daadbd7cce29d9035a`
 
 Release certificate SHA-256: `e16603b5d6e82af70442730eb9ccc96901e849b2c2f8e9d8b835e187b9157678`
+
+## Release 1.1.1
+
+The launcher icon is now an Android adaptive icon with a white background and the existing full-color logo inset by 21/108 on each edge. Android applies its device/launcher mask, including circles and rounded squares; both `icon` and `roundIcon` reference this resource. Fractional insets preserve the logo's margin at different launcher sizes. Brand colors are retained; a monochrome themed layer is not provided.
+
+versionCode 3, same package and release certificate. Validated: Android compilation, alignment, compiled adaptive-icon resource references, and v2/v3 signatures. Launcher rendering on a physical device remains pending.
+
+APK SHA-256: `db8deca9557e1c02d3b2e77cb0007863b463144acccf38ab9d7adf1dcd6afa1c`
