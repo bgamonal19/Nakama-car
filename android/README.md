@@ -1,23 +1,35 @@
 # NAKAMA CAR Android
 
-An installable Android 8+ launcher for the production web application. Opens a secure browser Custom Tab, with normal browser fallback where Custom Tabs are unavailable. Requires an installed web browser and internet access. Browser chrome may be visible. This is not an offline/native replacement for the web application.
+Android 8+ app with an embedded WebView for the production application. Version 1.1.0 replaces the browser Custom Tab launcher: normal workshop navigation has no browser address bar. Internet is required; this is not an offline replacement for the web application.
 
-The installed icon uses the existing NAKAMA CAR logo. The browser manages login sessions, uploads, PDF downloads, TLS and web permissions. This APK requests no Android permissions and contains no credentials or API keys.
+The package and retained release certificate are unchanged, so Android can update 1.0.0 in place. WebView has its own session storage: users must sign in once after upgrading from the browser launcher. Subsequent sessions persist in the WebView.
 
-## Build
+## Behavior
 
-With JDK 17, Android SDK platform 35 and build tools 35.0.0 installed:
+- Only the production HTTPS origin is displayed inside the app; external HTTPS, telephone and email links use their corresponding external applications.
+- JavaScript and DOM storage support the existing web app. TLS errors are rejected, mixed content and file access are disabled, and no JavaScript-to-Java interface is exposed.
+- Android's file picker handles user-selected uploads without broad storage permissions.
+- Existing estimate PDF blob popups are saved through Android's document picker. Transfer is limited to 16 MiB, read in bounded chunks, and checked for a PDF header.
+- Android Back navigates page history. System bars, cutouts and the keyboard are inset from the content. Offline/load errors provide a retry button.
+- Only the INTERNET permission is requested. No credentials or API keys are included.
+
+## Build and checks
+
+Use JDK 17, ANDROID_HOME pointing to Android SDK platform 35 and build tools 35.0.0:
 
 ```sh
 bash android/build.sh
+javac -d android/build/tests android/src/com/nakamacar/estimate/NavigationPolicy.java android/tests/NavigationPolicyTest.java
+java -cp android/build/tests com.nakamacar.estimate.NavigationPolicyTest
+node --test android/tests/native.test.cjs
 ```
 
-Output is unsigned. Sign it locally using the retained private release key with the official `apksigner`, then run `apksigner verify --verbose --print-certs` and record the APK SHA-256. Never commit or upload the release signing key. Keep the same key and increment versionCode for future updates.
+Build output is unsigned. Sign locally using the retained private release key and official apksigner, then verify with `apksigner verify --verbose --print-certs`. Never commit or upload the signing key. Keep the same certificate and increment versionCode for updates.
 
-The build script verifies package alignment and prints manifest/resource metadata. A physical-device smoke test remains necessary for the final signed release (install, launch, login, file selection, PDF download and back navigation).
+Validated for this release: compilation, resource/package alignment, 24 URL-policy checks, seven popup/PDF JavaScript tests, and APK signature verification. Physical-device testing remains pending: install over 1.0.0, launch with no browser toolbar, login persistence, back navigation, file selection, PDF saving, rotation, keyboard/cutouts and offline retry.
 
-## Release 1.0.0
+## Release 1.1.0
 
-APK SHA-256: `4790dd24412bacbe7294a0c19ff22de47562787f79fdf361fbb1382616cb13c3`
+APK SHA-256: `6c9e77373697c225e224b75107d8ef422fbbc613235925daadbd7cce29d9035a`
 
 Release certificate SHA-256: `e16603b5d6e82af70442730eb9ccc96901e849b2c2f8e9d8b835e187b9157678`

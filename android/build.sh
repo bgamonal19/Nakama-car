@@ -6,7 +6,7 @@ tools_path="$android_sdk/build-tools/35.0.0"
 platform="$android_sdk/platforms/android-35/android.jar"
 mkdir -p build/res build/generated build/classes build/dex build/dist
 "$tools_path/aapt2" compile --dir res -o build/compiled.zip
-"$tools_path/aapt2" link --manifest AndroidManifest.xml -I "$platform" --java build/generated --min-sdk-version 26 --target-sdk-version 35 -o build/base.apk build/compiled.zip
+"$tools_path/aapt2" link -A assets --manifest AndroidManifest.xml -I "$platform" --java build/generated --min-sdk-version 26 --target-sdk-version 35 -o build/base.apk build/compiled.zip
 javac -source 8 -target 8 -bootclasspath "$platform" -d build/classes src/com/nakamacar/estimate/*.java build/generated/com/nakamacar/estimate/R.java
 "$tools_path/d8" --lib "$platform" --min-api 26 --output build/dex build/classes/com/nakamacar/estimate/*.class
 cp build/base.apk build/unaligned.apk
