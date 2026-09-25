@@ -43,6 +43,7 @@ class InvoiceLine(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     invoice_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    source_category: Mapped[str | None] = mapped_column(String(32))
     description: Mapped[str] = mapped_column(String(255), nullable=False)
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=1)
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)

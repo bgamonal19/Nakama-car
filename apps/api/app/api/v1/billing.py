@@ -74,6 +74,7 @@ def create_invoice_from_estimate(
             InvoiceLine(
                 tenant_id=auth.tenant_id,
                 invoice_id=invoice.id,
+                source_category=line.category.value,
                 description=line.description,
                 quantity=line.quantity,
                 unit_price=line.line_subtotal / line.quantity if line.quantity else line.line_subtotal,
