@@ -1,5 +1,6 @@
 "use client";
 
+import { DatevInvoice } from "../../components/DatevInvoice";
 import { useLanguage } from "../../components/LanguageProvider";
 
 import { useEffect, useState } from "react";
@@ -18,7 +19,7 @@ export default function FatturePage(){
  return <SectionShell title={t("Fatture")} eyebrow={t("AMMINISTRAZIONE")}>
   {!getAccessToken()?<div className="empty-state">{t("Accedi per visualizzare la fatturazione.")} <a href="/login">{t("Accedi")}</a></div>:<div className="panel list-panel">
    <div className="data-table invoices head"><span>{t("Fattura")}</span><span>{t("Stato")}</span><span>{t("Imponibile")}</span><span>IVA</span><span>{t("Totale")}</span></div>
-   {items.length===0?<div className="empty-state">{t("Nessuna fattura.")}</div>:items.map(x=><div className="data-table invoices" key={x.id}><strong>{x.invoice_number}</strong><select value={x.status} onChange={e=>setStatus(x.id,e.target.value)}><option value="DRAFT">{t("DRAFT")}</option><option value="ISSUED">{t("ISSUED")}</option><option value="PAID">{t("PAID")}</option><option value="CANCELLED">{t("CANCELLED")}</option></select><span>{money(x.subtotal)}</span><span>{money(x.vat_total)}</span><strong>{money(x.total)}</strong></div>)}
+   {items.length===0?<div className="empty-state">{t("Nessuna fattura.")}</div>:items.map(x=><div className="data-table invoices" key={x.id}><strong>{x.invoice_number}</strong><select value={x.status} onChange={e=>setStatus(x.id,e.target.value)}><option value="DRAFT">{t("DRAFT")}</option><option value="ISSUED">{t("ISSUED")}</option><option value="PAID">{t("PAID")}</option><option value="CANCELLED">{t("CANCELLED")}</option></select><span>{money(x.subtotal)}</span><span>{money(x.vat_total)}</span><strong>{money(x.total)}</strong><DatevInvoice invoiceId={x.id} localStatus={x.status} /></div>)}
   </div>}
  </SectionShell>;
 }

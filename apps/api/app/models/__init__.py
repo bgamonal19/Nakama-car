@@ -1,3 +1,4 @@
+from app.models.datev import DatevLink
 from app.models.approval import EstimateApproval
 from app.models.billing import Invoice, InvoiceLine
 from app.models.damage import Damage, VehicleArea
