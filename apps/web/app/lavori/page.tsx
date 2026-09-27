@@ -2,7 +2,7 @@
 
 import { useLanguage } from "../../components/LanguageProvider";
 
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { apiFetch, getAccessToken } from "../../lib/api";
 
@@ -13,6 +13,13 @@ type Order = {
   priority: string;
   repair_case_id: string;
   notes?: string;
+  case_number?: string;
+  plate?: string;
+  vehicle_name?: string;
+  vehicle_category?: string;
+  fleet_number?: string | null;
+  customer_name?: string;
+  customer_request?: string | null;
 };
 
 type Task = {
@@ -34,15 +41,18 @@ export default function LavoriPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Record<string, Task[]>>({});
   const [newTask, setNewTask] = useState("");
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [openOnly, setOpenOnly] = useState(true);
 
   async function load() {
-    const r = await apiFetch("/work-orders");
+    const r = await apiFetch(`/work-orders?q=${encodeURIComponent(search)}&open_only=${openOnly}`);
     if (r.ok) setItems(await r.json());
   }
 
   useEffect(() => {
     if (getAccessToken()) load();
-  }, []);
+  }, [search, openOnly]);
 
   async function setStatus(id: string, status: string) {
     const r = await apiFetch(`/work-orders/${id}/status`, {
@@ -99,9 +109,15 @@ export default function LavoriPage() {
       {!getAccessToken() ? (
         <div className="empty-state">{t("Accedi per gestire l'officina.")} <a href="/login">{t("Accedi")}</a></div>
       ) : (
+        <>
+        <form className="record-search filters" onSubmit={(e: FormEvent) => { e.preventDefault(); setSearch(query.trim()); }}>
+          <label>{t("Cerca")}<input type="search" value={query} placeholder={t("Ordine, targa, n. flotta o cliente")} onChange={(e) => setQuery(e.target.value)} /></label>
+          <label className="checkbox-row narrow"><input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />{t("Solo in officina")}</label>
+          <button className="secondary">{t("Cerca")}</button>
+        </form>
         <div className="panel list-panel">
           <div className="data-table work head">
-            <span>{t("Ordine")}</span><span>{t("Priorità")}</span><span>{t("Pratica")}</span><span>{t("Stato operativo")}</span><span>{t("Dettaglio")}</span>
+            <span>{t("Ordine")}</span><span>{t("Veicolo / cliente")}</span><span>{t("Pratica")}</span><span>{t("Stato operativo")}</span><span>{t("Dettaglio")}</span>
           </div>
 
           {items.length === 0 ? (
@@ -109,9 +125,12 @@ export default function LavoriPage() {
           ) : items.map((order) => (
             <div className="work-order-wrap" key={order.id}>
               <div className="data-table work work-main">
-                <strong>{order.work_order_number}</strong>
-                <span>{t(order.priority)}</span>
-                <span>{order.repair_case_id.slice(0,8)}…</span>
+                <span><strong>{order.work_order_number}</strong><small>{t(order.priority)}</small></span>
+                <span>
+                  <strong>{order.plate || "—"}</strong>{order.fleet_number ? ` · #${order.fleet_number}` : ""}
+                  <small>{[order.vehicle_category && order.vehicle_category !== "CAR" ? t(order.vehicle_category) : null, order.vehicle_name, order.customer_name].filter(Boolean).join(" · ")}</small>
+                </span>
+                <span>{order.case_number || `${order.repair_case_id.slice(0,8)}…`}{order.customer_request && <small title={order.customer_request}>{order.customer_request}</small>}</span>
                 <select value={order.status} onChange={(e) => setStatus(order.id, e.target.value)}>
                   {states.map((state) => <option key={state} value={state}>{t(state)}</option>)}
                 </select>
@@ -125,7 +144,7 @@ export default function LavoriPage() {
                   <div className="task-panel-head">
                     <div>
                       <strong>{t("Checklist lavorazione")}</strong>
-                      <small>{t("Le attività seguono l'ordine operativo della carrozzeria.")}</small>
+                      <small>{t("Le attività seguono l'ordine operativo dell'officina.")}</small>
                     </div>
                     <span>{(tasks[order.id] || []).filter((x) => x.status === "DONE").length}/{(tasks[order.id] || []).length} {t("completate")}</span>
                   </div>
@@ -136,7 +155,7 @@ export default function LavoriPage() {
                     ) : (tasks[order.id] || []).map((task) => (
                       <div className="task-row" key={task.id}>
                         <span className={`task-check ${task.status === "DONE" ? "done" : ""}`}>{task.status === "DONE" ? "✓" : ""}</span>
-                        <div><strong>{task.description}</strong><small>{t(task.task_type)}</small></div>
+                        <div><strong>{t(task.description)}</strong><small>{t(task.task_type)}</small></div>
                         <select value={task.status} onChange={(e) => setTaskStatus(order.id, task.id, e.target.value)}>
                           {taskStates.map((state) => <option key={state} value={state}>{t(state)}</option>)}
                         </select>
@@ -153,6 +172,7 @@ export default function LavoriPage() {
             </div>
           ))}
         </div>
+        </>
       )}
     </SectionShell>
   );

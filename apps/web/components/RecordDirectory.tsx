@@ -4,9 +4,10 @@ import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "./SectionShell";
 import { useLanguage } from "./LanguageProvider";
 import { apiFetch, getAccessToken } from "../lib/api";
+import { CaseExtras } from "./CaseExtras";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
-type Field = { key: string; it: string; es: string; type?: string; required?: boolean; max?: number; min?: number; options?: string[]; readOnly?: boolean };
+type Field = { key: string; it: string; es: string; type?: string; required?: boolean; max?: number; min?: number; options?: string[]; readOnly?: boolean; editable?: boolean };
 type Kind = "customers" | "vehicles" | "cases";
 const config: Record<Kind, {it: string; es: string; permission: string; fields: Field[]}> = {
   customers: {it: "Clienti", es: "Clientes", permission: "customer.write", fields: [
@@ -23,6 +24,8 @@ const config: Record<Kind, {it: string; es: string; permission: string; fields: 
     {key:"license_plate",it:"Targa",es:"Matrícula",required:true,max:20,readOnly:true}, {key:"vin",it:"VIN",es:"VIN",max:32},
     {key:"make",it:"Marca",es:"Marca",max:120}, {key:"model",it:"Modello",es:"Modelo",max:120}, {key:"version",it:"Versione",es:"Versión",max:160},
     {key:"year",it:"Anno",es:"Año",type:"number",min:1886,max:2100}, {key:"mileage",it:"Chilometri",es:"Kilómetros",type:"number",min:0},
+    {key:"vehicle_category",it:"Tipo veicolo",es:"Tipo de vehículo",options:["CAR","VAN","TRUCK","TRACTOR","TRAILER","BUS","MOTORCYCLE","OTHER"],required:true,editable:true},
+    {key:"fleet_number",it:"N. flotta / interno",es:"N.º de flota / interno",max:40},
     {key:"color_name",it:"Colore",es:"Color",max:120}, {key:"paint_code",it:"Codice vernice",es:"Código de pintura",max:64},
   ]},
   cases: {it:"Pratiche",es:"Expedientes",permission:"case.update",fields:[
@@ -110,7 +113,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     } catch(e){setError(message(e));}finally{setOpening(false);}
   }
   function create() {
-    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT"});setNotice("");setError("");setHistory([]);
+    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);
   }
   async function save(event:FormEvent) {
     event.preventDefault();if(!selected||!canWrite)return;
@@ -120,7 +123,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
         throw new Error(words("Inserisci il nome del cliente o la ragione sociale.","Introduce el nombre del cliente o la razón social."));
       }
       const payload=Object.fromEntries(definition.fields.filter(f=>!(selected.id&&(f.readOnly||f.key==="customer_type"))).map(f=>{
-        const value=(draft[f.key]||"").trim();
+        const value=(draft[f.key]||(f.options?f.options[0]:"")).trim();
         return [f.key,value===""?null:f.type==="number"?Number(value):f.key==="country"?value.toUpperCase():value];
       }));
       await read(`/${kind}${selected.id?`/${selected.id}`:""}`,{method:selected.id?"PATCH":"POST",body:JSON.stringify(payload)});
@@ -138,9 +141,10 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       {selected&&<section className="panel record-editor" aria-label={words("Scheda","Ficha")}>
         <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
         {kind==="cases"&&<p>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}</p>}
+        {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} />}
         <form className="record-form" onSubmit={save}>
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
-            {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||!!selected.id} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}
+            {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||(!!selected.id&&!f.editable)} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}
           </label>)}
           {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button></div>}
         </form>
@@ -151,7 +155,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       </section>}
       <section className="panel record-list" aria-busy={busy}>
         {busy?<div className="empty-state">{words("Caricamento…","Cargando…")}</div>:!error&&items.length===0?<div className="empty-state">{words("Nessun risultato.","No hay resultados.")}</div>:items.map(item=><div className="record-row" key={item.id}>
-          <div><strong>{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}</small></div>
+          <div><strong>{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}</small></div>
           <button className="secondary" disabled={opening||saving} onClick={()=>open(item)}>{words("Apri scheda","Abrir ficha")}</button>
         </div>)}
       </section>

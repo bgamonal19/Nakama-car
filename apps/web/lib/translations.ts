@@ -561,6 +561,378 @@ Object.assign(spanish, {
   "Pratica {case} salvata nel database. Preventivo {estimate} creato.": "Expediente {case} guardado en la base de datos. Presupuesto {estimate} creado."
 });
 
+// Fleet contracts, mechanical workshop and invoicing.
+Object.assign(codes, {
+  "CAR": [
+    "Autovettura",
+    "Turismo"
+  ],
+  "VAN": [
+    "Furgone",
+    "Furgoneta"
+  ],
+  "TRUCK": [
+    "Camion",
+    "Camión"
+  ],
+  "TRACTOR": [
+    "Trattore stradale",
+    "Cabeza tractora"
+  ],
+  "TRAILER": [
+    "Rimorchio / semirimorchio",
+    "Remolque / semirremolque"
+  ],
+  "BUS": [
+    "Autobus",
+    "Autobús"
+  ],
+  "MOTORCYCLE": [
+    "Moto",
+    "Moto"
+  ],
+  "OTHER": [
+    "Altro",
+    "Otro"
+  ],
+  "REPAIR": [
+    "Riparazione",
+    "Reparación"
+  ],
+  "CONTRACT_FEE": [
+    "Canone flotta",
+    "Cuota de flota"
+  ],
+  "MP01": [
+    "Contanti",
+    "Efectivo"
+  ],
+  "MP02": [
+    "Assegno",
+    "Cheque"
+  ],
+  "MP05": [
+    "Bonifico bancario",
+    "Transferencia bancaria"
+  ],
+  "MP08": [
+    "Carta di pagamento",
+    "Tarjeta"
+  ],
+  "MP12": [
+    "RIBA",
+    "RIBA"
+  ],
+  "MP19": [
+    "Addebito SEPA",
+    "Domiciliación SEPA"
+  ],
+  "DISPOSAL": [
+    "Smaltimento",
+    "Eliminación de residuos"
+  ],
+  "FRONT": [
+    "Frontale",
+    "Frontal"
+  ],
+  "REAR": [
+    "Posteriore",
+    "Trasera"
+  ],
+  "LEFT": [
+    "Lato sinistro",
+    "Lado izquierdo"
+  ],
+  "RIGHT": [
+    "Lato destro",
+    "Lado derecho"
+  ],
+  "INTERIOR": [
+    "Interni",
+    "Interior"
+  ],
+  "DAMAGE": [
+    "Danni",
+    "Daños"
+  ],
+  "VIN": [
+    "VIN / telaio",
+    "VIN / bastidor"
+  ],
+  "ODOMETER": [
+    "Contachilometri",
+    "Cuentakilómetros"
+  ],
+  "DOCUMENT": [
+    "Documento",
+    "Documento"
+  ],
+  "quantity": [
+    "Quantità",
+    "Cantidad"
+  ],
+  "unit_price": [
+    "Prezzo ricambio",
+    "Precio del repuesto"
+  ],
+  "discount_percent": [
+    "Sconto %",
+    "Descuento %"
+  ],
+  "labor_hours": [
+    "Ore manodopera",
+    "Horas de mano de obra"
+  ],
+  "labor_rate": [
+    "Tariffa oraria",
+    "Tarifa por hora"
+  ],
+  "paint_hours": [
+    "Ore vernice",
+    "Horas de pintura"
+  ],
+  "materials": [
+    "Materiali",
+    "Materiales"
+  ],
+  "vat_rate": [
+    "IVA %",
+    "IVA %"
+  ],
+  "ACCEPTANCE": [
+    "Accettazione",
+    "Recepción"
+  ],
+  "PARTS": [
+    "Ricambi",
+    "Repuestos"
+  ],
+  "MECHANICAL_REPAIR": [
+    "Riparazione meccanica",
+    "Reparación mecánica"
+  ],
+  "ROAD_TEST": [
+    "Prova su strada",
+    "Prueba en carretera"
+  ],
+  "Customer has no active service contract": [
+    "Il cliente non ha un contratto flotta attivo.",
+    "El cliente no tiene un contrato de flota activo."
+  ],
+  "Fee invoice for this period already exists": [
+    "La fattura del canone per questo mese esiste già.",
+    "La factura de la cuota de este mes ya existe."
+  ],
+  "Period is outside the contract validity": [
+    "Il mese è fuori dal periodo di validità del contratto.",
+    "El mes está fuera del periodo de validez del contrato."
+  ],
+  "Contract has no monthly fee": [
+    "Il contratto non ha un canone mensile.",
+    "El contrato no tiene cuota mensual."
+  ],
+  "Approved estimates cannot be edited": [
+    "Il preventivo approvato non è modificabile.",
+    "El presupuesto aprobado no se puede modificar."
+  ],
+  "Cancelled invoices cannot be edited": [
+    "La fattura annullata non è modificabile.",
+    "La factura anulada no se puede modificar."
+  ],
+  "The date of an issued invoice cannot change": [
+    "La data di una fattura emessa non può cambiare.",
+    "La fecha de una factura emitida no puede cambiar."
+  ],
+  "Contract not found": [
+    "Contratto non trovato.",
+    "Contrato no encontrado."
+  ],
+  "Estimate must be approved first": [
+    "Il preventivo deve essere prima approvato.",
+    "El presupuesto debe aprobarse primero."
+  ],
+  "end_date must not be before start_date": [
+    "La data di fine non può precedere l'inizio.",
+    "La fecha de fin no puede ser anterior al inicio."
+  ],
+  "due_date must not be before issue_date": [
+    "La scadenza non può precedere la data fattura.",
+    "El vencimiento no puede ser anterior a la fecha de factura."
+  ]
+});
+
+Object.assign(spanish, {
+  "Seleziona il cliente del contratto.": "Selecciona el cliente del contrato.",
+  "Contratto salvato.": "Contrato guardado.",
+  "Fattura canone {number} creata in bozza.": "Factura de cuota {number} creada como borrador.",
+  "+ Nuovo contratto": "+ Nuevo contrato",
+  "Contratti flotta": "Contratos de flota",
+  "FLOTTE AZIENDALI": "FLOTAS DE EMPRESA",
+  "Accedi per gestire i contratti.": "Inicia sesión para gestionar los contratos.",
+  "Le aziende con contratto (es. Univex, Gamonal) pagano un canone mensile: nei loro preventivi la manodopera è inclusa e i ricambi sono a costo più ricarico. I clienti al pubblico usano il listino normale.": "Las empresas con contrato (p. ej. Univex, Gamonal) pagan una cuota mensual: en sus presupuestos la mano de obra está incluida y los repuestos van a coste más recargo. Los clientes al público usan la tarifa normal.",
+  "Contratto": "Contrato",
+  "Nuovo contratto": "Nuevo contrato",
+  "Cambia": "Cambiar",
+  "Cerca cliente aziendale": "Buscar cliente empresa",
+  "Ragione sociale o P.IVA": "Razón social o NIF/IVA",
+  "Cerca": "Buscar",
+  "Manutenzione flotta": "Mantenimiento de flota",
+  "Il cliente deve esistere in anagrafica. Crealo prima da Clienti se necessario.": "El cliente debe existir en el registro. Créalo antes en Clientes si hace falta.",
+  "Nome contratto": "Nombre del contrato",
+  "Canone mensile (€ + IVA)": "Cuota mensual (€ + IVA)",
+  "Manodopera inclusa nel canone": "Mano de obra incluida en la cuota",
+  "Sconto manodopera % (se non inclusa)": "Descuento mano de obra % (si no está incluida)",
+  "Ricarico ricambi e materiali %": "Recargo sobre repuestos y materiales %",
+  "IVA canone %": "IVA de la cuota %",
+  "Inizio": "Inicio",
+  "Fine (opzionale)": "Fin (opcional)",
+  "Descrizione in fattura del canone": "Descripción de la cuota en factura",
+  "Canone manutenzione flotta": "Cuota de mantenimiento de flota",
+  "Contratto attivo": "Contrato activo",
+  "Note": "Notas",
+  "Condizioni": "Condiciones",
+  "Canone": "Cuota",
+  "Validità": "Validez",
+  "Nessun contratto. Crea il contratto di Univex o Gamonal per applicare le loro condizioni.": "No hay contratos. Crea el contrato de Univex o Gamonal para aplicar sus condiciones.",
+  "Manodopera inclusa": "Mano de obra incluida",
+  "Sconto manodopera": "Descuento mano de obra",
+  "Ricambi": "Repuestos",
+  "+ IVA / mese": "+ IVA / mes",
+  "Non attivo": "No activo",
+  "Mese del canone": "Mes de la cuota",
+  "Fattura canone": "Facturar cuota",
+  "Numero, targa, n. flotta o cliente": "Número, matrícula, n.º de flota o cliente",
+  "Tutti": "Todos",
+  "Cliente / targa": "Cliente / matrícula",
+  "Apri": "Abrir",
+  "Preventivo non trovato.": "Presupuesto no encontrado.",
+  "Inserisci la descrizione della riga.": "Introduce la descripción de la línea.",
+  "Eliminare questa riga dal preventivo?": "¿Eliminar esta línea del presupuesto?",
+  "imponibile": "base imponible",
+  "IVA": "IVA",
+  "Prezzi da contratto flotta": "Precios de contrato de flota",
+  "manodopera inclusa": "mano de obra incluida",
+  "sconto manodopera": "descuento mano de obra",
+  "ricambi": "repuestos",
+  "Listino al pubblico": "Tarifa al público",
+  "Usa listino al pubblico": "Usar tarifa al público",
+  "Applica contratto del cliente": "Aplicar contrato del cliente",
+  "Il preventivo approvato non è modificabile.": "El presupuesto aprobado no se puede modificar.",
+  "Righe del preventivo": "Líneas del presupuesto",
+  "Prezzo ricambio": "Precio del repuesto",
+  "Sconto %": "Descuento %",
+  "€/h": "€/h",
+  "Ore vernice": "Horas pintura",
+  "Materiali": "Materiales",
+  "IVA %": "IVA %",
+  "Nessuna riga. Aggiungi ricambi e manodopera.": "No hay líneas. Añade repuestos y mano de obra.",
+  "Elimina riga": "Eliminar línea",
+  "Canoni flotta": "Cuotas de flota",
+  "Numero, cliente o targa": "Número, cliente o matrícula",
+  "Da incassare (fatture emesse in elenco)": "Pendiente de cobro (facturas emitidas en la lista)",
+  "Scadenza": "Vencimiento",
+  "Pagata il": "Pagada el",
+  "Fattura non trovata.": "Factura no encontrada.",
+  "Salvato correttamente.": "Guardado correctamente.",
+  "Emettere la fattura? Numero e data non saranno più modificabili.": "¿Emitir la factura? El número y la fecha ya no se podrán modificar.",
+  "Annullare la fattura? Se è già stata trasmessa allo SdI serve una nota di credito.": "¿Anular la factura? Si ya se envió al SdI hace falta una nota de crédito.",
+  "PDF cortesia": "PDF de cortesía",
+  "Emetti la fattura per generare l'XML": "Emite la factura para generar el XML",
+  "XML FatturaPA (SdI)": "XML FatturaPA (SdI)",
+  "Segna come non pagata": "Marcar como no pagada",
+  "Emetti fattura": "Emitir factura",
+  "Segna come pagata": "Marcar como pagada",
+  "Annulla fattura": "Anular factura",
+  "Prezzo unit.": "Precio unit.",
+  "Data fattura": "Fecha de factura",
+  "Modalità di pagamento": "Forma de pago",
+  "Note in fattura": "Notas en la factura",
+  "L'XML va caricato sul portale Fatture e Corrispettivi dell'Agenzia delle Entrate o inviato tramite il tuo intermediario. Per generarlo servono i dati fiscali dell'officina (Impostazioni) e del cliente.": "El XML se sube al portal Fatture e Corrispettivi de la Agenzia delle Entrate o se envía a través de tu intermediario. Para generarlo hacen falta los datos fiscales del taller (Configuración) y del cliente.",
+  "Ordine, targa, n. flotta o cliente": "Orden, matrícula, n.º de flota o cliente",
+  "Solo in officina": "Solo en el taller",
+  "Veicolo / cliente": "Vehículo / cliente",
+  "Le attività seguono l'ordine operativo dell'officina.": "Las tareas siguen el orden operativo del taller.",
+  "Officina meccanica e carrozzeria · Auto e veicoli industriali": "Taller mecánico y carrocería · Coches y vehículos industriales",
+  "Officina e carrozzeria": "Taller y carrocería",
+  "Cliente esistente selezionato": "Cliente existente seleccionado",
+  "Nuovo cliente": "Nuevo cliente",
+  "Cerca cliente esistente": "Buscar cliente existente",
+  "Cerca cliente esistente (es. Univex, Gamonal)": "Buscar cliente existente (p. ej. Univex, Gamonal)",
+  "Tipo veicolo": "Tipo de vehículo",
+  "N. flotta / interno": "N.º de flota / interno",
+  "Richiesta del cliente / sintomi": "Solicitud del cliente / síntomas",
+  "Es. rumore ai freni, spia motore accesa, tagliando…": "P. ej. ruido en los frenos, testigo de motor encendido, revisión…",
+  "Per interventi solo meccanici puoi saltare questo passaggio.": "Para trabajos solo mecánicos puedes saltar este paso.",
+  "Interventi meccanici frequenti": "Trabajos mecánicos frecuentes",
+  "Da mappa danni carrozzeria": "Desde el mapa de daños de carrocería",
+  "Descrizione operazione / ricambio": "Descripción de la operación / repuesto",
+  "Cliente con contratto flotta": "Cliente con contrato de flota",
+  "Preventivi della pratica": "Presupuestos del expediente",
+  "Categoria foto": "Categoría de la foto",
+  "+ Aggiungi foto": "+ Añadir fotos",
+  "Nessuna foto registrata per questa pratica.": "No hay fotos registradas para este expediente.",
+  "Anteprima non disponibile": "Vista previa no disponible",
+  "Dati aziendali salvati.": "Datos de la empresa guardados.",
+  "Dati fiscali dell'officina": "Datos fiscales del taller",
+  "Usati su preventivi, fatture PDF e XML FatturaPA.": "Se usan en presupuestos, facturas PDF y XML FatturaPA.",
+  "Regime fiscale": "Régimen fiscal",
+  "Validità preventivi (giorni)": "Validez de los presupuestos (días)",
+  "Ragione sociale": "Razón social",
+  "Partita IVA": "Número de IVA",
+  "Codice fiscale": "Código fiscal",
+  "Indirizzo sede": "Dirección de la sede",
+  "CAP": "Código postal",
+  "Comune": "Municipio",
+  "Provincia (sigla)": "Provincia (sigla)",
+  "Paese (IT, ES…)": "País (IT, ES…)",
+  "Telefono": "Teléfono",
+  "Email": "Correo",
+  "PEC": "PEC",
+  "Codice SDI": "Código SDI",
+  "IBAN per bonifici": "IBAN para transferencias",
+  "▣ Contratti flotta": "▣ Contratos de flota",
+  "Accettazione e verifica richiesta cliente": "Recepción y verificación de la solicitud",
+  "Diagnosi": "Diagnóstico",
+  "Approvvigionamento ricambi": "Pedido de repuestos",
+  "Riparazione meccanica": "Reparación mecánica",
+  "Prova su strada": "Prueba en carretera",
+  "Controllo qualità": "Control de calidad",
+  "Pulizia e preparazione consegna": "Limpieza y preparación de la entrega",
+  "Smontaggio": "Desmontaje",
+  "Riparazione carrozzeria": "Reparación de carrocería",
+  "Preparazione verniciatura": "Preparación de pintura",
+  "Verniciatura": "Pintura",
+  "Montaggio": "Montaje",
+  "Tagliando (olio e filtri)": "Revisión (aceite y filtros)",
+  "Diagnosi elettronica": "Diagnóstico electrónico",
+  "Sostituzione pastiglie e dischi freno": "Cambio de pastillas y discos de freno",
+  "Controllo e regolazione freni": "Control y ajuste de frenos",
+  "Sostituzione pneumatici": "Cambio de neumáticos",
+  "Sostituzione frizione": "Cambio de embrague",
+  "Kit distribuzione": "Kit de distribución",
+  "Impianto elettrico / luci": "Instalación eléctrica / luces",
+  "Ricarica climatizzatore": "Recarga del aire acondicionado",
+  "Preparazione revisione": "Preparación para la ITV",
+  "Impossibile caricare i contratti.": "No se pudieron cargar los contratos.",
+  "Impossibile salvare il contratto.": "No se pudo guardar el contrato.",
+  "Impossibile creare la fattura del canone.": "No se pudo crear la factura de la cuota.",
+  "Impossibile caricare i preventivi.": "No se pudieron cargar los presupuestos.",
+  "Impossibile caricare le fatture.": "No se pudieron cargar las facturas.",
+  "Impossibile salvare la fattura.": "No se pudo guardar la factura.",
+  "Impossibile aggiornare lo stato.": "No se pudo actualizar el estado.",
+  "Impossibile aggiornare lo stato": "No se pudo actualizar el estado",
+  "File non disponibile": "Archivo no disponible",
+  "Archivio foto (S3) non configurato: le foto registrate non sono visualizzabili.": "Almacenamiento de fotos (S3) no configurado: las fotos registradas no se pueden ver.",
+  "Archivio foto (S3) non configurato.": "Almacenamiento de fotos (S3) no configurado.",
+  "Caricamento non riuscito.": "La carga falló.",
+  "Impossibile salvare la riga.": "No se pudo guardar la línea.",
+  "Impossibile eliminare la riga.": "No se pudo eliminar la línea.",
+  "Impossibile aggiornare i prezzi.": "No se pudieron actualizar los precios.",
+  "Impossibile salvare.": "No se pudo guardar.",
+  "Il cliente non ha un contratto flotta attivo.": "El cliente no tiene un contrato de flota activo.",
+  "Missing data for FatturaPA": "Faltan datos para la FatturaPA"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

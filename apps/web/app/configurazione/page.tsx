@@ -3,6 +3,7 @@
 import { useLanguage } from "../../components/LanguageProvider";
 
 import { UserEditor } from "../../components/UserEditor";
+import { CompanySettingsForm } from "../../components/CompanySettingsForm";
 import { PasswordInput } from "../../components/PasswordInput";
 
 import { FormEvent, useEffect, useState } from "react";
@@ -42,6 +43,7 @@ export default function ConfigurazionePage(){
  }
  return <SectionShell title={t("Configurazione")} eyebrow="TENANT · NAKAMA CAR" actions={<a className="primary link-button" href="/personale">{t("Gestisci personale")}</a>}>
   {!getAccessToken()?<div className="empty-state">{t("Accedi come amministratore.")} <a href="/login">{t("Accedi")}</a></div>:<>
+   <CompanySettingsForm />
    <div className="settings-grid">
     <div className="panel settings-card"><div className="panel-head"><div><h2>{t("Tariffe orarie")}</h2><p>{t("Valori configurabili, mai hardcoded nel preventivo.")}</p></div></div>
      <div className="settings-body">{rateTypes.map(type=><div className="setting-row" key={type}><strong>{t(type)}</strong><label><input type="number" step="0.1" value={rates[type]||""} onChange={e=>setRates({...rates,[type]:e.target.value})}/><span>€/h</span></label><button onClick={()=>saveRate(type)}>{t("Salva")}</button></div>)}</div>

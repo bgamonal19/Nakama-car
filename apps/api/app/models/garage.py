@@ -68,6 +68,8 @@ class Vehicle(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     mileage: Mapped[int | None] = mapped_column(Integer)
     color_name: Mapped[str | None] = mapped_column(String(120))
     paint_code: Mapped[str | None] = mapped_column(String(64))
+    vehicle_category: Mapped[str] = mapped_column(String(20), nullable=False, default="CAR", server_default="CAR")
+    fleet_number: Mapped[str | None] = mapped_column(String(40))
     external_vehicle_id: Mapped[str | None] = mapped_column(String(255))
     vehicle_data_provider: Mapped[str | None] = mapped_column(String(64))
 

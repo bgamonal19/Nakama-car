@@ -950,3 +950,78 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 @media (prefers-reduced-motion: reduce) {
   .nakama-theme .minimal-sidebar, .mobile-nav-backdrop { transition: none; }
 }
+
+/* ---- Officina: contratti flotta, preventivi, fatture, foto ---- */
+.section-intro { margin: 4px 0 16px; color: var(--muted); font-size: 13px; max-width: 900px; line-height: 1.5; }
+.hint { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.record-search.filters { flex-wrap: wrap; }
+.record-search label.narrow { width: auto; min-width: 150px; }
+.record-search select { width: 100%; border: 1px solid var(--line); padding: 10px; border-radius: 6px; background: var(--panel); color: inherit; font: inherit; }
+.checkbox-row { display: flex !important; flex-direction: row; align-items: center; gap: 10px !important; font-size: 13px; }
+.checkbox-row input[type="checkbox"] { width: 18px !important; height: 18px; }
+.table-actions.wrap { flex-wrap: wrap; align-items: center; }
+.table-actions input[type="month"] { border: 1px solid #dfe2e5; border-radius: 8px; padding: 4px 6px; font-size: 10px; background: white; }
+.status-chip.ok, .status-chip.status-paid { background: #e3f4ea; color: #16794a; }
+.status-chip.status-issued { background: #e6f0fb; color: #1257a0; }
+.status-chip.status-cancelled { background: #fbe9eb; color: #a93434; }
+.status-chip.contract { background: #fff3dc; color: #8a5a00; }
+.data-table strong small, .data-table span > small { display: block; color: #92979d; margin-top: 3px; font-size: 9px; font-weight: 500; }
+.data-table.contracts { grid-template-columns: 1.5fr 1.2fr .8fr 1fr 1.6fr; }
+.data-table.estimates { grid-template-columns: 1.1fr 1.4fr .7fr .8fr .8fr 1.6fr; }
+.data-table.invoices { grid-template-columns: 1.2fr 1.4fr .7fr .8fr .8fr .6fr; }
+.data-table.work { grid-template-columns: 1fr 1.6fr 1.2fr 1fr .7fr; }
+
+.customer-picker { margin-bottom: 16px; }
+.picker-results { display: grid; gap: 6px; margin: 8px 0; }
+.picker-option { display: flex; justify-content: space-between; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--line); background: var(--panel); color: inherit; border-radius: 8px; padding: 10px 12px; cursor: pointer; font: inherit; font-size: 13px; }
+.picker-option:hover { border-color: #1257a0; }
+.picker-option small { color: var(--muted); }
+.inline-search { display: flex; gap: 8px; }
+.inline-search input { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; background: var(--panel); color: inherit; }
+.wizard-picker { padding: 0 0 12px; border-bottom: 1px dashed var(--line); }
+.operations-title { font-size: 13px; margin: 18px 0 8px; color: var(--nakama-navy); }
+
+.pricing-banner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin: 12px 0; padding: 10px 14px; border-radius: 10px; background: #eef3f8; font-size: 13px; }
+.pricing-banner.contract { background: #fff6e3; border: 1px solid #f0d49a; }
+.estimate-editor .panel-head p { font-size: 12px; }
+.line-editor { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.line-row { display: grid; grid-template-columns: 140px minmax(200px, 2fr) repeat(8, minmax(70px, .6fr)) 110px 90px; gap: 6px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); min-width: 1180px; font-size: 12px; }
+.line-row:last-child { border-bottom: 0; }
+.line-row.head { background: #f8f9fa; color: #7d8289; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.line-row input, .line-row select { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 7px; font: inherit; background: var(--panel); color: inherit; }
+.line-row .line-total { text-align: right; font-weight: 700; }
+.line-row .line-total small { display: block; font-weight: 500; color: #8a5a00; font-size: 9px; }
+.line-row.invoice { grid-template-columns: minmax(240px, 3fr) 70px 110px 70px 120px; min-width: 640px; }
+.line-row.invoice > :last-child { text-align: right; }
+.line-row.totals-row { background: #f8f9fa; }
+.add-line { margin-top: 12px; }
+.invoice-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+.case-extras { display: grid; gap: 18px; margin: 12px 0 20px; }
+.case-extras-block h3 { font-size: 14px; margin: 0 0 8px; }
+.case-extras-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.case-link { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; color: inherit; text-decoration: none; font-size: 13px; }
+.case-link:hover { border-color: #1257a0; }
+.photo-upload { display: flex; gap: 8px; align-items: center; }
+.photo-upload select { border: 1px solid var(--line); border-radius: 8px; padding: 9px; background: var(--panel); color: inherit; }
+.file-button { display: inline-flex; align-items: center; }
+.photo-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.photo-gallery figure { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--soft); }
+.photo-gallery img, .photo-placeholder { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.photo-placeholder { display: grid; place-items: center; color: var(--muted); font-size: 11px; padding: 8px; text-align: center; box-sizing: border-box; }
+.photo-gallery figcaption { padding: 6px 8px; font-size: 11px; }
+.company-card { margin-bottom: 16px; }
+
+@media (max-width: 700px) {
+  .record-form { grid-template-columns: 1fr; }
+  .record-search.filters label { width: 100%; }
+  .inline-search { flex-direction: column; }
+}
+
+[data-theme="dark"] :is(.pricing-banner, .line-row.head, .line-row.totals-row, .photo-gallery figure) { background: #1b2d40; color: #e7eef7; border-color: #34475c; }
+[data-theme="dark"] .pricing-banner.contract { background: #3a2f14; border-color: #7a6124; }
+[data-theme="dark"] :is(.line-editor, .line-row, .picker-option, .case-link) { border-color: #34475c; }
+[data-theme="dark"] .picker-option { background: #13263a; }
+[data-theme="dark"] .status-chip.contract { background: #3a2f14; color: #ffd98a; }
+[data-theme="dark"] .table-actions input[type="month"] { background: #0d1d2e; color: #eef5fc; border-color: #47617a; }
+[data-theme="dark"] .operations-title { color: #cfe3f7; }

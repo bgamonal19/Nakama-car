@@ -1,5 +1,6 @@
 from app.models.approval import EstimateApproval
 from app.models.billing import Invoice, InvoiceLine
+from app.models.contracts import ServiceContract
 from app.models.damage import Damage, VehicleArea
 from app.models.estimating import Estimate, EstimateLine, LaborRate
 from app.models.garage import Customer, RepairCase, Vehicle
@@ -11,5 +12,5 @@ __all__ = [
     "AuditLog", "Permission", "Role", "RolePermission", "Tenant", "TenantSettings",
     "User", "UserRole", "UserTenant", "Customer", "Vehicle", "RepairCase", "Media",
     "VehicleArea", "Damage", "LaborRate", "Estimate", "EstimateLine", "EstimateApproval",
-    "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine"
+    "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine", "ServiceContract"
 ]

@@ -76,7 +76,7 @@ def list_vehicles(
     return db.scalars(
         select(Vehicle)
         .where(Vehicle.tenant_id == auth.tenant_id,
-            or_(Vehicle.license_plate.icontains(q, autoescape=True), Vehicle.vin.icontains(q, autoescape=True), Vehicle.make.icontains(q, autoescape=True), Vehicle.model.icontains(q, autoescape=True)))
+            or_(Vehicle.license_plate.icontains(q, autoescape=True), Vehicle.vin.icontains(q, autoescape=True), Vehicle.make.icontains(q, autoescape=True), Vehicle.model.icontains(q, autoescape=True), Vehicle.fleet_number.icontains(q, autoescape=True)))
         .order_by(Vehicle.created_at.desc(), Vehicle.id.desc())
         .offset(offset).limit(limit)
     ).all()
@@ -106,7 +106,11 @@ def update_vehicle(
         )
         if owner is None:
             raise HTTPException(status_code=404, detail="Customer not found")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    if changes.get("vehicle_category", "") is None:
+        # The category is mandatory; an empty value keeps the current one.
+        changes.pop("vehicle_category")
+    for key, value in changes.items():
         setattr(vehicle, key, value)
     db.commit()
     db.refresh(vehicle)

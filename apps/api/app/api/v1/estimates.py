@@ -1,14 +1,16 @@
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from pydantic import BaseModel
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
+from app.models.contracts import ServiceContract
 from app.models.estimating import Estimate, EstimateLine, EstimateStatus, LaborRate
 from app.models.garage import Customer, RepairCase, Vehicle
 from app.models.identity import TenantSettings
@@ -16,6 +18,7 @@ from app.schemas.estimating import (
     EstimateCreate,
     EstimateLineCreate,
     EstimateLineRead,
+    EstimateListItem,
     EstimateRead,
     EstimateStatusUpdate,
     LaborRateRead,
@@ -23,14 +26,35 @@ from app.schemas.estimating import (
 )
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
+from app.services.contracts import customer_display_name, find_active_contract
 from app.services.pdf import build_estimate_pdf
+from app.services.pricing import PUBLIC_TERMS, PricingTerms, money, price_line
 
 router = APIRouter(tags=["estimates"])
-MONEY = Decimal("0.01")
 
 
-def money(value: Decimal) -> Decimal:
-    return value.quantize(MONEY, rounding=ROUND_HALF_UP)
+class EstimatePricingUpdate(BaseModel):
+    apply_contract: bool
+
+
+def terms_of(estimate: Estimate) -> PricingTerms:
+    return PricingTerms.from_source(estimate)
+
+
+def line_read(line: EstimateLine, terms: PricingTerms) -> EstimateLineRead:
+    data = EstimateLineRead.model_validate(line)
+    amounts = price_line(line, terms)
+    data.parts_amount = amounts.parts
+    data.labor_amount = amounts.labor
+    return data
+
+
+def apply_terms(estimate: Estimate, contract: ServiceContract | None) -> None:
+    terms = PricingTerms.from_source(contract) if contract else PUBLIC_TERMS
+    estimate.contract_id = contract.id if contract else None
+    estimate.labor_included = terms.labor_included
+    estimate.labor_discount_percent = terms.labor_discount_percent
+    estimate.parts_markup_percent = terms.parts_markup_percent
 
 
 def get_tenant_estimate(db: Session, tenant_id: UUID, estimate_id: UUID) -> Estimate:
@@ -42,13 +66,18 @@ def get_tenant_estimate(db: Session, tenant_id: UUID, estimate_id: UUID) -> Esti
     return estimate
 
 
-def recalculate(db: Session, estimate: Estimate) -> None:
+def recalculate(db: Session, estimate: Estimate, reprice: bool = False) -> None:
     lines = db.scalars(
         select(EstimateLine).where(
             EstimateLine.tenant_id == estimate.tenant_id,
             EstimateLine.estimate_id == estimate.id,
         )
     ).all()
+    if reprice:
+        terms = terms_of(estimate)
+        for line in lines:
+            amounts = price_line(line, terms)
+            line.line_subtotal, line.line_vat, line.line_total = amounts.subtotal, amounts.vat, amounts.total
     subtotal = sum((line.line_subtotal for line in lines), Decimal("0"))
     vat_total = sum((line.line_vat for line in lines), Decimal("0"))
     estimate.subtotal = money(subtotal)
@@ -56,14 +85,10 @@ def recalculate(db: Session, estimate: Estimate) -> None:
     estimate.total = money(subtotal + vat_total)
 
 
-def calculate_line(payload: EstimateLineCreate) -> tuple[Decimal, Decimal, Decimal]:
-    parts = payload.quantity * payload.unit_price
-    parts_after_discount = parts * (Decimal("1") - payload.discount_percent / Decimal("100"))
-    labor = payload.labor_hours * payload.labor_rate
-    paint = payload.paint_hours * payload.paint_rate
-    subtotal = money(parts_after_discount + labor + paint + payload.materials)
-    vat = money(subtotal * payload.vat_rate / Decimal("100"))
-    return subtotal, vat, money(subtotal + vat)
+def calculate_line(payload: EstimateLineCreate, terms: PricingTerms = PUBLIC_TERMS):
+    """Return (subtotal, vat, total) for a line under the given pricing terms."""
+    amounts = price_line(payload, terms)
+    return amounts.subtotal, amounts.vat, money(amounts.total)
 
 
 @router.get("/settings/labor-rates", response_model=list[LaborRateRead])
@@ -142,23 +167,61 @@ def create_estimate(
         estimate_number=f"NC-P-{year}-{count + 1:06d}",
         notes=payload.notes,
     )
+    contract = None
+    if payload.apply_contract is not False:
+        contract = find_active_contract(db, auth.tenant_id, case.customer_id)
+        if payload.apply_contract and contract is None:
+            raise HTTPException(status_code=409, detail="Customer has no active service contract")
+    apply_terms(estimate, contract)
     db.add(estimate)
     db.commit()
     db.refresh(estimate)
     return estimate
 
 
-@router.get("/estimates", response_model=list[EstimateRead])
+@router.get("/estimates", response_model=list[EstimateListItem])
 def list_estimates(
+    q: str = "",
+    status_filter: EstimateStatus | None = Query(None, alias="status"),
+    repair_case_id: UUID | None = None,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("estimate.read")),
 ):
-    return db.scalars(
-        select(Estimate)
-        .where(Estimate.tenant_id == auth.tenant_id)
-        .order_by(Estimate.created_at.desc())
-        .limit(200)
-    ).all()
+    query = (
+        select(Estimate, RepairCase, Vehicle, Customer, ServiceContract)
+        .join(RepairCase, RepairCase.id == Estimate.repair_case_id)
+        .join(Vehicle, Vehicle.id == RepairCase.vehicle_id)
+        .join(Customer, Customer.id == RepairCase.customer_id)
+        .outerjoin(ServiceContract, ServiceContract.id == Estimate.contract_id)
+        .where(Estimate.tenant_id == auth.tenant_id, RepairCase.tenant_id == auth.tenant_id)
+    )
+    if status_filter is not None:
+        query = query.where(Estimate.status == status_filter)
+    if repair_case_id is not None:
+        query = query.where(Estimate.repair_case_id == repair_case_id)
+    if q.strip():
+        term = q.strip()
+        query = query.where(or_(
+            Estimate.estimate_number.icontains(term, autoescape=True),
+            RepairCase.case_number.icontains(term, autoescape=True),
+            Vehicle.license_plate.icontains(term, autoescape=True),
+            Vehicle.fleet_number.icontains(term, autoescape=True),
+            Customer.company_name.icontains(term, autoescape=True),
+            Customer.first_name.icontains(term, autoescape=True),
+            Customer.last_name.icontains(term, autoescape=True),
+        ))
+    rows = db.execute(query.order_by(Estimate.created_at.desc(), Estimate.id.desc()).offset(offset).limit(limit)).all()
+    items = []
+    for estimate, case, vehicle, customer, contract in rows:
+        item = EstimateListItem.model_validate(estimate)
+        item.case_number = case.case_number
+        item.plate = vehicle.license_plate
+        item.customer_name = customer_display_name(customer)
+        item.contract_name = contract.name if contract else None
+        items.append(item)
+    return items
 
 
 @router.get("/estimates/{estimate_id}", response_model=EstimateRead)
@@ -198,18 +261,56 @@ def update_estimate_status(
     return estimate
 
 
+@router.patch("/estimates/{estimate_id}/pricing", response_model=EstimateRead)
+def update_estimate_pricing(
+    estimate_id: UUID,
+    payload: EstimatePricingUpdate,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("estimate.change_price")),
+):
+    """Switch a draft estimate between public prices and the customer's contract terms."""
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    if estimate.status == EstimateStatus.APPROVED:
+        raise HTTPException(status_code=409, detail="Approved estimates cannot be edited")
+    contract = None
+    if payload.apply_contract:
+        case = db.scalar(select(RepairCase).where(RepairCase.id == estimate.repair_case_id, RepairCase.tenant_id == auth.tenant_id))
+        contract = find_active_contract(db, auth.tenant_id, case.customer_id) if case else None
+        if contract is None:
+            raise HTTPException(status_code=409, detail="Customer has no active service contract")
+    old_value = {"contract_id": str(estimate.contract_id) if estimate.contract_id else None, "total": str(estimate.total)}
+    apply_terms(estimate, contract)
+    recalculate(db, estimate, reprice=True)
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="estimate",
+        entity_id=estimate.id,
+        action="pricing_changed",
+        field_name="contract_id",
+        old_value=old_value,
+        new_value={"contract_id": str(contract.id) if contract else None, "total": str(estimate.total)},
+    )
+    db.commit()
+    db.refresh(estimate)
+    return estimate
+
+
 @router.get("/estimates/{estimate_id}/lines", response_model=list[EstimateLineRead])
 def list_estimate_lines(
     estimate_id: UUID,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("estimate.read")),
 ):
-    get_tenant_estimate(db, auth.tenant_id, estimate_id)
-    return db.scalars(
+    estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
+    terms = terms_of(estimate)
+    lines = db.scalars(
         select(EstimateLine)
         .where(EstimateLine.estimate_id == estimate_id, EstimateLine.tenant_id == auth.tenant_id)
-        .order_by(EstimateLine.created_at)
+        .order_by(EstimateLine.created_at, EstimateLine.id)
     ).all()
+    return [line_read(line, terms) for line in lines]
 
 
 @router.post("/estimates/{estimate_id}/lines", response_model=EstimateLineRead, status_code=201)
@@ -223,7 +324,7 @@ def add_estimate_line(
     if estimate.status == EstimateStatus.APPROVED:
         raise HTTPException(status_code=409, detail="Approved estimates cannot be edited")
 
-    subtotal, vat, total = calculate_line(payload)
+    subtotal, vat, total = calculate_line(payload, terms_of(estimate))
     line = EstimateLine(
         tenant_id=auth.tenant_id,
         estimate_id=estimate_id,
@@ -256,7 +357,7 @@ def add_estimate_line(
     recalculate(db, estimate)
     db.commit()
     db.refresh(line)
-    return line
+    return line_read(line, terms_of(estimate))
 
 
 @router.put("/estimates/{estimate_id}/lines/{line_id}", response_model=EstimateLineRead)
@@ -294,7 +395,7 @@ def update_estimate_line(
         "vat_rate": str(line.vat_rate),
     }
 
-    subtotal, vat, total = calculate_line(payload)
+    subtotal, vat, total = calculate_line(payload, terms_of(estimate))
     for key, value in payload.model_dump().items():
         setattr(line, key, value)
     line.line_subtotal = subtotal
@@ -325,7 +426,7 @@ def update_estimate_line(
     recalculate(db, estimate)
     db.commit()
     db.refresh(line)
-    return line
+    return line_read(line, terms_of(estimate))
 
 
 @router.delete("/estimates/{estimate_id}/lines/{line_id}", status_code=204)
@@ -398,12 +499,16 @@ def estimate_pdf(
         .order_by(EstimateLine.created_at)
     ).all()
     settings = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == auth.tenant_id))
+    contract = db.get(ServiceContract, estimate.contract_id) if estimate.contract_id else None
     pdf = build_estimate_pdf(
         estimate=estimate,
         lines=lines,
         customer=customer,
         vehicle=vehicle,
         company_name=(settings.company_name if settings and settings.company_name else "NAKAMA CAR"),
+        settings=settings,
+        terms=terms_of(estimate),
+        contract_name=contract.name if contract and contract.tenant_id == auth.tenant_id else None,
     )
 
     filename = f"{estimate.estimate_number}.pdf"

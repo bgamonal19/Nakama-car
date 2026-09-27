@@ -10,6 +10,7 @@ import { NavIcon } from "./NavIcon";
 const navigation = [
   ["/", "▦ Dashboard", "dashboard"],
   ["/clienti", "◎ Clienti", "clients"],
+  ["/contratti", "▣ Contratti flotta", "contract"],
   ["/veicoli", "◇ Veicoli", "car"],
   ["/pratiche", "▤ Pratiche", "folder"],
   ["/preventivi", "€ Preventivi", "estimate"],

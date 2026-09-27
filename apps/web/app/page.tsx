@@ -5,7 +5,7 @@ import { AppSidebar } from "../components/AppSidebar";
 import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch, getAccessToken, clearSession } from "../lib/api";
+import { apiFetch, getAccessToken, clearSession, customerLabel } from "../lib/api";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -70,6 +70,32 @@ type DashboardData = {
   recent_practices: {code:string;plate:string;car:string;client:string;status:string}[];
 };
 
+type ActiveContract = {
+  id: string;
+  name: string;
+  labor_included: boolean;
+  labor_discount_percent: string;
+  parts_markup_percent: string;
+};
+
+type CustomerOption = { id: string; company_name?: string | null; first_name?: string | null; last_name?: string | null; phone?: string | null; email?: string | null; vat_number?: string | null };
+
+const vehicleCategories = ["CAR", "VAN", "TRUCK", "TRACTOR", "TRAILER", "BUS", "MOTORCYCLE", "OTHER"];
+
+// Frequent mechanical jobs for cars and industrial vehicles (hours are editable afterwards).
+const mechanicalOperations: [string, string, number][] = [
+  ["Tagliando (olio e filtri)", "MECHANICAL_LABOR", 1.5],
+  ["Diagnosi elettronica", "DIAGNOSTIC", 1],
+  ["Sostituzione pastiglie e dischi freno", "MECHANICAL_LABOR", 2],
+  ["Controllo e regolazione freni", "MECHANICAL_LABOR", 1],
+  ["Sostituzione pneumatici", "MECHANICAL_LABOR", 1],
+  ["Sostituzione frizione", "MECHANICAL_LABOR", 6],
+  ["Kit distribuzione", "MECHANICAL_LABOR", 4],
+  ["Impianto elettrico / luci", "ELECTRICAL", 1],
+  ["Ricarica climatizzatore", "MECHANICAL_LABOR", 1],
+  ["Preparazione revisione", "MECHANICAL_LABOR", 1.5],
+];
+
 type WorkOrderSummary = {
   id: string;
   work_order_number: string;
@@ -101,7 +127,11 @@ export default function HomePage() {
   const [existingCustomerId, setExistingCustomerId] = useState<string | null>(null);
   const [plateLookupMessage, setPlateLookupMessage] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
-  const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
+  const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "" });
+  const [customerRequest, setCustomerRequest] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
+  const [contract, setContract] = useState<ActiveContract | null>(null);
   const [photos, setPhotos] = useState<Record<string, File>>({});
   const [damages, setDamages] = useState<Record<string, DamageStatus>>({});
   const [rates, setRates] = useState({ body: 45, mechanical: 50, paint: 48, electrical: 55, diagnostic: 60 });
@@ -133,20 +163,43 @@ export default function HomePage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    apiFetch("/settings/labor-rates").then(async (response) => {
+      if (!response.ok) return;
+      const data: { labor_type: string; hourly_rate: string }[] = await response.json();
+      const byType = Object.fromEntries(data.map((rate) => [rate.labor_type, Number(rate.hourly_rate)]));
+      setRates((current) => ({
+        body: byType.BODY ?? current.body,
+        mechanical: byType.MECHANICAL ?? current.mechanical,
+        paint: byType.PAINT ?? current.paint,
+        electrical: byType.ELECTRICAL ?? current.electrical,
+        diagnostic: byType.DIAGNOSTIC ?? current.diagnostic,
+      }));
+    }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setContract(null);
+    if (!existingCustomerId || !getAccessToken()) return;
+    apiFetch(`/contracts/active?customer_id=${existingCustomerId}`)
+      .then(async (response) => { if (response.ok) setContract(await response.json()); })
+      .catch(() => undefined);
+  }, [existingCustomerId]);
+
   const totals = useMemo(() => {
     let subtotal = 0;
     let vat = 0;
     for (const line of lines) {
-      const base =
-        line.quantity * line.unitPrice +
-        line.laborHours * line.laborRate +
-        line.paintHours * line.paintRate +
-        line.materials;
+      const markup = contract ? 1 + Number(contract.parts_markup_percent) / 100 : 1;
+      const labor = line.laborHours * line.laborRate + line.paintHours * line.paintRate;
+      const laborCharged = contract?.labor_included ? 0 : labor * (1 - Number(contract?.labor_discount_percent || 0) / 100);
+      const base = (line.quantity * line.unitPrice + line.materials) * markup + laborCharged;
       subtotal += base;
       vat += base * (line.vatRate / 100);
     }
     return { subtotal, vat, total: subtotal + vat };
-  }, [lines]);
+  }, [lines, contract]);
 
   const selectedDamageCount = Object.values(damages).filter((v) => v !== "NO_DAMAGE").length;
 
@@ -157,7 +210,11 @@ export default function HomePage() {
     setExistingCustomerId(null);
     setPlateLookupMessage("");
     setCustomer({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
-    setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
+    setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "" });
+    setCustomerRequest("");
+    setCustomerQuery("");
+    setCustomerResults([]);
+    setContract(null);
     setPhotos({});
     setDamages({});
     setLines([]);
@@ -173,7 +230,7 @@ export default function HomePage() {
         quantity: 1,
         unitPrice: 0,
         laborHours: 0,
-        laborRate: rates.body,
+        laborRate: rates.mechanical,
         paintHours: 0,
         paintRate: rates.paint,
         materials: 0,
@@ -217,6 +274,8 @@ export default function HomePage() {
         color: found.color_name || "",
         paintCode: found.paint_code || "",
         fuel: "50",
+        category: found.vehicle_category || "CAR",
+        fleetNumber: found.fleet_number || "",
       });
 
       if (found.customer_id) {
@@ -240,6 +299,34 @@ export default function HomePage() {
     }
   }
 
+  async function searchCustomers() {
+    if (!getAccessToken()) return;
+    const response = await apiFetch(`/customers?q=${encodeURIComponent(customerQuery.trim())}&limit=10`);
+    if (response.ok) setCustomerResults(await response.json());
+  }
+
+  function pickCustomer(found: CustomerOption) {
+    setExistingCustomerId(found.id);
+    setCustomer({
+      firstName: found.first_name || "",
+      lastName: found.last_name || "",
+      company: found.company_name || "",
+      phone: found.phone || "",
+      email: found.email || "",
+      vat: found.vat_number || "",
+    });
+    setCustomerResults([]);
+    setCustomerQuery("");
+  }
+
+  function addOperation(description: string, category: string, hours: number) {
+    const rate = category === "DIAGNOSTIC" ? rates.diagnostic : category === "ELECTRICAL" ? rates.electrical : rates.mechanical;
+    setLines((prev) => [...prev, {
+      id: crypto.randomUUID(), description, category, quantity: 1, unitPrice: 0, laborHours: hours,
+      laborRate: rate, paintHours: 0, paintRate: rates.paint, materials: 0, vatRate: 22,
+    }]);
+  }
+
   async function savePractice() {
     if (!getAccessToken()) {
       alert(words("Accedi per salvare la pratica nel database.","Inicia sesión para guardar el expediente en la base de datos."));
@@ -251,7 +338,29 @@ export default function HomePage() {
       let savedCustomer: { id: string };
       let savedVehicle: { id: string };
 
-      if (existingVehicleId && existingCustomerId) {
+      const vehicleFields = {
+        vin: vehicle.vin || null,
+        make: vehicle.make || null,
+        model: vehicle.model || null,
+        version: vehicle.version || null,
+        year: vehicle.year ? Number(vehicle.year) : null,
+        mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+        color_name: vehicle.color || null,
+        paint_code: vehicle.paintCode || null,
+        vehicle_category: vehicle.category || "CAR",
+        fleet_number: vehicle.fleetNumber.trim() || null,
+      };
+
+      if (existingCustomerId && !existingVehicleId) {
+        // Known customer (e.g. a fleet company) bringing a vehicle not yet registered.
+        const vehicleResponse = await apiFetch("/vehicles", {
+          method: "POST",
+          body: JSON.stringify({ customer_id: existingCustomerId, license_plate: plate, ...vehicleFields }),
+        });
+        if (!vehicleResponse.ok) throw new Error(vehicleResponse.status === 409 ? "Esiste già un veicolo con questa targa." : (await vehicleResponse.json()).detail || "Errore veicolo");
+        savedCustomer = { id: existingCustomerId };
+        savedVehicle = await vehicleResponse.json();
+      } else if (existingVehicleId && existingCustomerId) {
         const [customerUpdateResponse, vehicleUpdateResponse] = await Promise.all([
           apiFetch(`/customers/${existingCustomerId}`, {
             method: "PATCH",
@@ -266,16 +375,7 @@ export default function HomePage() {
           }),
           apiFetch(`/vehicles/${existingVehicleId}`, {
             method: "PATCH",
-            body: JSON.stringify({
-              vin: vehicle.vin || null,
-              make: vehicle.make || null,
-              model: vehicle.model || null,
-              version: vehicle.version || null,
-              year: vehicle.year ? Number(vehicle.year) : null,
-              mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
-              color_name: vehicle.color || null,
-              paint_code: vehicle.paintCode || null,
-            }),
+            body: JSON.stringify({ ...vehicleFields, customer_id: existingCustomerId }),
           }),
         ]);
         if (!customerUpdateResponse.ok) throw new Error("Errore aggiornamento cliente");
@@ -299,21 +399,20 @@ export default function HomePage() {
         if (!customerResponse.ok) throw new Error((await customerResponse.json()).detail || "Errore cliente");
         savedCustomer = await customerResponse.json();
 
-        const vehicleResponse = await apiFetch("/vehicles", {
-          method: "POST",
-          body: JSON.stringify({
-            customer_id: savedCustomer.id,
-            license_plate: plate,
-            vin: vehicle.vin || null,
-            make: vehicle.make || null,
-            model: vehicle.model || null,
-            version: vehicle.version || null,
-            year: vehicle.year ? Number(vehicle.year) : null,
-            mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
-            color_name: vehicle.color || null,
-            paint_code: vehicle.paintCode || null,
-          }),
-        });
+        // A plate already registered without an owner is linked to the new customer.
+        const vehicleResponse = existingVehicleId
+          ? await apiFetch(`/vehicles/${existingVehicleId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ ...vehicleFields, customer_id: savedCustomer.id }),
+          })
+          : await apiFetch("/vehicles", {
+            method: "POST",
+            body: JSON.stringify({
+              customer_id: savedCustomer.id,
+              license_plate: plate,
+              ...vehicleFields,
+            }),
+          });
         if (!vehicleResponse.ok) throw new Error((await vehicleResponse.json()).detail || "Errore veicolo");
         savedVehicle = await vehicleResponse.json();
       }
@@ -325,7 +424,7 @@ export default function HomePage() {
           vehicle_id: savedVehicle.id,
           mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
           fuel_level_percent: Number(vehicle.fuel),
-          customer_notes: null,
+          customer_notes: customerRequest.trim() || null,
           internal_notes: Object.keys(photos).length ? `Foto raccolte nel pilot UI: ${Object.keys(photos).join(", ")}` : null,
         }),
       });
@@ -445,7 +544,7 @@ export default function HomePage() {
           <div className="photo-hero-content">
             <p className="eyebrow">{t("BENVENUTO IN")}</p>
             <h1>NAKAMA <span>CAR</span></h1>
-            <p>{t("Carrozzeria e servizi auto · Qualità in ogni dettaglio")}</p>
+            <p>{t("Officina meccanica e carrozzeria · Auto e veicoli industriali")}</p>
             <div className="hero-values"><span>{t("Esperienza")}</span><span>{t("Tecnologia")}</span><span>{t("Qualità")}</span><span>{t("Affidabilità")}</span></div>
           </div>
           <div className="hero-signature">{t("Più di una carrozzeria, un partner per la tua auto")}</div>
@@ -463,7 +562,7 @@ export default function HomePage() {
         <div className="kpi-grid nakama-kpis">
           <div className="kpi-card"><span>{t("Pratiche aperte")}</span><strong>{dashboard?.open_cases ?? "—"}</strong><small>{authenticated ? t("Dati live NAKAMA CAR") : words("Accesso richiesto","Acceso requerido")}</small></div>
           <div className="kpi-card"><span>{t("In attesa approvazione")}</span><strong>{dashboard?.waiting_approval ?? "—"}</strong><small>{t("Preventivi da seguire")}</small></div>
-          <div className="kpi-card"><span>{t("Lavori in corso")}</span><strong>{dashboard?.in_progress ?? "—"}</strong><small>{t("Carrozzeria / verniciatura")}</small></div>
+          <div className="kpi-card"><span>{t("Lavori in corso")}</span><strong>{dashboard?.in_progress ?? "—"}</strong><small>{t("Officina e carrozzeria")}</small></div>
           <div className="kpi-card"><span>{t("Pronte consegna")}</span><strong>{dashboard?.ready ?? "—"}</strong><small>{t("Da contattare")}</small></div>
         </div>
 
@@ -541,6 +640,31 @@ export default function HomePage() {
               )}
 
               {step === 1 && (
+                <>
+                {authenticated && (
+                  <div className="customer-picker wizard-picker">
+                    {existingCustomerId ? (
+                      <p>{t("Cliente esistente selezionato")}: <strong>{customer.company || `${customer.firstName} ${customer.lastName}`.trim()}</strong>{" "}
+                        {!existingVehicleId && <button type="button" className="ghost" onClick={() => { setExistingCustomerId(null); setCustomer({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" }); }}>{t("Nuovo cliente")}</button>}
+                      </p>
+                    ) : (
+                      <div className="inline-search">
+                        <input aria-label={t("Cerca cliente esistente")} placeholder={t("Cerca cliente esistente (es. Univex, Gamonal)")} value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchCustomers(); } }} />
+                        <button type="button" className="secondary" onClick={searchCustomers}>{t("Cerca")}</button>
+                      </div>
+                    )}
+                    {customerResults.length > 0 && (
+                      <div className="picker-results">
+                        {customerResults.map((option) => (
+                          <button type="button" key={option.id} className="picker-option" onClick={() => pickCustomer(option)}>
+                            <strong>{customerLabel(option)}</strong><small>{[option.vat_number, option.phone].filter(Boolean).join(" · ")}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {contract && <ContractBanner contract={contract} />}
+                  </div>
+                )}
                 <div className="form-grid">
                   <Field label={t("Nome")} value={customer.firstName} onChange={(v) => setCustomer({ ...customer, firstName: v })} />
                   <Field label={t("Cognome")} value={customer.lastName} onChange={(v) => setCustomer({ ...customer, lastName: v })} />
@@ -549,10 +673,17 @@ export default function HomePage() {
                   <Field label={t("Telefono")} value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} />
                   <Field label={t("Email")} value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} />
                 </div>
+                </>
               )}
 
               {step === 2 && (
                 <div className="form-grid">
+                  <div className="field"><label>{t("Tipo veicolo")}</label>
+                    <select value={vehicle.category} onChange={(e) => setVehicle({ ...vehicle, category: e.target.value })}>
+                      {vehicleCategories.map((code) => <option key={code} value={code}>{t(code)}</option>)}
+                    </select>
+                  </div>
+                  <Field label={t("N. flotta / interno")} value={vehicle.fleetNumber} onChange={(v) => setVehicle({ ...vehicle, fleetNumber: v })} />
                   <Field label={t("Marca")} value={vehicle.make} onChange={(v) => setVehicle({ ...vehicle, make: v })} />
                   <Field label={t("Modello")} value={vehicle.model} onChange={(v) => setVehicle({ ...vehicle, model: v })} />
                   <Field label={t("Versione")} value={vehicle.version} onChange={(v) => setVehicle({ ...vehicle, version: v })} />
@@ -561,6 +692,7 @@ export default function HomePage() {
                   <Field label={t("Chilometri")} value={vehicle.mileage} onChange={(v) => setVehicle({ ...vehicle, mileage: v })} />
                   <Field label={t("Colore")} value={vehicle.color} onChange={(v) => setVehicle({ ...vehicle, color: v })} />
                   <Field label={t("Codice vernice")} value={vehicle.paintCode} onChange={(v) => setVehicle({ ...vehicle, paintCode: v })} />
+                  <div className="field full"><label>{t("Richiesta del cliente / sintomi")}</label><textarea rows={3} value={customerRequest} placeholder={t("Es. rumore ai freni, spia motore accesa, tagliando…")} onChange={(e) => setCustomerRequest(e.target.value)} /></div>
                   <div className="field full"><label>{t("Carburante:")} {vehicle.fuel}%</label><input type="range" min="0" max="100" value={vehicle.fuel} onChange={(e) => setVehicle({ ...vehicle, fuel: e.target.value })} /></div>
                 </div>
               )}
@@ -582,6 +714,7 @@ export default function HomePage() {
               {step === 4 && (
                 <div>
                   <div className="summary-strip"><span>{t("Elementi con intervento")}</span><strong>{selectedDamageCount}</strong></div>
+                  <p className="hint">{t("Per interventi solo meccanici puoi saltare questo passaggio.")}</p>
                   <div className="damage-grid">
                     {vehicleAreas.map(([code, label]) => (
                       <div className="damage-card" key={code}>
@@ -607,6 +740,13 @@ export default function HomePage() {
                       <NumberField label={t("Diagnosi €/h")} value={rates.diagnostic} onChange={(v) => setRates({ ...rates, diagnostic: v })} />
                     </div>
                   </div>
+                  <h3 className="operations-title">{t("Interventi meccanici frequenti")}</h3>
+                  <div className="operation-suggestions">
+                    {mechanicalOperations.map(([description, category, hours]) => (
+                      <button key={description} onClick={() => addOperation(description, category, hours)}>+ {t(description)}</button>
+                    ))}
+                  </div>
+                  {selectedDamageCount > 0 && <h3 className="operations-title">{t("Da mappa danni carrozzeria")}</h3>}
                   <div className="operation-suggestions">
                     {Object.entries(damages).filter(([, s]) => s !== "NO_DAMAGE").map(([code, status]) => (
                       <button key={code} onClick={() => setLines((prev) => [...prev, {
@@ -626,13 +766,14 @@ export default function HomePage() {
                     <div><h3>{t("Righe preventivo")}</h3><p>{t("Nessun dato OEM inventato: codici, prezzi e tempi vanno inseriti manualmente finché non è collegato un provider licenziato.")}</p></div>
                     <button className="secondary" onClick={addLine}>{t("+ Riga")}</button>
                   </div>
+                  {contract && <ContractBanner contract={contract} />}
                   <div className="estimate-lines">
                     {lines.map((line, index) => (
                       <div className="estimate-line" key={line.id}>
                         <div className="line-no">{index + 1}</div>
-                        <input className="line-description" placeholder="Descrizione operazione / ricambio" value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} />
+                        <input className="line-description" placeholder={t("Descrizione operazione / ricambio")} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} />
                         <select value={line.category} onChange={(e) => updateLine(line.id, { category: e.target.value })}>
-                          <option value="PART">{t("PART")}</option><option value="BODY_LABOR">{t("BODY_LABOR")}</option><option value="MECHANICAL_LABOR">{t("MECHANICAL_LABOR")}</option><option value="PAINT">{t("PAINT")}</option><option value="MATERIAL">{t("MATERIAL")}</option><option value="EXTERNAL_SERVICE">{t("EXTERNAL_SERVICE")}</option>
+                          <option value="PART">{t("PART")}</option><option value="MECHANICAL_LABOR">{t("MECHANICAL_LABOR")}</option><option value="DIAGNOSTIC">{t("DIAGNOSTIC")}</option><option value="ELECTRICAL">{t("ELECTRICAL")}</option><option value="BODY_LABOR">{t("BODY_LABOR")}</option><option value="PAINT">{t("PAINT")}</option><option value="MATERIAL">{t("MATERIAL")}</option><option value="EXTERNAL_SERVICE">{t("EXTERNAL_SERVICE")}</option>
                         </select>
                         <NumberField compact label={t("Q.tà")} value={line.quantity} onChange={(v) => updateLine(line.id, { quantity: v })} />
                         <NumberField compact label={t("Prezzo")} value={line.unitPrice} onChange={(v) => updateLine(line.id, { unitPrice: v })} />
@@ -661,6 +802,7 @@ export default function HomePage() {
                     <div><small>{t("DANNI")}</small><strong>{selectedDamageCount}</strong></div>
                     <div><small>{t("PREVENTIVO")}</small><strong>{money(totals.total)}</strong></div>
                   </div>
+                  {contract && <ContractBanner contract={contract} />}
                   <div className="pilot-note">{authenticated ? t("Sessione autenticata: cliente, veicolo, pratica, danni e preventivo saranno salvati nel database multi-tenant.") : words("Accedi prima di salvare la pratica.","Inicia sesión antes de guardar el expediente.")}</div>
                 </div>
               )}
@@ -691,4 +833,17 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 function NumberField({ label, value, onChange, compact = false }: { label: string; value: number; onChange: (value: number) => void; compact?: boolean }) {
   const { t } = useLanguage();
   return <div className={compact ? "number-field compact" : "number-field"}><label>{t(label)}</label><input type="number" step="0.1" value={value} onChange={(e) => onChange(Number(e.target.value))} /></div>;
+}
+
+function ContractBanner({ contract }: { contract: ActiveContract }) {
+  const { t } = useLanguage();
+  return (
+    <div className="pricing-banner contract">
+      <span>
+        <strong>{t("Cliente con contratto flotta")}: {contract.name}</strong>{" · "}
+        {contract.labor_included ? t("manodopera inclusa") : `${t("sconto manodopera")} ${Number(contract.labor_discount_percent)}%`}
+        {" · "}{t("ricambi")} +{Number(contract.parts_markup_percent)}%
+      </span>
+    </div>
+  );
 }
