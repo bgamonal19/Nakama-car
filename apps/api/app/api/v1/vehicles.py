@@ -88,6 +88,7 @@ def monthly_lookups(db: Session, tenant_id: UUID) -> int:
 
 
 def lookup_result(plate: str, payload: dict, source: str, cached: bool) -> PlateLookupResult:
+    payload = targa.enrich(payload)
     return PlateLookupResult(license_plate=plate, source=source, cached=cached, **{
         key: payload.get(key) for key in (
             "make", "model", "version", "year", "vin", "fuel_type", "engine_size", "power_kw", "doors",
@@ -142,6 +143,8 @@ def lookup_plate_data(
             "make": vehicle.make, "model": vehicle.model, "version": vehicle.version, "year": vehicle.year,
             "vin": vehicle.vin, "fuel_type": vehicle.fuel_type, "engine_size": vehicle.engine_size,
             "power_kw": vehicle.power_kw, "doors": vehicle.doors, "external_id": vehicle.external_id,
+            # Raw provider answer, kept to improve the field mapping later.
+            "raw": vehicle.raw,
         }
     db.add(VehicleLookup(
         tenant_id=auth.tenant_id,
