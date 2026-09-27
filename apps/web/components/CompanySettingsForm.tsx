@@ -31,8 +31,12 @@ export function CompanySettingsForm() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [plateUsage, setPlateUsage] = useState<{ configured: boolean; provider?: string | null; used_this_month: number; monthly_limit: number } | null>(null);
 
   useEffect(() => {
+    apiFetch("/settings/company/plate-lookup").then(async (response) => {
+      if (response.ok) setPlateUsage(await response.json());
+    });
     apiFetch("/settings/company").then(async (response) => {
       if (!response.ok) return;
       const loaded = await response.json();
@@ -78,6 +82,13 @@ export function CompanySettingsForm() {
         </label>
         {error && <p className="record-error span-2" role="alert">{error}</p>}
         {message && <p className="staff-success span-2" role="status">{message}</p>}
+        {plateUsage && (
+          <p className="hint span-2">
+            {t("Ricerca targhe")}: {plateUsage.configured
+              ? `${plateUsage.provider} · ${plateUsage.used_this_month}/${plateUsage.monthly_limit} ${t("ricerche questo mese")}`
+              : t("non configurata (variabile TARGA_API_USERNAME su Railway)")}
+          </p>
+        )}
         <div className="record-form-actions"><button className="primary" disabled={saving}>{saving ? t("Salvataggio…") : t("Salva")}</button></div>
       </form>
     </div>

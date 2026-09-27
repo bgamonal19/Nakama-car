@@ -4,6 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
 from app.models.identity import TenantSettings
+from app.api.v1.vehicles import monthly_lookups
+from app.core.config import get_settings
+from app.providers import targa
+from app.schemas.garage import PlateLookupUsage
 from app.schemas.settings import CompanySettings
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
@@ -51,3 +55,17 @@ def update_company_settings(
     db.commit()
     db.refresh(settings)
     return CompanySettings.model_validate(settings)
+
+
+@router.get("/plate-lookup", response_model=PlateLookupUsage)
+def plate_lookup_usage(
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("settings.manage")),
+):
+    provider = targa.get_vehicle_data_provider()
+    return PlateLookupUsage(
+        configured=provider is not None,
+        provider=getattr(provider, "name", None),
+        used_this_month=monthly_lookups(db, auth.tenant_id),
+        monthly_limit=get_settings().plate_lookup_monthly_limit,
+    )
