@@ -143,7 +143,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       {selected&&<section className="panel record-editor" aria-label={words("Scheda","Ficha")}>
         <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
         {kind==="cases"&&<p>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}</p>}
-        {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} />}
+        {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} />}
         <form className="record-form" onSubmit={save}>
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
             {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||(!!selected.id&&!f.editable)} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}

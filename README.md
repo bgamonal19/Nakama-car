@@ -97,7 +97,17 @@ S3_SIGNED_URL_TTL_SECONDS=900
 # Optional: plate lookup (targa.co.it). Empty username = disabled.
 TARGA_API_USERNAME=
 PLATE_LOOKUP_MONTHLY_LIMIT=300
+
+# Optional: realistic vehicle pictures for the damage map (carimage.dev).
+CAR_IMAGE_API_KEY=
+CAR_IMAGE_MONTHLY_LIMIT=500
 ```
+
+With `CAR_IMAGE_API_KEY` set, the damage step shows studio pictures of the exact make/model in the
+vehicle colour (front, left, right, rear, roof). Each picture is requested only when that view is opened
+and is stored in the database, so every make/model/year/colour/view is paid once (1 credit). Without the
+key, or for models missing from the catalogue, a generic outline is used. Damages are pinned by tapping
+the picture and are saved as damage markers of the repair case.
 
 With `TARGA_API_USERNAME` set, a new plate typed in *Nuova pratica* fills make, model, version, year,
 VIN, fuel, engine size and power automatically (one credit per new plate; results are cached, so the
