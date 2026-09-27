@@ -53,6 +53,9 @@ class VehicleCreate(BaseModel):
     paint_code: str | None = None
     vehicle_category: VehicleCategory = "CAR"
     fleet_number: str | None = Field(default=None, max_length=40)
+    fuel_type: str | None = Field(default=None, max_length=40)
+    engine_size: str | None = Field(default=None, max_length=20)
+    power_kw: int | None = Field(default=None, ge=0, le=2000)
 
 
 class VehicleRead(VehicleCreate):
@@ -119,6 +122,9 @@ class VehicleUpdate(BaseModel):
     paint_code: str | None = None
     vehicle_category: VehicleCategory | None = None
     fleet_number: str | None = Field(default=None, max_length=40)
+    fuel_type: str | None = Field(default=None, max_length=40)
+    engine_size: str | None = Field(default=None, max_length=20)
+    power_kw: int | None = Field(default=None, ge=0, le=2000)
 
 
 class RepairCaseUpdate(BaseModel):
@@ -127,3 +133,25 @@ class RepairCaseUpdate(BaseModel):
     fuel_level_percent: int | None = Field(default=None, ge=0, le=100)
     customer_notes: str | None = None
     internal_notes: str | None = None
+
+
+class PlateLookupResult(BaseModel):
+    license_plate: str
+    make: str | None = None
+    model: str | None = None
+    version: str | None = None
+    year: int | None = None
+    vin: str | None = None
+    fuel_type: str | None = None
+    engine_size: str | None = None
+    power_kw: int | None = None
+    doors: int | None = None
+    source: str
+    cached: bool = False
+
+
+class PlateLookupUsage(BaseModel):
+    configured: bool
+    provider: str | None = None
+    used_this_month: int
+    monthly_limit: int

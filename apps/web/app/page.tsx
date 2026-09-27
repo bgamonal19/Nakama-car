@@ -127,7 +127,7 @@ export default function HomePage() {
   const [existingCustomerId, setExistingCustomerId] = useState<string | null>(null);
   const [plateLookupMessage, setPlateLookupMessage] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
-  const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "" });
+  const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "", fuelType: "", engineSize: "", powerKw: "" });
   const [customerRequest, setCustomerRequest] = useState("");
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
@@ -210,7 +210,7 @@ export default function HomePage() {
     setExistingCustomerId(null);
     setPlateLookupMessage("");
     setCustomer({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
-    setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "" });
+    setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "", fuelType: "", engineSize: "", powerKw: "" });
     setCustomerRequest("");
     setCustomerQuery("");
     setCustomerResults([]);
@@ -243,6 +243,45 @@ export default function HomePage() {
     setLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)));
   }
 
+  // Plate not in our registry: ask the external provider (targa.co.it) for make/model.
+  async function lookupExternalPlate(normalized: string) {
+    setPlateLookupMessage("Targa nuova: cerco marca e modello…");
+    try {
+      const r = await apiFetch(`/vehicles/plate-data/${encodeURIComponent(normalized)}`);
+      if (r.status === 503) {
+        setPlateLookupMessage("Targa non presente: verrà creato un nuovo veicolo.");
+        return;
+      }
+      if (r.status === 404) {
+        setPlateLookupMessage("Targa non trovata nella banca dati: inserisci i dati del veicolo a mano.");
+        return;
+      }
+      if (r.status === 429) {
+        setPlateLookupMessage("Limite mensile di ricerche targa raggiunto: inserisci i dati a mano.");
+        return;
+      }
+      if (!r.ok) {
+        setPlateLookupMessage("Servizio targhe non disponibile: inserisci i dati a mano.");
+        return;
+      }
+      const data = await r.json();
+      setVehicle((current) => ({
+        ...current,
+        make: data.make || current.make,
+        model: data.model || current.model,
+        version: data.version || current.version,
+        vin: data.vin || current.vin,
+        year: data.year ? String(data.year) : current.year,
+        fuelType: data.fuel_type || current.fuelType,
+        engineSize: data.engine_size || current.engineSize,
+        powerKw: data.power_kw ? String(data.power_kw) : current.powerKw,
+      }));
+      setPlateLookupMessage("Veicolo identificato dalla targa: controlla i dati nel passo Veicolo.");
+    } catch {
+      setPlateLookupMessage("Servizio targhe non disponibile: inserisci i dati a mano.");
+    }
+  }
+
   async function lookupPlate() {
     const normalized = plate.trim().toUpperCase();
     if (!normalized || !getAccessToken()) {
@@ -255,7 +294,7 @@ export default function HomePage() {
     try {
       const r = await apiFetch(`/vehicles/by-plate/${encodeURIComponent(normalized)}`);
       if (r.status === 404) {
-        setPlateLookupMessage("Targa non presente: verrà creato un nuovo veicolo.");
+        await lookupExternalPlate(normalized);
         return;
       }
       if (!r.ok) {
@@ -276,6 +315,9 @@ export default function HomePage() {
         fuel: "50",
         category: found.vehicle_category || "CAR",
         fleetNumber: found.fleet_number || "",
+        fuelType: found.fuel_type || "",
+        engineSize: found.engine_size || "",
+        powerKw: found.power_kw ? String(found.power_kw) : "",
       });
 
       if (found.customer_id) {
@@ -349,6 +391,9 @@ export default function HomePage() {
         paint_code: vehicle.paintCode || null,
         vehicle_category: vehicle.category || "CAR",
         fleet_number: vehicle.fleetNumber.trim() || null,
+        fuel_type: vehicle.fuelType.trim() || null,
+        engine_size: vehicle.engineSize.trim() || null,
+        power_kw: vehicle.powerKw ? Number(vehicle.powerKw) : null,
       };
 
       if (existingCustomerId && !existingVehicleId) {
@@ -690,6 +735,9 @@ export default function HomePage() {
                   <Field label="VIN" value={vehicle.vin} onChange={(v) => setVehicle({ ...vehicle, vin: v.toUpperCase() })} />
                   <Field label={t("Anno")} value={vehicle.year} onChange={(v) => setVehicle({ ...vehicle, year: v })} />
                   <Field label={t("Chilometri")} value={vehicle.mileage} onChange={(v) => setVehicle({ ...vehicle, mileage: v })} />
+                  <Field label={t("Alimentazione")} value={vehicle.fuelType} onChange={(v) => setVehicle({ ...vehicle, fuelType: v })} />
+                  <Field label={t("Cilindrata (cc)")} value={vehicle.engineSize} onChange={(v) => setVehicle({ ...vehicle, engineSize: v })} />
+                  <Field label={t("Potenza (kW)")} value={vehicle.powerKw} onChange={(v) => setVehicle({ ...vehicle, powerKw: v.replace(/[^0-9]/g, "") })} />
                   <Field label={t("Colore")} value={vehicle.color} onChange={(v) => setVehicle({ ...vehicle, color: v })} />
                   <Field label={t("Codice vernice")} value={vehicle.paintCode} onChange={(v) => setVehicle({ ...vehicle, paintCode: v })} />
                   <div className="field full"><label>{t("Richiesta del cliente / sintomi")}</label><textarea rows={3} value={customerRequest} placeholder={t("Es. rumore ai freni, spia motore accesa, tagliando…")} onChange={(e) => setCustomerRequest(e.target.value)} /></div>

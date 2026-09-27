@@ -933,6 +933,20 @@ Object.assign(spanish, {
   "Missing data for FatturaPA": "Faltan datos para la FatturaPA"
 });
 
+Object.assign(spanish, {
+  "Targa nuova: cerco marca e modello…": "Matrícula nueva: busco marca y modelo…",
+  "Targa non trovata nella banca dati: inserisci i dati del veicolo a mano.": "Matrícula no encontrada en la base de datos: introduce los datos del vehículo a mano.",
+  "Limite mensile di ricerche targa raggiunto: inserisci i dati a mano.": "Límite mensual de búsquedas de matrícula alcanzado: introduce los datos a mano.",
+  "Servizio targhe non disponibile: inserisci i dati a mano.": "Servicio de matrículas no disponible: introduce los datos a mano.",
+  "Veicolo identificato dalla targa: controlla i dati nel passo Veicolo.": "Vehículo identificado por la matrícula: revisa los datos en el paso Vehículo.",
+  "Alimentazione": "Combustible",
+  "Cilindrata (cc)": "Cilindrada (cc)",
+  "Potenza (kW)": "Potencia (kW)",
+  "Ricerca targhe": "Búsqueda de matrículas",
+  "ricerche questo mese": "búsquedas este mes",
+  "non configurata (variabile TARGA_API_USERNAME su Railway)": "no configurada (variable TARGA_API_USERNAME en Railway)"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

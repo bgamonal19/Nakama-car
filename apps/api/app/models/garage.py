@@ -70,6 +70,9 @@ class Vehicle(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     paint_code: Mapped[str | None] = mapped_column(String(64))
     vehicle_category: Mapped[str] = mapped_column(String(20), nullable=False, default="CAR", server_default="CAR")
     fleet_number: Mapped[str | None] = mapped_column(String(40))
+    fuel_type: Mapped[str | None] = mapped_column(String(40))
+    engine_size: Mapped[str | None] = mapped_column(String(20))
+    power_kw: Mapped[int | None] = mapped_column(Integer)
     external_vehicle_id: Mapped[str | None] = mapped_column(String(255))
     vehicle_data_provider: Mapped[str | None] = mapped_column(String(64))
 

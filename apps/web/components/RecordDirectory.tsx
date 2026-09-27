@@ -26,6 +26,8 @@ const config: Record<Kind, {it: string; es: string; permission: string; fields: 
     {key:"year",it:"Anno",es:"Año",type:"number",min:1886,max:2100}, {key:"mileage",it:"Chilometri",es:"Kilómetros",type:"number",min:0},
     {key:"vehicle_category",it:"Tipo veicolo",es:"Tipo de vehículo",options:["CAR","VAN","TRUCK","TRACTOR","TRAILER","BUS","MOTORCYCLE","OTHER"],required:true,editable:true},
     {key:"fleet_number",it:"N. flotta / interno",es:"N.º de flota / interno",max:40},
+    {key:"fuel_type",it:"Alimentazione",es:"Combustible",max:40}, {key:"engine_size",it:"Cilindrata (cc)",es:"Cilindrada (cc)",max:20},
+    {key:"power_kw",it:"Potenza (kW)",es:"Potencia (kW)",type:"number",min:0,max:2000},
     {key:"color_name",it:"Colore",es:"Color",max:120}, {key:"paint_code",it:"Codice vernice",es:"Código de pintura",max:64},
   ]},
   cases: {it:"Pratiche",es:"Expedientes",permission:"case.update",fields:[

@@ -14,6 +14,11 @@ class ProviderVehicle:
     vin: str | None
     license_plate: str | None
     raw: dict[str, Any] | None = None
+    fuel_type: str | None = None
+    engine_size: str | None = None
+    power_kw: int | None = None
+    doors: int | None = None
+    image_url: str | None = None
 
 
 @dataclass(slots=True)

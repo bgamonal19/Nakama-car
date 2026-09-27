@@ -93,7 +93,15 @@ S3_BUCKET=
 S3_ACCESS_KEY_ID=
 S3_SECRET_ACCESS_KEY=
 S3_SIGNED_URL_TTL_SECONDS=900
+
+# Optional: plate lookup (targa.co.it). Empty username = disabled.
+TARGA_API_USERNAME=
+PLATE_LOOKUP_MONTHLY_LIMIT=300
 ```
+
+With `TARGA_API_USERNAME` set, a new plate typed in *Nuova pratica* fills make, model, version, year,
+VIN, fuel, engine size and power automatically (one credit per new plate; results are cached, so the
+same plate is never paid twice). Monthly usage is shown in *Impostazioni*.
 
 The API Docker container runs `alembic upgrade head` before starting Uvicorn.
 

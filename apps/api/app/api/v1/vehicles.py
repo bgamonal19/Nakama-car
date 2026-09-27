@@ -1,11 +1,16 @@
+import re
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.db.deps import get_db
 from app.models.garage import Customer, Vehicle
-from app.schemas.garage import VehicleCreate, VehicleRead, VehicleUpdate
+from app.models.lookup import VehicleLookup
+from app.providers import targa
+from app.schemas.garage import PlateLookupResult, VehicleCreate, VehicleRead, VehicleUpdate
 from app.security.context import AuthContext, require_permission
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -63,6 +68,92 @@ def get_vehicle_by_plate(
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
+
+
+NEGATIVE_CACHE_DAYS = 7
+
+
+def month_start() -> datetime:
+    now = datetime.now(timezone.utc)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def monthly_lookups(db: Session, tenant_id: UUID) -> int:
+    return db.scalar(
+        select(func.count(VehicleLookup.id)).where(
+            VehicleLookup.tenant_id == tenant_id,
+            VehicleLookup.created_at >= month_start(),
+        )
+    ) or 0
+
+
+def lookup_result(plate: str, payload: dict, source: str, cached: bool) -> PlateLookupResult:
+    return PlateLookupResult(license_plate=plate, source=source, cached=cached, **{
+        key: payload.get(key) for key in (
+            "make", "model", "version", "year", "vin", "fuel_type", "engine_size", "power_kw", "doors",
+        )
+    })
+
+
+@router.get("/plate-data/{license_plate}", response_model=PlateLookupResult)
+def lookup_plate_data(
+    license_plate: str,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.write")),
+):
+    """Make/model/version for an Italian plate from the external provider.
+
+    Each real lookup costs one credit, so results are cached per plate and the
+    monthly number of lookups is capped by PLATE_LOOKUP_MONTHLY_LIMIT.
+    """
+    plate = re.sub(r"[^A-Z0-9]", "", license_plate.upper())
+    if not 5 <= len(plate) <= 8:
+        raise HTTPException(status_code=422, detail="Invalid plate")
+    settings = get_settings()
+    provider = targa.get_vehicle_data_provider()
+    if provider is None:
+        raise HTTPException(status_code=503, detail="Plate lookup not configured")
+
+    previous = db.scalar(
+        select(VehicleLookup)
+        .where(VehicleLookup.tenant_id == auth.tenant_id, VehicleLookup.license_plate == plate)
+        .order_by(VehicleLookup.created_at.desc())
+        .limit(1)
+    )
+    if previous is not None:
+        created = previous.created_at if previous.created_at.tzinfo else previous.created_at.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - created
+        if previous.found and age < timedelta(days=settings.plate_lookup_cache_days):
+            return lookup_result(plate, previous.payload or {}, previous.provider, cached=True)
+        if not previous.found and age < timedelta(days=NEGATIVE_CACHE_DAYS):
+            raise HTTPException(status_code=404, detail="Plate not found")
+
+    if monthly_lookups(db, auth.tenant_id) >= settings.plate_lookup_monthly_limit:
+        raise HTTPException(status_code=429, detail="Monthly plate lookup limit reached")
+
+    try:
+        vehicle = provider.find_by_plate(plate, "IT")
+    except targa.PlateLookupError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    payload = None
+    if vehicle is not None:
+        payload = {
+            "make": vehicle.make, "model": vehicle.model, "version": vehicle.version, "year": vehicle.year,
+            "vin": vehicle.vin, "fuel_type": vehicle.fuel_type, "engine_size": vehicle.engine_size,
+            "power_kw": vehicle.power_kw, "doors": vehicle.doors, "external_id": vehicle.external_id,
+        }
+    db.add(VehicleLookup(
+        tenant_id=auth.tenant_id,
+        license_plate=plate,
+        provider=getattr(provider, "name", "provider"),
+        found=vehicle is not None,
+        payload=payload,
+    ))
+    db.commit()
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Plate not found")
+    return lookup_result(plate, payload, getattr(provider, "name", "provider"), cached=False)
 
 
 @router.get("", response_model=list[VehicleRead])
