@@ -2,7 +2,7 @@ import enum
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Enum, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, Enum, false, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -70,6 +70,14 @@ class Estimate(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     vat_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Pricing terms snapshot. Copied from the customer's service contract when the
+    # estimate is created so later contract changes never alter an existing estimate.
+    contract_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("service_contracts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    labor_included: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    labor_discount_percent: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, default=0, server_default="0")
+    parts_markup_percent: Mapped[Decimal] = mapped_column(Numeric(5, 2), nullable=False, default=0, server_default="0")
 
 
 class EstimateLine(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):

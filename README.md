@@ -33,6 +33,27 @@ The MVP now contains a complete operational core:
 - Responsive web UI for desktop, tablet and mobile.
 - CI with PostgreSQL migrations, API tests and Next.js production build.
 
+### Officina meccanica + flotte (release 2)
+
+The same platform now runs a **mechanical workshop** for two kinds of customers:
+
+- **Public customers** (privati e aziende): estimates priced from the normal hourly rates and part prices.
+- **Fleet customers with a service contract** (e.g. Univex Group, Gamonal Trasporti):
+  - `Contratti flotta` page: monthly fee, labor included (or a labor discount), parts/materials markup %.
+  - Estimates for a contract customer automatically snapshot the contract terms: labor is billed at 0 when
+    included, parts at cost + markup. A draft estimate can be switched between contract and public prices.
+  - Monthly fee invoices generated per contract and month (`YYYY-MM`), one per period.
+- Vehicles have a type (car, van, truck, tractor, trailer, bus…) and a fleet number, searchable everywhere.
+- Intake wizard: pick an existing customer (so fleet trucks are not registered as new customers), vehicle
+  type, customer request/symptoms, frequent mechanical operations; the bodyshop damage map is optional.
+- Work orders get a mechanical checklist (diagnosis, parts, repair, road test) or the bodyshop checklist,
+  depending on the estimate lines; the list shows plate, fleet number, customer and request.
+- Estimates page: search/filter and full line editor (add, edit, delete lines, reject).
+- Invoices: detail, issue/paid/cancel rules (issued invoices never return to draft), dates, payment method,
+  courtesy PDF and **FatturaPA XML (FPR12)** to upload to the SdI through the AdE portal or an intermediary.
+- Settings: workshop fiscal data (P.IVA, C.F., address, regime fiscale, IBAN, PEC/SDI).
+- Case record: photo gallery with upload and the case estimates.
+
 ## Stack
 
 - Frontend: Next.js 15 + React 19 + TypeScript + Tailwind CSS
@@ -83,6 +104,14 @@ NEXT_PUBLIC_API_URL=https://<railway-api-domain>/api/v1
 ```
 
 Because this variable is public by design, it must contain only the API base URL and never a secret.
+
+## Going live as a mechanical workshop
+
+1. Deploy: the API container runs `alembic upgrade head` (migration `0008_fleet_contracts_billing`).
+2. `Impostazioni` → fill the workshop fiscal data (needed for PDF headers and FatturaPA XML) and hourly rates.
+3. `Clienti` → create the fleet companies with P.IVA, address and SDI code/PEC.
+4. `Contratti flotta` → create one contract per fleet company (fee, labor included, parts markup).
+5. Every month: `Contratti flotta` → *Fattura canone* → `Fatture` → issue → download XML → send to SdI.
 
 ## First production initialization
 

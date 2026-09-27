@@ -22,6 +22,16 @@ class WorkOrderRead(WorkOrderCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
+class WorkOrderListItem(WorkOrderRead):
+    case_number: str = ""
+    plate: str = ""
+    vehicle_name: str = ""
+    vehicle_category: str = "CAR"
+    fleet_number: str | None = None
+    customer_name: str = ""
+    customer_request: str | None = None
+
+
 class WorkTaskCreate(BaseModel):
     task_type: str
     description: str

@@ -1,7 +1,10 @@
+from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.models.garage import CustomerType, RepairCaseStatus
+
+VehicleCategory = Literal["CAR", "VAN", "TRUCK", "TRACTOR", "TRAILER", "BUS", "MOTORCYCLE", "OTHER"]
 
 
 class CustomerCreate(BaseModel):
@@ -48,6 +51,8 @@ class VehicleCreate(BaseModel):
     mileage: int | None = Field(default=None, ge=0)
     color_name: str | None = None
     paint_code: str | None = None
+    vehicle_category: VehicleCategory = "CAR"
+    fleet_number: str | None = Field(default=None, max_length=40)
 
 
 class VehicleRead(VehicleCreate):
@@ -112,6 +117,8 @@ class VehicleUpdate(BaseModel):
     mileage: int | None = Field(default=None, ge=0)
     color_name: str | None = None
     paint_code: str | None = None
+    vehicle_category: VehicleCategory | None = None
+    fleet_number: str | None = Field(default=None, max_length=40)
 
 
 class RepairCaseUpdate(BaseModel):

@@ -1,8 +1,9 @@
 import enum
 import uuid
+from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Enum, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Date, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -19,11 +20,25 @@ class Invoice(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     __tablename__ = "invoices"
     __table_args__ = (
         UniqueConstraint("tenant_id", "invoice_number", name="uq_invoices_tenant_number"),
+        UniqueConstraint("tenant_id", "contract_id", "period_month", name="uq_invoices_contract_period"),
     )
 
-    repair_case_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("repair_cases.id", ondelete="RESTRICT"), nullable=False, index=True
+    # Repair invoices point at a repair case; monthly contract-fee invoices do not.
+    repair_case_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("repair_cases.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("customers.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    invoice_kind: Mapped[str] = mapped_column(String(20), nullable=False, default="REPAIR", server_default="REPAIR")
+    contract_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("service_contracts.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    period_month: Mapped[str | None] = mapped_column(String(7))
+    issue_date: Mapped[date | None] = mapped_column(Date)
+    due_date: Mapped[date | None] = mapped_column(Date)
+    payment_method: Mapped[str | None] = mapped_column(String(8))
+    paid_at: Mapped[date | None] = mapped_column(Date)
     estimate_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("estimates.id", ondelete="SET NULL"), nullable=True, index=True
     )
