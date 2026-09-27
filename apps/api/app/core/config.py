@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     plate_lookup_monthly_limit: int = 300
     plate_lookup_cache_days: int = 365
 
+    # Realistic vehicle renders (carimage.dev). Empty key = generic diagram only.
+    car_image_api_key: str | None = None
+    car_image_api_url: str = "https://carimage.dev/api/v1/images/car"
+    car_image_timeout_seconds: float = 30
+    car_image_monthly_limit: int = 500
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

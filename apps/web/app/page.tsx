@@ -1,6 +1,7 @@
 "use client";
 
 import { AppSidebar } from "../components/AppSidebar";
+import { DamageMarker, DamagePhotoMap, operationStyle } from "../components/DamagePhotoMap";
 
 import { useLanguage } from "../components/LanguageProvider";
 
@@ -134,6 +135,7 @@ export default function HomePage() {
   const [contract, setContract] = useState<ActiveContract | null>(null);
   const [photos, setPhotos] = useState<Record<string, File>>({});
   const [damages, setDamages] = useState<Record<string, DamageStatus>>({});
+  const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [rates, setRates] = useState({ body: 45, mechanical: 50, paint: 48, electrical: 55, diagnostic: 60 });
   const [lines, setLines] = useState<EstimateLine[]>([]);
 
@@ -201,7 +203,7 @@ export default function HomePage() {
     return { subtotal, vat, total: subtotal + vat };
   }, [lines, contract]);
 
-  const selectedDamageCount = Object.values(damages).filter((v) => v !== "NO_DAMAGE").length;
+  const selectedDamageCount = Object.values(damages).filter((v) => v !== "NO_DAMAGE").length + markers.length;
 
   function resetWizard() {
     setStep(0);
@@ -217,6 +219,7 @@ export default function HomePage() {
     setContract(null);
     setPhotos({});
     setDamages({});
+    setMarkers([]);
     setLines([]);
   }
 
@@ -528,6 +531,14 @@ export default function HomePage() {
         if (!damageResponse.ok) throw new Error("Errore salvataggio danni");
       }
 
+      for (const marker of markers) {
+        const markerResponse = await apiFetch(`/cases/${savedCase.id}/damage-markers`, {
+          method: "POST",
+          body: JSON.stringify({ view: marker.view, x: marker.x, y: marker.y, operation: marker.operation, area_label: marker.area_label }),
+        });
+        if (!markerResponse.ok) throw new Error("Errore salvataggio danni");
+      }
+
       const estimateResponse = await apiFetch("/estimates", {
         method: "POST",
         body: JSON.stringify({ repair_case_id: savedCase.id }),
@@ -763,6 +774,13 @@ export default function HomePage() {
                 <div>
                   <div className="summary-strip"><span>{t("Elementi con intervento")}</span><strong>{selectedDamageCount}</strong></div>
                   <p className="hint">{t("Per interventi solo meccanici puoi saltare questo passaggio.")}</p>
+                  <DamagePhotoMap
+                    vehicle={{ make: vehicle.make, model: vehicle.model, year: vehicle.year, color: vehicle.color }}
+                    markers={markers}
+                    onAdd={(marker) => setMarkers((current) => [...current, { ...marker, id: crypto.randomUUID() }])}
+                    onRemove={(marker) => setMarkers((current) => current.filter((item) => item.id !== marker.id))}
+                  />
+                  <details className="damage-grid-details"><summary>{t("Elenco zone (alternativa)")}</summary>
                   <div className="damage-grid">
                     {vehicleAreas.map(([code, label]) => (
                       <div className="damage-card" key={code}>
@@ -773,6 +791,7 @@ export default function HomePage() {
                       </div>
                     ))}
                   </div>
+                  </details>
                 </div>
               )}
 
@@ -796,6 +815,15 @@ export default function HomePage() {
                   </div>
                   {selectedDamageCount > 0 && <h3 className="operations-title">{t("Da mappa danni carrozzeria")}</h3>}
                   <div className="operation-suggestions">
+                    {markers.map((marker) => (
+                      <button key={marker.id} onClick={() => setLines((prev) => [...prev, {
+                        id: crypto.randomUUID(),
+                        description: `${operationStyle[marker.operation].label} · ${marker.area_label}`,
+                        category: marker.operation === "PAINT" ? "PAINT" : marker.operation === "REPLACE" ? "PART" : "BODY_LABOR",
+                        quantity: 1, unitPrice: 0, laborHours: 1, laborRate: rates.body,
+                        paintHours: marker.operation === "PAINT" ? 1 : 0, paintRate: rates.paint, materials: 0, vatRate: 22,
+                      }])}>+ {marker.area_label} · {t(operationStyle[marker.operation].label)}</button>
+                    ))}
                     {Object.entries(damages).filter(([, s]) => s !== "NO_DAMAGE").map(([code, status]) => (
                       <button key={code} onClick={() => setLines((prev) => [...prev, {
                         id: crypto.randomUUID(),

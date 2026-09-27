@@ -947,6 +947,20 @@ Object.assign(spanish, {
   "non configurata (variabile TARGA_API_USERNAME su Railway)": "no configurada (variable TARGA_API_USERNAME en Railway)"
 });
 
+Object.assign(spanish, {
+  "Vista del veicolo": "Vista del vehículo",
+  "Tocca il punto danneggiato": "Toca el punto dañado",
+  "Tipo di intervento": "Tipo de trabajo",
+  "Elimina": "Eliminar",
+  "Inserisci marca e modello per vedere le foto reali del veicolo.": "Introduce marca y modelo para ver las fotos reales del vehículo.",
+  "Limite mensile di foto raggiunto: uso lo schema del veicolo.": "Límite mensual de fotos alcanzado: uso el esquema del vehículo.",
+  "Foto reali non disponibili: uso lo schema del veicolo.": "Fotos reales no disponibles: uso el esquema del vehículo.",
+  "Modello non presente nel catalogo foto: uso lo schema del veicolo.": "Modelo no presente en el catálogo de fotos: uso el esquema del vehículo.",
+  "Elenco zone (alternativa)": "Lista de zonas (alternativa)",
+  "Mappa danni": "Mapa de daños",
+  "Impossibile salvare il danno.": "No se pudo guardar el daño."
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

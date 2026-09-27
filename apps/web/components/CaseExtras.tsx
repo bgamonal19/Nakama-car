@@ -2,7 +2,8 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
-import { apiError, apiFetch, formatMoney } from "../lib/api";
+import { apiError, apiFetch, formatMoney, hasPermission } from "../lib/api";
+import { DamageMarker, DamagePhotoMap, VehicleLook } from "./DamagePhotoMap";
 
 type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null };
 type EstimateSummary = { id: string; estimate_number: string; status: string; total: string; contract_name?: string | null };
@@ -10,7 +11,7 @@ type EstimateSummary = { id: string; estimate_number: string; status: string; to
 const categories = ["DAMAGE", "FRONT", "REAR", "LEFT", "RIGHT", "INTERIOR", "ODOMETER", "VIN", "DOCUMENT", "OTHER"];
 
 /** Photos and estimates of one repair case, shown inside the case record. */
-export function CaseExtras({ caseId }: { caseId: string }) {
+export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }) {
   const { t } = useLanguage();
   const [media, setMedia] = useState<Media[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -18,6 +19,28 @@ export function CaseExtras({ caseId }: { caseId: string }) {
   const [category, setCategory] = useState("DAMAGE");
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [vehicle, setVehicle] = useState<VehicleLook | null>(null);
+  const [markers, setMarkers] = useState<DamageMarker[]>([]);
+  const [canEdit, setCanEdit] = useState(false);
+
+  async function loadMarkers() {
+    const response = await apiFetch(`/cases/${caseId}/damage-markers`);
+    if (response.ok) {
+      const data: (DamageMarker & { x: string | number; y: string | number })[] = await response.json();
+      setMarkers(data.map((marker) => ({ ...marker, x: Number(marker.x), y: Number(marker.y) })));
+    }
+  }
+
+  async function addMarker(marker: Omit<DamageMarker, "id">) {
+    const response = await apiFetch(`/cases/${caseId}/damage-markers`, { method: "POST", body: JSON.stringify(marker) });
+    if (response.ok) await loadMarkers();
+    else setMessage(await apiError(response, "Impossibile salvare il danno."));
+  }
+
+  async function removeMarker(marker: DamageMarker) {
+    const response = await apiFetch(`/cases/${caseId}/damage-markers/${marker.id}`, { method: "DELETE" });
+    if (response.ok) await loadMarkers();
+  }
 
   async function loadMedia() {
     const response = await apiFetch(`/cases/${caseId}/media`);
@@ -34,6 +57,20 @@ export function CaseExtras({ caseId }: { caseId: string }) {
     setUrls(resolved);
     if (storageMissing) setMessage("Archivio foto (S3) non configurato: le foto registrate non sono visualizzabili.");
   }
+
+  useEffect(() => {
+    setCanEdit(hasPermission("case.update"));
+    loadMarkers();
+    setVehicle(null);
+    if (plate) {
+      apiFetch(`/vehicles/by-plate/${encodeURIComponent(plate)}`).then(async (response) => {
+        if (response.ok) {
+          const data = await response.json();
+          setVehicle({ make: data.make || "", model: data.model || "", year: data.year, color: data.color_name || "" });
+        }
+      });
+    }
+  }, [caseId, plate]);
 
   useEffect(() => {
     setMessage("");
@@ -76,6 +113,15 @@ export function CaseExtras({ caseId }: { caseId: string }) {
 
   return (
     <div className="case-extras">
+      <div className="case-extras-block">
+        <h3>{t("Mappa danni")}</h3>
+        <DamagePhotoMap
+          vehicle={vehicle || {}}
+          markers={markers}
+          onAdd={canEdit ? addMarker : undefined}
+          onRemove={canEdit ? removeMarker : undefined}
+        />
+      </div>
       <div className="case-extras-block">
         <h3>{t("Preventivi della pratica")}</h3>
         {estimates.length === 0 ? <p className="hint">{t("Nessun preventivo.")}</p> : estimates.map((estimate) => (
