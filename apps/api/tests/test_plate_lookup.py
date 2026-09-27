@@ -89,3 +89,13 @@ def test_vehicle_stores_technical_data(client):
 def test_provider_vehicle_defaults_keep_manual_provider_working():
     vehicle = ProviderVehicle(external_id=None, make="Fiat", model=None, version=None, year=None, vin=None, license_plate="AB123CD")
     assert vehicle.fuel_type is None and vehicle.power_kw is None
+
+
+def test_fuel_engine_and_power_are_read_from_the_version_text():
+    vehicle = targa.parse_vehicle("GM267TJ", {
+        "CarMake": {"CurrentTextValue": "FIAT"}, "CarModel": {"CurrentTextValue": "Panda"},
+        "Version": "Panda 1.0 firefly hybrid s&s 70cv 5p.ti", "RegistrationYear": "2023", "PowerKW": 0,
+    })
+    assert (vehicle.fuel_type, vehicle.engine_size, vehicle.power_kw) == ("Ibrida", "1.0 L", 51)
+    assert targa.infer_from_description("Ducato 35 2.3 MJT 140CV") == {"fuel_type": "Diesel", "engine_size": "2.3 L", "power_kw": 103}
+    assert targa.enrich({"power_kw": 0})["power_kw"] is None
