@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
+import { FleetPortalPanel } from "../../components/FleetPortalPanel";
 import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, customerLabel, formatMoney, getAccessToken, hasPermission } from "../../lib/api";
 
@@ -69,6 +70,7 @@ export default function ContrattiPage() {
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
   const [feeMonth, setFeeMonth] = useState<Record<string, string>>({});
+  const [portalFor, setPortalFor] = useState<Contract | null>(null);
 
   async function load() {
     setBusy(true);
@@ -239,6 +241,8 @@ export default function ContrattiPage() {
             </section>
           )}
 
+          {portalFor && <FleetPortalPanel customerId={portalFor.customer_id} customerName={portalFor.customer_name} onClose={() => setPortalFor(null)} />}
+
           <section className="panel list-panel" aria-busy={busy}>
             <div className="data-table contracts head">
               <span>{t("Cliente")}</span><span>{t("Condizioni")}</span><span>{t("Canone")}</span><span>{t("Validità")}</span><span>{t("Azioni")}</span>
@@ -261,6 +265,7 @@ export default function ContrattiPage() {
                 </span>
                 <span className="table-actions wrap">
                   {canWrite && <button onClick={() => startEdit(contract)}>{t("Modifica")}</button>}
+                  <button onClick={() => { setPortalFor(contract); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{t("Portale e manutenzioni")}</button>
                   {canInvoice && Number(contract.monthly_fee) > 0 && (
                     <>
                       <input type="month" aria-label={t("Mese del canone")} value={feeMonth[contract.id] || currentMonth()} onChange={(e) => setFeeMonth({ ...feeMonth, [contract.id]: e.target.value })} />
