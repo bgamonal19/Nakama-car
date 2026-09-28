@@ -164,6 +164,7 @@ export default function TrackingPage() {
               photos={photos}
               plateSpots={data.vehicle.plate_spots}
               parts={data.parts}
+              scene={data.work_type === "MECHANICAL" ? "lift" : "turntable"}
             />
             <OtherPhotos photos={photos} />
           </section>

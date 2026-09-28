@@ -13,7 +13,7 @@ type EstimateSummary = { id: string; estimate_number: string; status: string; to
 const categories = ["DAMAGE", "FRONT", "REAR", "LEFT", "RIGHT", "INTERIOR", "ODOMETER", "VIN", "DOCUMENT", "OTHER"];
 
 /** Photos and estimates of one repair case, shown inside the case record. */
-export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }) {
+export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?: string; workType?: string }) {
   const { t } = useLanguage();
   const [media, setMedia] = useState<Media[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -142,7 +142,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
         <CaseTracking caseId={caseId} plate={plate} />
       </div>
       <div className="case-extras-block">
-        <h3>{t("Mappa danni")}</h3>
+        <h3>{workType === "MECHANICAL" ? t("Veicolo sul ponte · ricambi e interventi") : t("Mappa danni")}</h3>
         <DamagePhotoMap
           vehicle={vehicle || {}}
           plate={plate}
@@ -154,6 +154,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           onColorChange={canEdit && vehicleId ? changeColor : undefined}
           plateSpots={plateSpots}
           parts={parts}
+          scene={workType === "MECHANICAL" ? "lift" : "turntable"}
           onAttachPartPhoto={canEdit ? async (partId, file) => {
             setMessage("");
             const params = new URLSearchParams({ category: "OTHER", estimate_line_id: partId, filename: file.name.slice(0, 200) });

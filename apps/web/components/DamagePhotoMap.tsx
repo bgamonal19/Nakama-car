@@ -149,6 +149,31 @@ function Plate({ spot, plate, editing, onMove }: {
   );
 }
 
+// Car raised on a two-post lift (mechanical jobs): posts, arms under the sills, shadow on the floor.
+const LIFT_RISE = 0.28; // car raised to this share of the scene height
+
+function LiftRig({ stageWidth, stageHeight, sceneHeight }: { stageWidth: number; stageHeight: number; sceneHeight: number }) {
+  if (!stageWidth || !stageHeight || !sceneHeight) return null;
+  const span = stageWidth * 0.62;
+  // Posts stand on the floor (rig from 6% below the top, posts leave 6% at the bottom): arms just under the sills.
+  const rigHeight = sceneHeight * 0.94;
+  const armBottom = sceneHeight * LIFT_RISE - rigHeight * 0.06 + stageHeight * 0.13;
+  return (
+    <div className="lift-rig" aria-hidden="true" style={{ width: span * 2 }}>
+      <div className="lift-floor-plate" />
+      <div className="lift-shadow" style={{ width: stageWidth * 0.8 }} />
+      {["left", "right"].map((side) => (
+        <div key={side} className={`lift-post ${side}`}>
+          <div className="lift-carriage" style={{ bottom: armBottom }}>
+            <span className="lift-arm front" style={{ width: span * 0.62 }}><i /></span>
+            <span className="lift-arm back" style={{ width: span * 0.5 }}><i /></span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type Props = {
   vehicle: VehicleLook;
   plate?: string;
@@ -161,6 +186,8 @@ type Props = {
   photos?: MapPhoto[];
   /** Attach a new photo to a damage pin (workshop only). */
   onAttachPhoto?: (marker: DamageMarker, file: File) => void | Promise<void>;
+  /** Scene: bodywork turntable, or the mechanic's two-post lift. */
+  scene?: "turntable" | "lift";
   /** Attach a photo of the real part (new or removed) to a part line (workshop only). */
   onAttachPartPhoto?: (partId: string, file: File) => void | Promise<void>;
   /** Plate positions saved for this make/model (override the defaults). */
@@ -219,7 +246,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave, parts = [], onAttachPartPhoto }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave, parts = [], onAttachPartPhoto, scene = "turntable" }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -434,7 +461,8 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const ratio = ratios[view] || (view === "side" || view === "side-right" ? 2.1 : 1.5);
   const widest = roof ? ratio : Math.max(2.2, ...ring.map((code) => ratios[code] || 0));
   const maxWidth = stageSize.width * 0.92;
-  const maxHeight = stageSize.height * (roof ? 0.88 : 0.66);
+  const lift = scene === "lift" && !roof;
+  const maxHeight = stageSize.height * (roof ? 0.88 : lift ? 0.58 : 0.66);
   const stageHeight = Math.min(maxHeight, maxWidth / widest);
   const stageWidth = stageHeight * widest;
   const frameWidth = stageHeight * ratio;
@@ -502,7 +530,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       </div>
       <div
         ref={canvas}
-        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}`}
+        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}${lift ? " lift-scene" : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -511,7 +539,8 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       >
         <div className="workshop-wall" aria-hidden="true" />
         <div className="workshop-floor" aria-hidden="true" />
-        {!roof && (
+        {lift && <LiftRig stageWidth={stageWidth} stageHeight={stageHeight} sceneHeight={stageSize.height} />}
+        {!roof && !lift && (
           <div className="turntable" aria-hidden="true" style={{ transform: `translateX(-50%) perspective(700px) rotateX(74deg) rotateZ(${normalizeAngle(angle)}deg)` }} />
         )}
         <div className="car-stage" style={{ width: stageWidth || undefined, height: stageHeight || undefined }}>

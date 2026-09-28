@@ -1293,6 +1293,10 @@ Object.assign(spanish, {
   "Foto del ricambio": "Foto del recambio"
 });
 
+Object.assign(spanish, {
+  "Veicolo sul ponte · ricambi e interventi": "Vehículo en el elevador · recambios e intervenciones"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
