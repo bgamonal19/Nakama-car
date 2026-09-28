@@ -32,9 +32,21 @@ ITALIAN_COLORS = [
 ]
 
 
+PROCESSED_MIME = "image/webp; v=2"
+
+
+def is_processed(mime: str | None) -> bool:
+    return mime == PROCESSED_MIME
+
+
 def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
-    """Shrink studio renders for phones and handhelds (PNG ~870 KB -> WebP ~100 KB)."""
-    if mime == "image/webp":
+    """Prepare a studio render for phones and handhelds.
+
+    Transparent margins are cropped (keeping a small border) so the vehicle fills
+    the damage map, the width is capped and the image is saved as WebP
+    (PNG ~870 KB -> WebP ~40 KB). Stored with ``PROCESSED_MIME``.
+    """
+    if is_processed(mime):
         return content, mime
     try:
         from io import BytesIO
@@ -43,13 +55,23 @@ def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
 
         with Image.open(BytesIO(content)) as image:
             image.load()
+            if image.mode in ("RGBA", "LA") or "transparency" in image.info:
+                alpha = image.convert("RGBA").getchannel("A")
+                box = alpha.point(lambda value: 255 if value > 8 else 0).getbbox()
+                if box:
+                    margin_x = round((box[2] - box[0]) * 0.04)
+                    margin_y = round((box[3] - box[1]) * 0.08)
+                    image = image.crop((
+                        max(0, box[0] - margin_x), max(0, box[1] - margin_y),
+                        min(image.width, box[2] + margin_x), min(image.height, box[3] + margin_y),
+                    ))
             if image.width > MAX_WIDTH:
                 image = image.resize((MAX_WIDTH, round(image.height * MAX_WIDTH / image.width)))
             if image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGBA")
             output = BytesIO()
             image.save(output, format="WEBP", quality=82, method=4)
-            return output.getvalue(), "image/webp"
+            return output.getvalue(), PROCESSED_MIME
     except Exception:  # noqa: BLE001 - an unreadable image is served as received
         logger.exception("WebP conversion failed, serving the original render")
         return content, mime or "application/octet-stream"

@@ -65,11 +65,11 @@ def render_car(
     if cached is not None:
         if not cached.found or not cached.content:
             raise HTTPException(status_code=404, detail="Vehicle not in render catalog")
-        if cached.mime_type != "image/webp":
+        if not carimage.is_processed(cached.mime_type):
             # Renders stored before the WebP conversion are shrunk once, on first read.
             cached.content, cached.mime_type = carimage.to_webp(cached.content, cached.mime_type)
             db.commit()
-        return Response(content=cached.content, media_type=cached.mime_type or "image/webp", headers=headers)
+        return Response(content=cached.content, media_type=(cached.mime_type or "image/webp").split(";")[0], headers=headers)
     if renders_this_month(db, auth.tenant_id) >= get_settings().car_image_monthly_limit:
         raise HTTPException(status_code=429, detail="Monthly render limit reached")
 
@@ -99,7 +99,7 @@ def render_car(
         db.rollback()
     if not found:
         raise HTTPException(status_code=404, detail="Vehicle not in render catalog")
-    return Response(content=content, media_type=mime or "image/webp", headers=headers)
+    return Response(content=content, media_type=(mime or "image/webp").split(";")[0], headers=headers)
 
 
 def get_case(db: Session, tenant_id: UUID, repair_case_id: UUID) -> RepairCase:
