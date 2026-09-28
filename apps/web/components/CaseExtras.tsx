@@ -7,7 +7,7 @@ import { DamageMarker, DamagePhotoMap, MapPhoto, VehicleLook } from "./DamagePho
 import { CaseTracking } from "./CaseTracking";
 import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
 
-type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null; damage_marker_id?: string | null; in_database?: boolean };
+type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null; damage_marker_id?: string | null; estimate_line_id?: string | null; in_database?: boolean };
 type EstimateSummary = { id: string; estimate_number: string; status: string; total: string; contract_name?: string | null };
 
 const categories = ["DAMAGE", "FRONT", "REAR", "LEFT", "RIGHT", "INTERIOR", "ODOMETER", "VIN", "DOCUMENT", "OTHER"];
@@ -133,7 +133,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
 
   const mapPhotos: MapPhoto[] = media
     .filter((item) => urls[item.id] && item.category !== "DOCUMENT")
-    .map((item) => ({ id: item.id, url: urls[item.id], markerId: item.damage_marker_id, category: item.category }));
+    .map((item) => ({ id: item.id, url: urls[item.id], markerId: item.damage_marker_id, partId: item.estimate_line_id, category: item.category }));
 
   return (
     <div className="case-extras">
@@ -154,6 +154,13 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           onColorChange={canEdit && vehicleId ? changeColor : undefined}
           plateSpots={plateSpots}
           parts={parts}
+          onAttachPartPhoto={canEdit ? async (partId, file) => {
+            setMessage("");
+            const params = new URLSearchParams({ category: "OTHER", estimate_line_id: partId, filename: file.name.slice(0, 200) });
+            const response = await apiFetch(`/cases/${caseId}/media/direct?${params.toString()}`, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+            if (!response.ok) { setMessage(await apiError(response, "Caricamento non riuscito.")); return; }
+            await loadMedia();
+          } : undefined}
           onPlateSpotSave={canEdit && vehicle?.make && vehicle?.model ? async (view, spot) => {
             try { setPlateSpots(await savePlateSpot(vehicle.make || "", vehicle.model || "", view, spot)); }
             catch (e) { setMessage(e instanceof Error ? e.message : "Errore di connessione."); }

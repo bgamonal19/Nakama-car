@@ -315,6 +315,7 @@ def customer_photos(db: Session, case: RepairCase) -> list[dict]:
         {
             "id": str(photo.id), "category": photo.category.value,
             "damage_marker_id": str(photo.damage_marker_id) if photo.damage_marker_id else None,
+            "estimate_line_id": str(photo.estimate_line_id) if photo.estimate_line_id else None,
             "created_at": photo.created_at,
         }
         for photo in photos if photo.category.value not in CUSTOMER_PHOTO_EXCLUDED

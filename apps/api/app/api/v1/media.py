@@ -9,6 +9,7 @@ from app.core.config import get_settings
 from app.db.deps import get_db
 from app.models.garage import RepairCase
 from app.models.media import DB_STORAGE_PREFIX, Media, MediaCategory, MediaType
+from app.models.estimating import Estimate, EstimateLine
 from app.models.renders import DamageMarker
 from app.schemas.media import (
     MediaAccessUrl,
@@ -149,6 +150,17 @@ def get_marker_or_404(db: Session, tenant_id: UUID, repair_case_id: UUID, marker
     return marker
 
 
+def get_line_or_404(db: Session, tenant_id: UUID, repair_case_id: UUID, line_id: UUID) -> EstimateLine:
+    line = db.scalar(
+        select(EstimateLine)
+        .join(Estimate, Estimate.id == EstimateLine.estimate_id)
+        .where(EstimateLine.id == line_id, EstimateLine.tenant_id == tenant_id, Estimate.repair_case_id == repair_case_id, Estimate.tenant_id == tenant_id)
+    )
+    if line is None:
+        raise HTTPException(status_code=404, detail="Estimate line not found")
+    return line
+
+
 def get_media_or_404(db: Session, tenant_id: UUID, repair_case_id: UUID, media_id: UUID) -> Media:
     media = db.scalar(select(Media).where(Media.id == media_id, Media.repair_case_id == repair_case_id, Media.tenant_id == tenant_id))
     if media is None:
@@ -162,6 +174,7 @@ async def upload_photo_direct(
     request: Request,
     category: MediaCategory = Query(MediaCategory.DAMAGE),
     damage_marker_id: UUID | None = Query(None),
+    estimate_line_id: UUID | None = Query(None),
     filename: str | None = Query(None, max_length=255),
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("case.update")),
@@ -170,6 +183,8 @@ async def upload_photo_direct(
     get_case_or_404(db, auth.tenant_id, repair_case_id)
     if damage_marker_id is not None:
         get_marker_or_404(db, auth.tenant_id, repair_case_id, damage_marker_id)
+    if estimate_line_id is not None:
+        get_line_or_404(db, auth.tenant_id, repair_case_id, estimate_line_id)
     declared = int(request.headers.get("content-length") or 0)
     if declared > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Foto troppo grande (max 15 MB).")
@@ -179,7 +194,7 @@ async def upload_photo_direct(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     media = Media(
         tenant_id=auth.tenant_id, repair_case_id=repair_case_id, uploaded_by=auth.user_id,
-        media_type=MediaType.PHOTO, category=category, damage_marker_id=damage_marker_id,
+        media_type=MediaType.PHOTO, category=category, damage_marker_id=damage_marker_id, estimate_line_id=estimate_line_id,
         storage_key=f"{DB_STORAGE_PREFIX}{auth.tenant_id}/{repair_case_id}/{uuid_module.uuid4().hex}.webp",
         original_filename=filename, mime_type="image/webp", size_bytes=len(content), width=width, height=height,
         content=content,
@@ -217,6 +232,10 @@ def link_media(
         if payload.damage_marker_id is not None:
             get_marker_or_404(db, auth.tenant_id, repair_case_id, payload.damage_marker_id)
         media.damage_marker_id = payload.damage_marker_id
+    if "estimate_line_id" in fields:
+        if payload.estimate_line_id is not None:
+            get_line_or_404(db, auth.tenant_id, repair_case_id, payload.estimate_line_id)
+        media.estimate_line_id = payload.estimate_line_id
     if payload.category is not None:
         media.category = payload.category
     db.commit()
