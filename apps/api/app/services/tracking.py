@@ -81,6 +81,7 @@ def workshop_info(db: Session, tenant_id: UUID) -> dict:
     if company is not None:
         address = ", ".join(filter(None, [company.address, " ".join(filter(None, [company.postal_code, company.city])), company.province])) or None
     return {
+        "chat_status": (company.chat_status if company else None) or "ONLINE",
         "name": (company.company_name if company else None) or (tenant.name if tenant else "Officina"),
         "phone": company.phone if company else None,
         "email": company.email if company else None,

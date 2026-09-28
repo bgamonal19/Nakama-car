@@ -10,12 +10,19 @@ from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
 from app.models.garage import Customer, RepairCase, Vehicle
-from app.models.identity import User
+from app.models.identity import TenantSettings, User
 from app.models.tracking import CaseMessage, CaseTrackingLink
 from app.security.context import AuthContext, require_permission
 from app.services import tracking
 
 router = APIRouter(tags=["tracking"])
+
+
+CHAT_STATUSES = ("ONLINE", "PAUSED", "OFFLINE")
+
+
+class ChatStatusUpdate(BaseModel):
+    status: str = Field(pattern="^(ONLINE|PAUSED|OFFLINE)$")
 
 
 class MessageCreate(BaseModel):
@@ -118,6 +125,67 @@ def unread_messages(db: Session = Depends(get_db), auth: AuthContext = Depends(r
         {"repair_case_id": str(row[0]), "case_number": row[1], "plate": row[2], "unread": row[3], "last_at": row[4]}
         for row in rows
     ]
+
+
+@router.get("/chat/status")
+def get_chat_status(db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
+    company = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == auth.tenant_id))
+    return {"status": (company.chat_status if company else None) or "ONLINE"}
+
+
+@router.put("/chat/status")
+def set_chat_status(payload: ChatStatusUpdate, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.update"))):
+    """Online / paused / offline, shown to every customer in the chat."""
+    company = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == auth.tenant_id))
+    if company is None:
+        company = TenantSettings(tenant_id=auth.tenant_id)
+        db.add(company)
+    company.chat_status = payload.status
+    db.commit()
+    return {"status": company.chat_status}
+
+
+@router.get("/messages/conversations")
+def conversations(limit: int = 20, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
+    """Latest customer chats, newest first, with the last message and the unread count."""
+    latest = db.execute(
+        select(CaseMessage.repair_case_id, func.max(CaseMessage.created_at))
+        .where(CaseMessage.tenant_id == auth.tenant_id)
+        .group_by(CaseMessage.repair_case_id)
+        .order_by(func.max(CaseMessage.created_at).desc())
+        .limit(max(1, min(limit, 50)))
+    ).all()
+    # The workshop app received them: customers see the double tick.
+    pending = db.scalars(select(CaseMessage).where(
+        CaseMessage.tenant_id == auth.tenant_id, CaseMessage.sender == "CUSTOMER", CaseMessage.delivered_at.is_(None),
+    )).all()
+    if tracking.mark_messages(pending, reader="WORKSHOP", read=False):
+        db.commit()
+    result = []
+    for case_id, _ in latest:
+        case = db.scalar(select(RepairCase).where(RepairCase.id == case_id, RepairCase.tenant_id == auth.tenant_id))
+        if case is None:
+            continue
+        vehicle = db.scalar(select(Vehicle).where(Vehicle.id == case.vehicle_id, Vehicle.tenant_id == auth.tenant_id))
+        customer = db.scalar(select(Customer).where(Customer.id == case.customer_id, Customer.tenant_id == auth.tenant_id))
+        last = db.scalar(
+            select(CaseMessage).where(CaseMessage.repair_case_id == case.id, CaseMessage.tenant_id == auth.tenant_id)
+            .order_by(CaseMessage.created_at.desc(), CaseMessage.id.desc()).limit(1)
+        )
+        unread = db.scalar(select(func.count(CaseMessage.id)).where(
+            CaseMessage.repair_case_id == case.id, CaseMessage.tenant_id == auth.tenant_id,
+            CaseMessage.sender == "CUSTOMER", CaseMessage.read_at.is_(None),
+        )) or 0
+        result.append({
+            "repair_case_id": str(case.id),
+            "case_number": case.case_number,
+            "plate": vehicle.license_plate if vehicle else "",
+            "customer_name": tracking.customer_display_name(customer),
+            "unread": unread,
+            "closed": tracking.is_closed(case),
+            "last_message": tracking.message_dict(last) if last else None,
+        })
+    return result
 
 
 # ---- public side (no login: the token is the key) ----

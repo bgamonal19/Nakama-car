@@ -1160,6 +1160,15 @@ Object.assign(spanish, {
   "Impossibile salvare la posizione della targa.": "No se pudo guardar la posición de la matrícula."
 });
 
+Object.assign(spanish, {
+  "In linea": "En línea", "In pausa": "En pausa", "Non in linea": "Desconectado",
+  "L'officina è momentaneamente occupata: risponderemo appena possibile.": "El taller está ocupado en este momento: responderemos lo antes posible.",
+  "L'officina non è in linea: lascia un messaggio, ti risponderemo al più presto.": "El taller no está en línea: deja un mensaje y te responderemos lo antes posible.",
+  "Chat clienti": "Chats de clientes", "da leggere": "por leer", "Tutte le chat": "Todos los chats",
+  "Stato della chat": "Estado del chat", "Apri la pratica": "Abrir el expediente",
+  "Nessuna chat con i clienti.": "Ningún chat con clientes.", "Tu": "Tú"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

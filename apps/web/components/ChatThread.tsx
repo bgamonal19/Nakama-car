@@ -5,6 +5,14 @@ import { useLanguage } from "./LanguageProvider";
 
 export type ChatMessage = { id: string; sender: "CUSTOMER" | "WORKSHOP"; author_name?: string | null; body: string; created_at: string; read: boolean; status?: "sent" | "delivered" | "read" };
 
+export type ChatPresence = "ONLINE" | "PAUSED" | "OFFLINE";
+export const presenceLabel: Record<ChatPresence, string> = { ONLINE: "In linea", PAUSED: "In pausa", OFFLINE: "Non in linea" };
+const presenceNote: Record<ChatPresence, string> = {
+  ONLINE: "",
+  PAUSED: "L'officina è momentaneamente occupata: risponderemo appena possibile.",
+  OFFLINE: "L'officina non è in linea: lascia un messaggio, ti risponderemo al più presto.",
+};
+
 /** WhatsApp-like ticks: ✓ sent, ✓✓ delivered, blue ✓✓ read. */
 export function Ticks({ status }: { status: "sent" | "delivered" | "read" }) {
   const { t } = useLanguage();
@@ -25,7 +33,7 @@ function when(value: string) {
 }
 
 /** Chat bubbles between customer and workshop; `mine` is the side of whoever is reading. */
-export function ChatThread({ messages, mine, onSend, closedText, placeholder, title, subtitle, id, onMinimize }: {
+export function ChatThread({ messages, mine, onSend, closedText, placeholder, title, subtitle, id, onMinimize, presence }: {
   messages: ChatMessage[];
   mine: "CUSTOMER" | "WORKSHOP";
   onSend?: (body: string) => Promise<string | null>;
@@ -37,6 +45,8 @@ export function ChatThread({ messages, mine, onSend, closedText, placeholder, ti
   id?: string;
   /** Shows a minimise button in the header (floating chat). */
   onMinimize?: () => void;
+  /** Workshop availability shown to the customer (online / paused / offline). */
+  presence?: ChatPresence;
 }) {
   const { t } = useLanguage();
   const [draft, setDraft] = useState("");
@@ -68,9 +78,14 @@ export function ChatThread({ messages, mine, onSend, closedText, placeholder, ti
             <strong>{t(title)}</strong>
             {subtitle && <small>{subtitle}</small>}
           </div>
-          {onSend && <span className="chat-live"><i />{t("Attiva")}</span>}
+          {presence ? (
+            <span className={`chat-live ${presence.toLowerCase()}`}><i />{t(presenceLabel[presence])}</span>
+          ) : onSend && <span className="chat-live"><i />{t("Attiva")}</span>}
           {onMinimize && <button type="button" className="chat-minimize" aria-label={t("Riduci la chat")} onClick={onMinimize}>—</button>}
         </div>
+      )}
+      {presence && presence !== "ONLINE" && onSend && (
+        <p className={`chat-presence-note ${presence.toLowerCase()}`}>{t(presenceNote[presence])}</p>
       )}
       <div className="chat-messages" ref={list} aria-live="polite">
         {messages.length === 0 && <p className="chat-empty">{t("Nessun messaggio. Scrivi qui per qualsiasi domanda.")}</p>}
