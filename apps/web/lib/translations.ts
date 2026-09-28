@@ -1169,6 +1169,19 @@ Object.assign(spanish, {
   "Nessuna chat con i clienti.": "Ningún chat con clientes.", "Tu": "Tú"
 });
 
+Object.assign(spanish, {
+  "Nuovo preventivo": "Nuevo presupuesto",
+  "Veicolo nuovo": "Vehículo nuevo",
+  "Apre la pratica completa: targa, cliente, foto, danni e preventivo.": "Abre el expediente completo: matrícula, cliente, fotos, daños y presupuesto.",
+  "Veicolo già in officina": "Vehículo ya en el taller",
+  "Aggiungi un preventivo a una pratica aperta, senza ripetere cliente, veicolo e foto.": "Añade un presupuesto a un expediente abierto, sin repetir cliente, vehículo ni fotos.",
+  "Targa, pratica o cliente": "Matrícula, expediente o cliente",
+  "Cerca pratica": "Buscar expediente",
+  "Nessuna pratica aperta trovata.": "No se encontró ningún expediente abierto.",
+  "Crea preventivo": "Crear presupuesto",
+  "Impossibile creare il preventivo.": "No se pudo crear el presupuesto."
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
