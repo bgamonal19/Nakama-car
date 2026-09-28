@@ -194,9 +194,16 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       const params = new URLSearchParams({ make, model, view: next, v: RENDER_VERSION });
       if (year) params.set("year", year);
       if (color) params.set("color", color);
-      const response = await (renderLoader.current
+      const fetchOnce = () => (renderLoader.current
         ? renderLoader.current(next, RENDER_VERSION)
         : apiFetch(`/renders/car?${params.toString()}`)).catch(() => null);
+      // A model never asked before is drawn on the fly by the catalog and can time out: retry.
+      let response = await fetchOnce();
+      for (const wait of [2000, 6000]) {
+        if (cancelled || (response && response.status !== 502 && response.status !== 504)) break;
+        await new Promise((resolve) => window.setTimeout(resolve, wait));
+        if (!cancelled) response = await fetchOnce();
+      }
       if (cancelled) return;
       if (response && response.ok) {
         const url = URL.createObjectURL(await response.blob());

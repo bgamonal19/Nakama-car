@@ -66,7 +66,7 @@ def serve_render(db: Session, tenant_id: UUID, *, make: str, model: str, year: i
     if provider is None:
         raise HTTPException(status_code=503, detail="Vehicle renders not configured")
     paint = carimage.normalize_color(color)
-    make_clean, model_clean = make.strip(), model.strip()
+    make_clean, model_clean = make.strip(), carimage.clean_model(model) or model.strip()
     key = "|".join([make_clean.lower(), model_clean.lower(), str(year or ""), paint, view])
     cached = db.scalar(select(VehicleRender).where(VehicleRender.tenant_id == tenant_id, VehicleRender.render_key == key))
     if cached is None:
@@ -97,14 +97,16 @@ def serve_render(db: Session, tenant_id: UUID, *, make: str, model: str, year: i
         raise HTTPException(status_code=429, detail="Monthly render limit reached")
 
     content, mime, found = None, None, True
+    # Try the exact model and year, then without the year, then the base model name.
+    attempts = [(name, when) for name in carimage.model_candidates(model_clean) for when in dict.fromkeys([year, None])]
     try:
-        try:
-            content, mime = provider.render(make=make_clean, model=model_clean, year=year, color=paint, view=view)
-        except carimage.RenderNotFound:
-            if not year:
-                raise
-            # The catalog may not know that exact model year: try the model without it.
-            content, mime = provider.render(make=make_clean, model=model_clean, year=None, color=paint, view=view)
+        for index, (name, when) in enumerate(attempts):
+            try:
+                content, mime = provider.render(make=make_clean, model=name, year=when, color=paint, view=view)
+                break
+            except carimage.RenderNotFound:
+                if index == len(attempts) - 1:
+                    raise
     except carimage.RenderNotFound:
         found = False
     except carimage.RenderError as exc:

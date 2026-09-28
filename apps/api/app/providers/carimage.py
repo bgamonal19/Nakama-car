@@ -6,6 +6,7 @@ is paid only once.
 """
 import json
 import logging
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -112,6 +113,34 @@ def webp_supported() -> bool:
         return False
 
 
+def clean_model(model: str) -> str:
+    """Model name as the render catalog knows it.
+
+    Registry data often carries chassis codes and Italian naming:
+    "A3 Sportback (8VA, 8VF)" -> "A3 Sportback", "Classe A (W177)" -> "A-Class",
+    "Serie 3 Touring" -> "3 Series Touring".
+    """
+    text = re.sub(r"\([^)]*\)", " ", model or "")
+    text = re.sub(r"\s+", " ", text).strip(" -/,")
+    classe = re.match(r"(?i)^classe\s+([a-z]{1,3})\b(.*)$", text)
+    if classe:
+        text = f"{classe.group(1).upper()}-Class{classe.group(2)}"
+    serie = re.match(r"(?i)^serie\s+(\d)\b(.*)$", text)
+    if serie:
+        text = f"{serie.group(1)} Series{serie.group(2)}"
+    return text.strip()
+
+
+def model_candidates(model: str) -> list[str]:
+    """Names to try in order: the cleaned model, then its base name (e.g. "A3")."""
+    cleaned = clean_model(model)
+    candidates = [cleaned] if cleaned else []
+    base = cleaned.split(" ")[0] if cleaned else ""
+    if base and base != cleaned and len(base) > 1 and not cleaned.endswith("-Class"):
+        candidates.append(base)
+    return candidates
+
+
 class RenderError(RuntimeError):
     """The render service could not answer (credentials, credits, network)."""
 
@@ -137,7 +166,7 @@ def normalize_color(value: str | None) -> str:
 class CarImageProvider:
     name = PROVIDER_NAME
 
-    def __init__(self, api_key: str, url: str, timeout: float = 30):
+    def __init__(self, api_key: str, url: str, timeout: float = 90):
         self.api_key = api_key
         self.url = url
         self.timeout = timeout
