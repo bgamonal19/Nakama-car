@@ -168,6 +168,25 @@ def list_messages(db: Session, case: RepairCase, *, reader: str) -> list[dict]:
     return [message_dict(message) for message in messages]
 
 
+def new_message(db: Session, case: RepairCase, *, sender: str, author_name: str | None, body: str) -> CaseMessage:
+    """Add a chat message, always stamped after the previous one so the thread keeps its order."""
+    last = db.scalar(
+        select(func.max(CaseMessage.created_at)).where(CaseMessage.repair_case_id == case.id, CaseMessage.tenant_id == case.tenant_id)
+    )
+    stamp = datetime.now(timezone.utc)
+    last = aware(last)
+    if last is not None and stamp <= last:
+        stamp = last + timedelta(microseconds=1)
+    message = CaseMessage(
+        tenant_id=case.tenant_id, repair_case_id=case.id, sender=sender,
+        author_name=(author_name or None) and author_name[:120], body=body, created_at=stamp,
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+    return message
+
+
 def clean_body(body: str) -> str:
     text = (body or "").strip()
     if not text:
