@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.db.deps import get_db
 from app.models.garage import RepairCase
-from app.models.renders import DamageMarker, VehicleRender
+from app.models.renders import DamageMarker, PlateSpot, VehicleRender
 from app.providers import carimage
-from app.schemas.renders import DamageMarkerCreate, DamageMarkerRead, RenderAvailability
+from app.schemas.renders import DamageMarkerCreate, DamageMarkerRead, PlateSpotWrite, RenderAvailability
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
 
@@ -208,3 +208,56 @@ def delete_marker(
     db.delete(marker)
     db.commit()
     return None
+
+
+def plate_model_key(make: str, model: str) -> str:
+    return f"{make.strip().lower()}|{(carimage.clean_model(model) or model).strip().lower()}"
+
+
+def plate_spots_for(db: Session, tenant_id: UUID, make: str | None, model: str | None) -> dict:
+    """Saved plate positions of a make/model: {view: {x, y, width, turn}}."""
+    if not (make and model):
+        return {}
+    spots = db.scalars(select(PlateSpot).where(PlateSpot.tenant_id == tenant_id, PlateSpot.model_key == plate_model_key(make, model))).all()
+    return {spot.view: {"x": float(spot.x), "y": float(spot.y), "width": float(spot.width), "turn": float(spot.turn)} for spot in spots}
+
+
+@router.get("/renders/plate-spots")
+def get_plate_spots(
+    make: str = Query(min_length=1, max_length=120),
+    model: str = Query(min_length=1, max_length=120),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.read")),
+):
+    return plate_spots_for(db, auth.tenant_id, make, model)
+
+
+@router.put("/renders/plate-spots")
+def save_plate_spot(
+    payload: PlateSpotWrite,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.write")),
+):
+    key = plate_model_key(payload.make, payload.model)
+    spot = db.scalar(select(PlateSpot).where(PlateSpot.tenant_id == auth.tenant_id, PlateSpot.model_key == key, PlateSpot.view == payload.view))
+    if spot is None:
+        spot = PlateSpot(tenant_id=auth.tenant_id, model_key=key, view=payload.view)
+        db.add(spot)
+    spot.x, spot.y, spot.width, spot.turn = (round(payload.x, 4), round(payload.y, 4), round(payload.width, 4), round(payload.turn, 2))
+    db.commit()
+    return plate_spots_for(db, auth.tenant_id, payload.make, payload.model)
+
+
+@router.delete("/renders/plate-spots")
+def reset_plate_spot(
+    make: str = Query(min_length=1, max_length=120),
+    model: str = Query(min_length=1, max_length=120),
+    view: str = Query(min_length=1, max_length=30),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.write")),
+):
+    spot = db.scalar(select(PlateSpot).where(PlateSpot.tenant_id == auth.tenant_id, PlateSpot.model_key == plate_model_key(make, model), PlateSpot.view == view))
+    if spot is not None:
+        db.delete(spot)
+        db.commit()
+    return plate_spots_for(db, auth.tenant_id, make, model)

@@ -1326,3 +1326,12 @@ button.damage-dot { border: 0; cursor: pointer; }
   .chat-dock .chat-card { border-radius: 16px 16px 0 0; }
   .chat-dock .chat-messages { max-height: 60vh; }
 }
+
+/* Plate alignment per model */
+.vehicle-plate b { font-size: min(66cqh, 12.5cqw); }
+.vehicle-plate.editing { pointer-events: auto; cursor: grab; outline: 2px dashed #f2c313; outline-offset: 3px; filter: none; opacity: 1; touch-action: none; z-index: 6; }
+.vehicle-plate.editing:active { cursor: grabbing; }
+.plate-editor { display: grid; gap: 8px; justify-items: center; margin: 10px 0 2px; }
+.plate-editor .hint { margin: 0; text-align: center; }
+.plate-editor > div { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.plate-editor > div:first-of-type button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line, #d5dde6); background: var(--panel, #fff); cursor: pointer; font-size: 16px; }

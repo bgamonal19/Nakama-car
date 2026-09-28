@@ -8,6 +8,7 @@ import { ChatMessage, ChatThread } from "../../../components/ChatThread";
 import { ChatLauncher } from "../../../components/ChatLauncher";
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../../components/CustomerPhotos";
+import type { PlateSpots } from "../../../lib/plateSpots";
 
 type Step = { code: string; label: string; done: boolean; current: boolean };
 type Tracking = {
@@ -19,7 +20,7 @@ type Tracking = {
   opened_at: string;
   updated_at: string;
   customer_name: string;
-  vehicle: { license_plate: string; make?: string | null; model?: string | null; year?: number | null; color?: string | null };
+  vehicle: { license_plate: string; make?: string | null; model?: string | null; year?: number | null; color?: string | null; plate_spots?: PlateSpots };
   tasks: { description: string; status: string }[];
   tasks_done: number;
   tasks_total: number;
@@ -159,6 +160,7 @@ export default function TrackingPage() {
               markers={markers}
               loadRender={loadRender}
               photos={photos}
+              plateSpots={data.vehicle.plate_spots}
             />
             <OtherPhotos photos={photos} />
           </section>

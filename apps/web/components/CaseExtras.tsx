@@ -5,6 +5,7 @@ import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, formatMoney, hasPermission, uploadCasePhoto } from "../lib/api";
 import { DamageMarker, DamagePhotoMap, MapPhoto, VehicleLook } from "./DamagePhotoMap";
 import { CaseTracking } from "./CaseTracking";
+import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
 
 type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null; damage_marker_id?: string | null; in_database?: boolean };
 type EstimateSummary = { id: string; estimate_number: string; status: string; total: string; contract_name?: string | null };
@@ -22,6 +23,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
   const [uploading, setUploading] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleLook | null>(null);
   const [vehicleId, setVehicleId] = useState<string | null>(null);
+  const [plateSpots, setPlateSpots] = useState<PlateSpots>({});
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -94,6 +96,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           const data = await response.json();
           setVehicleId(data.id);
           setVehicle({ make: data.make || "", model: data.model || "", year: data.year, color: data.color_name || "" });
+          loadPlateSpots(data.make, data.model).then(setPlateSpots);
         }
       });
     }
@@ -147,6 +150,11 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           photos={mapPhotos}
           onAttachPhoto={canEdit ? attachPhoto : undefined}
           onColorChange={canEdit && vehicleId ? changeColor : undefined}
+          plateSpots={plateSpots}
+          onPlateSpotSave={canEdit && vehicle?.make && vehicle?.model ? async (view, spot) => {
+            try { setPlateSpots(await savePlateSpot(vehicle.make || "", vehicle.model || "", view, spot)); }
+            catch (e) { setMessage(e instanceof Error ? e.message : "Errore di connessione."); }
+          } : undefined}
         />
       </div>
       <div className="case-extras-block">

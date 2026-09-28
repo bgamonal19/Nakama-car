@@ -40,3 +40,22 @@ class DamageMarker(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     operation: Mapped[str] = mapped_column(String(20), nullable=False)
     area_label: Mapped[str] = mapped_column(String(160), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class PlateSpot(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
+    """Where the number plate sits on the pictures of one make/model, per view.
+
+    Adjusted once by hand in the workshop and reused for every vehicle of that model.
+    """
+
+    __tablename__ = "plate_spots"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "model_key", "view", name="uq_plate_spots_tenant_model_view"),
+    )
+
+    model_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    view: Mapped[str] = mapped_column(String(30), nullable=False)
+    x: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    y: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    width: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
+    turn: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=0)

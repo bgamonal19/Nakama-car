@@ -33,3 +33,16 @@ class RenderAvailability(BaseModel):
     used_this_month: int
     monthly_limit: int
     webp: bool = False
+
+
+PlateView = Literal["front", "front-3-4", "rear-3-4", "rear", "rear-3-4-right", "front-3-4-right"]
+
+
+class PlateSpotWrite(BaseModel):
+    make: str = Field(min_length=1, max_length=120)
+    model: str = Field(min_length=1, max_length=120)
+    view: PlateView
+    x: float = Field(ge=0, le=1)
+    y: float = Field(ge=0, le=1)
+    width: float = Field(ge=0.05, le=0.8)
+    turn: float = Field(ge=-80, le=80)
