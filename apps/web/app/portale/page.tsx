@@ -236,8 +236,16 @@ export default function PortalPage() {
                     <OtherPhotos photos={photos} />
                   </>
                 )}
-                <h3>{t("Chat con l'officina")}</h3>
-                <ChatThread messages={messages} mine="CUSTOMER" onSend={openCase.closed ? undefined : send} closedText="Pratica chiusa: per altre richieste chiama l'officina." />
+                <ChatThread
+                  id="chat"
+                  title="Chat con l'officina"
+                  subtitle={`${openCase.case_number} · ${selected.license_plate}`}
+                  messages={messages}
+                  mine="CUSTOMER"
+                  onSend={openCase.closed ? undefined : send}
+                  closedText="Pratica chiusa: per altre richieste chiama l'officina."
+                />
+                <a className="chat-fab" href="#chat" aria-label={t("Apri la chat")}>💬 <span>{t("Chat")}</span></a>
               </div>
             )}
 

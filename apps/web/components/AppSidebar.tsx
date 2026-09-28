@@ -6,6 +6,7 @@ import { LanguageSwitcher, useLanguage } from "./LanguageProvider";
 import { ThemeToggle } from "./ThemeProvider";
 import { NakamaLogo } from "./NakamaLogo";
 import { NavIcon } from "./NavIcon";
+import { UnreadMessages } from "./UnreadMessages";
 
 const navigation = [
   ["/", "▦ Dashboard", "dashboard"],
@@ -89,6 +90,7 @@ export function AppSidebar() {
       onClick={event => { if ((event.target as HTMLElement).closest("a, button")) setOpen(false); }}>
     <a className="brand brand-link nakama-sidebar-brand" href="/" aria-label="NAKAMA CAR"><NakamaLogo /></a>
     <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{navigation.map(link)}</nav>
+    <UnreadMessages />
     <div className="sidebar-bottom">
       <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.map(link)}</nav>
       <div className="sidebar-preferences"><LanguageSwitcher /><ThemeToggle /></div>

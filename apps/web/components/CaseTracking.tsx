@@ -105,7 +105,15 @@ export function CaseTracking({ caseId, plate }: { caseId: string; plate?: string
         </div>
       )}
       {notice && <p className="hint" role="status">{t(notice)}</p>}
-      <ChatThread messages={messages} mine="WORKSHOP" onSend={canEdit ? send : undefined} placeholder="Rispondi al cliente…" />
+      <ChatThread
+        messages={messages}
+        mine="WORKSHOP"
+        onSend={canEdit ? send : undefined}
+        placeholder="Rispondi al cliente…"
+        title="Chat con il cliente"
+        subtitle={link?.customer_name || undefined}
+        id="chat"
+      />
     </div>
   );
 }
