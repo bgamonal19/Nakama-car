@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Date, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -75,6 +75,13 @@ class Vehicle(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     power_kw: Mapped[int | None] = mapped_column(Integer)
     external_vehicle_id: Mapped[str | None] = mapped_column(String(255))
     vehicle_data_provider: Mapped[str | None] = mapped_column(String(64))
+    # Maintenance plan: next service by date and/or km (explicit, or last service + interval).
+    service_interval_km: Mapped[int | None] = mapped_column(Integer)
+    service_interval_months: Mapped[int | None] = mapped_column(Integer)
+    last_service_date: Mapped[date | None] = mapped_column(Date)
+    last_service_km: Mapped[int | None] = mapped_column(Integer)
+    next_service_date: Mapped[date | None] = mapped_column(Date)
+    next_service_km: Mapped[int | None] = mapped_column(Integer)
 
 
 class RepairCase(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):

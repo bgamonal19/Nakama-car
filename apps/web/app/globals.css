@@ -1168,3 +1168,76 @@ button.damage-dot { border: 0; cursor: pointer; }
   .public-estimate.tracking-page { padding: 14px 10px; }
   .tracking-page .public-card { padding: 18px; }
 }
+
+/* Fleet customer portal */
+.portal-page { min-height: 100vh; background: #f2f4f7; }
+.portal-top { display: flex; align-items: center; gap: 14px; padding: 12px 18px; background: #0b2a4a; color: #fff; }
+.portal-top > div { flex: 1; display: grid; }
+.portal-top small { opacity: .75; font-size: 12px; }
+.portal-top .ghost { color: #fff; border-color: rgba(255,255,255,.35); }
+.portal-top svg, .portal-top img { max-height: 36px; width: auto; }
+.portal-body { width: min(1100px, 100%); margin: 0 auto; padding: 18px 14px 40px; display: grid; gap: 16px; }
+.portal-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.portal-summary div { background: #fff; border-radius: 14px; padding: 14px; display: grid; gap: 2px; border: 1px solid #e3e7ec; }
+.portal-summary strong { font-size: 26px; }
+.portal-summary span { font-size: 12px; color: #62666d; }
+.portal-summary .soon { border-color: #e7b563; background: #fff8ec; }
+.portal-summary .due { border-color: #d9534f; background: #fdeeee; }
+.portal-unread { background: #0b2a4a; color: #fff; border-radius: 12px; padding: 10px 14px; margin: 0; font-weight: 700; }
+.portal-search { width: 100%; min-height: 44px; }
+.portal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.portal-card { text-align: left; background: #fff; border: 1px solid #e3e7ec; border-left: 5px solid #1fa855; border-radius: 14px; padding: 14px; display: grid; gap: 6px; cursor: pointer; font: inherit; color: inherit; }
+.portal-card.soon { border-left-color: #e7a33e; }
+.portal-card.due { border-left-color: #d9534f; }
+.portal-card.unknown { border-left-color: #b8c0c8; }
+.portal-card-head { display: flex; justify-content: space-between; align-items: center; }
+.portal-in-shop { color: #0b2a4a; font-weight: 700; font-size: 13px; }
+.portal-free, .portal-maintenance { color: #62666d; font-size: 13px; }
+.plate-chip.big { font-size: 18px; padding: 4px 12px; }
+.portal-vehicle { display: grid; gap: 14px; }
+.portal-vehicle > .ghost { justify-self: start; }
+.portal-vehicle-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.portal-vehicle-head h2 { margin: 0; }
+.maintenance-card { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; padding: 16px; border-radius: 14px; background: #eefaf2; border: 1px solid #bfe6cc; }
+.maintenance-card.soon { background: #fff8ec; border-color: #f0cf97; }
+.maintenance-card.due { background: #fdeeee; border-color: #efb3b1; }
+.maintenance-card.unknown { background: #f4f6f8; border-color: #e3e7ec; }
+.maintenance-card > div { display: grid; gap: 4px; }
+.maintenance-card small { font-size: 10px; letter-spacing: .1em; color: #62666d; }
+.maintenance-card strong { font-size: 20px; }
+.maintenance-card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
+.maintenance-card dt { color: #62666d; }
+.maintenance-card dd { margin: 0; font-weight: 600; }
+.portal-current { border: 1px solid #e3e7ec; border-radius: 14px; padding: 14px; display: grid; gap: 10px; }
+.portal-current h3 { margin: 0; }
+.portal-status-text { margin: 0; font-weight: 700; color: #0b2a4a; }
+.portal-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.portal-history li { border: 1px solid #e3e7ec; border-radius: 12px; padding: 12px; display: grid; gap: 4px; font-size: 14px; }
+.portal-history p { margin: 0; }
+.portal-history-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.portal-password { border: 2px solid #e7a33e; }
+.fleet-portal { display: grid; gap: 10px; }
+.fleet-portal h3 { margin: 10px 0 0; }
+.issued-password { background: #fff8ec; border: 1px solid #f0cf97; border-radius: 12px; padding: 12px; }
+.issued-password p { margin: 0 0 6px; }
+.issued-password code { font-size: 16px; background: #fff; padding: 2px 8px; border-radius: 6px; border: 1px solid #e3e7ec; }
+.portal-accounts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.portal-accounts li { display: grid; grid-template-columns: 1.4fr auto 1fr auto; gap: 10px; align-items: center; border-bottom: 1px solid #eef0f2; padding-bottom: 8px; }
+.portal-accounts li span:first-child { display: grid; }
+.portal-account-form { grid-template-columns: 1fr 1fr auto; align-items: end; }
+.maintenance-table { display: grid; gap: 6px; overflow-x: auto; }
+.maintenance-row { display: grid; grid-template-columns: 1.5fr .9fr .8fr .6fr 1fr .9fr 1.1fr auto; gap: 6px; align-items: center; min-width: 900px; }
+.maintenance-row.head { font-size: 11px; color: #62666d; font-weight: 700; }
+.maintenance-row > span:first-child { display: grid; }
+.maintenance-row input { min-width: 0; width: 100%; }
+.maintenance-state { display: grid; font-size: 12px; font-weight: 700; }
+.maintenance-state.ok { color: #1d6b3a; }
+.maintenance-state.soon { color: #a86a10; }
+.maintenance-state.due { color: #b3322e; }
+.maintenance-state.unknown { color: #8a8f95; }
+@media (max-width: 700px) {
+  .portal-summary { grid-template-columns: repeat(2, 1fr); }
+  .maintenance-card { grid-template-columns: 1fr; }
+  .portal-accounts li { grid-template-columns: 1fr; }
+  .portal-account-form { grid-template-columns: 1fr; }
+}
