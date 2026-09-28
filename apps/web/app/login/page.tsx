@@ -4,7 +4,7 @@ import { useLanguage } from "../../components/LanguageProvider";
 
 import { PasswordInput } from "../../components/PasswordInput";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
@@ -16,6 +16,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [expired, setExpired] = useState(false);
+  const [next, setNext] = useState("/");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setExpired(params.get("expired") === "1");
+    const target = params.get("next") || "/";
+    // Only same-site paths, never an external address.
+    setNext(target.startsWith("/") && !target.startsWith("//") ? target : "/");
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -30,7 +40,7 @@ export default function LoginPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || "Accesso non riuscito");
       saveSession(data);
-      router.push("/");
+      router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Accesso non riuscito");
     } finally {
@@ -46,6 +56,7 @@ export default function LoginPage() {
         <form onSubmit={submit} className="auth-form">
           <label>{t("Email")}<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
           <label>{t("Password")}<PasswordInput  required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          {expired && !error && <div className="auth-error" role="status">{t("Sessione scaduta. Accedi di nuovo per continuare.")}</div>}
           {error && <div className="auth-error">{t(error)}</div>}
           <button className="primary auth-submit" disabled={loading}>{loading ? t("Accesso…") : t("Accedi")}</button>
         </form>

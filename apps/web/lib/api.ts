@@ -11,10 +11,20 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   if (!headers.has("Content-Type") && init.body) headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  return fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
   });
+  if (response.status === 401 && token) handleExpiredSession();
+  return response;
+}
+
+/** The session token expired or was revoked: go back to login and return here afterwards. */
+function handleExpiredSession() {
+  if (typeof window === "undefined" || window.location.pathname.startsWith("/login")) return;
+  clearSession();
+  const next = `${window.location.pathname}${window.location.search}`;
+  window.location.assign(`/login?expired=1&next=${encodeURIComponent(next)}`);
 }
 
 export function saveSession(payload: {
