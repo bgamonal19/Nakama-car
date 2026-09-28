@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -60,6 +60,18 @@ def render_car(
 VIEW_PATTERN = "^(front|front-3-4|side|rear-3-4|rear|rear-3-4-right|side-right|front-3-4-right|top)$"
 
 
+NOT_FOUND_TTL = timedelta(days=1)
+
+
+def is_stale_miss(render: VehicleRender) -> bool:
+    created = render.created_at
+    if created is None:
+        return True
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - created > NOT_FOUND_TTL
+
+
 def serve_render(db: Session, tenant_id: UUID, *, make: str, model: str, year: int | None, color: str | None, view: str) -> Response:
     """Studio picture from the tenant cache, bought once from the provider when missing."""
     provider = carimage.get_render_provider()
@@ -85,6 +97,11 @@ def serve_render(db: Session, tenant_id: UUID, *, make: str, model: str, year: i
             .limit(1)
         )
     headers = {"Cache-Control": "private, max-age=86400"}
+    if cached is not None and not cached.found and is_stale_miss(cached):
+        # "Not in catalog" is remembered for a day only: the catalog keeps growing.
+        db.delete(cached)
+        db.commit()
+        cached = None
     if cached is not None:
         if not cached.found or not cached.content:
             raise HTTPException(status_code=404, detail="Vehicle not in render catalog")

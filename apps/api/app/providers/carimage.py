@@ -20,12 +20,18 @@ VIEWS = (
 MAX_WIDTH = 1200
 PRESET_COLORS = {
     "silver", "red", "black", "white", "blue", "gray", "green", "orange", "purple",
-    "brown", "gold", "beige", "pink", "yellow", "cyan",
+    "brown", "gold", "beige", "pink", "yellow",
+}
+# Exact paint for named colours: used when the catalog rejects a colour name.
+PRESET_HEX = {
+    "silver": "#c3c8cd", "red": "#c0141c", "black": "#15171a", "white": "#f5f5f3", "blue": "#1c3f94",
+    "gray": "#6d737a", "green": "#23703a", "orange": "#ee7418", "purple": "#5b2a86", "brown": "#6b4128",
+    "gold": "#b8932f", "beige": "#d9c7a3", "pink": "#e58fb1", "yellow": "#f2c313", "cyan": "#3fa7d6",
 }
 ITALIAN_COLORS = [
     ("argent", "silver"), ("grigio", "gray"), ("antracite", "gray"), ("nero", "black"),
     ("bianc", "white"), ("rosso", "red"), ("bordeaux", "red"), ("blu", "blue"),
-    ("azzurr", "cyan"), ("verde", "green"), ("arancio", "orange"), ("viola", "purple"),
+    ("azzurr", "#3fa7d6"), ("celeste", "#3fa7d6"), ("verde", "green"), ("arancio", "orange"), ("viola", "purple"),
     ("marrone", "brown"), ("bronzo", "brown"), ("oro", "gold"), ("beige", "beige"),
     ("sabbia", "beige"), ("rosa", "pink"), ("giallo", "yellow"),
     ("silver", "silver"), ("grey", "gray"), ("gray", "gray"), ("black", "black"), ("white", "white"),
@@ -155,6 +161,8 @@ def normalize_color(value: str | None) -> str:
         return "silver"
     if text in PRESET_COLORS:
         return text
+    if text in PRESET_HEX:
+        return PRESET_HEX[text]
     if text.startswith("#") and len(text) == 7:
         return text
     for keyword, color in ITALIAN_COLORS:
@@ -176,6 +184,15 @@ class CarImageProvider:
         return urllib.request.urlopen(request, timeout=self.timeout)
 
     def render(self, *, make: str, model: str, year: int | None, color: str, view: str) -> tuple[bytes, str]:
+        try:
+            return self._render(make=make, model=model, year=year, color=color, view=view)
+        except RenderNotFound:
+            # The catalog may not accept a colour name: ask again with the exact paint.
+            if color not in PRESET_HEX:
+                raise
+            return self._render(make=make, model=model, year=year, color=PRESET_HEX[color], view=view)
+
+    def _render(self, *, make: str, model: str, year: int | None, color: str, view: str) -> tuple[bytes, str]:
         params = {"make": make, "model": model, "view": view, "color": color}
         if year:
             params["year"] = str(year)
