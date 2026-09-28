@@ -31,4 +31,5 @@ class CaseMessage(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     sender: Mapped[str] = mapped_column(String(12), nullable=False)  # CUSTOMER | WORKSHOP
     author_name: Mapped[str | None] = mapped_column(String(120))
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

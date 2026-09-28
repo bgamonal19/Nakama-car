@@ -369,8 +369,8 @@ def portal_case_detail(case_id: UUID, db: Session = Depends(get_db), context: Po
 
 
 @router.get("/portal/cases/{case_id}/messages")
-def portal_case_messages(case_id: UUID, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
-    return tracking.list_messages(db, portal_case(db, context, case_id), reader="CUSTOMER")
+def portal_case_messages(case_id: UUID, read: bool = True, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    return tracking.list_messages(db, portal_case(db, context, case_id), reader="CUSTOMER", read=read)
 
 
 @router.post("/portal/cases/{case_id}/messages", status_code=status.HTTP_201_CREATED)

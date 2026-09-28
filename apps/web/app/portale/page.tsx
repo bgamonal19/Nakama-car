@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "../../components/LanguageProvider";
 import { NakamaLogo } from "../../components/NakamaLogo";
 import { PasswordInput } from "../../components/PasswordInput";
 import { ChatMessage, ChatThread } from "../../components/ChatThread";
+import { ChatLauncher } from "../../components/ChatLauncher";
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
@@ -71,6 +72,10 @@ export default function PortalPage() {
   const [selected, setSelected] = useState<VehicleDetail | null>(null);
   const [openCase, setOpenCase] = useState<CaseProgress | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatOpenRef = useRef(false);
+  chatOpenRef.current = chatOpen;
+  const unreadCount = messages.filter((message) => message.sender === "WORKSHOP" && !message.read).length;
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [photos, setPhotos] = useState<MapPhoto[]>([]);
   const [error, setError] = useState("");
@@ -92,14 +97,17 @@ export default function PortalPage() {
   const currentCaseId = selected?.current_case?.id;
   const loadCase = useCallback(async () => {
     if (!currentCaseId) return;
-    const [progress, chat] = await Promise.all([portalFetch(`/portal/cases/${currentCaseId}`), portalFetch(`/portal/cases/${currentCaseId}/messages`)]);
+    const [progress, chat] = await Promise.all([portalFetch(`/portal/cases/${currentCaseId}`), portalFetch(`/portal/cases/${currentCaseId}/messages?read=${chatOpenRef.current}`)]);
     if (progress.ok) setOpenCase(await progress.json());
     if (chat.ok) setMessages(await chat.json());
   }, [currentCaseId]);
 
   const loadRender = useCallback((view: MarkerView, version: string) => portalFetch(`/portal/cases/${currentCaseId}/renders/${view}?v=${version}`), [currentCaseId]);
 
+  useEffect(() => { if (chatOpen) loadCase(); }, [chatOpen, loadCase]);
+
   useEffect(() => {
+    setChatOpen(false);
     setOpenCase(null);
     setMessages([]);
     setMarkers([]);
@@ -158,6 +166,7 @@ export default function PortalPage() {
     <main className="portal-page">
       <header className="portal-top">
         <NakamaLogo />
+        {openCase && <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} />}
         <div>
           <strong>{me?.customer_name}</strong>
           <small>{me?.full_name}</small>
@@ -236,16 +245,20 @@ export default function PortalPage() {
                     <OtherPhotos photos={photos} />
                   </>
                 )}
-                <ChatThread
-                  id="chat"
-                  title="Chat con l'officina"
-                  subtitle={`${openCase.case_number} · ${selected.license_plate}`}
-                  messages={messages}
-                  mine="CUSTOMER"
-                  onSend={openCase.closed ? undefined : send}
-                  closedText="Pratica chiusa: per altre richieste chiama l'officina."
-                />
-                <a className="chat-fab" href="#chat" aria-label={t("Apri la chat")}>💬 <span>{t("Chat")}</span></a>
+                {chatOpen && (
+                  <div className="chat-dock" role="dialog" aria-label={t("Chat con l'officina")}>
+                    <ChatThread
+                      id="chat"
+                      title="Chat con l'officina"
+                      subtitle={`${openCase.case_number} · ${selected.license_plate}`}
+                      messages={messages}
+                      mine="CUSTOMER"
+                      onSend={openCase.closed ? undefined : send}
+                      closedText="Pratica chiusa: per altre richieste chiama l'officina."
+                      onMinimize={() => setChatOpen(false)}
+                    />
+                  </div>
+                )}
               </div>
             )}
 

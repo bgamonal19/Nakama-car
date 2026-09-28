@@ -139,6 +139,15 @@ def case_progress(db: Session, case: RepairCase) -> dict:
     }
 
 
+def message_status(message: CaseMessage) -> str:
+    """WhatsApp-like ticks: sent ✓, delivered ✓✓, read ✓✓ (blue)."""
+    if message.read_at is not None:
+        return "read"
+    if message.delivered_at is not None:
+        return "delivered"
+    return "sent"
+
+
 def message_dict(message: CaseMessage) -> dict:
     return {
         "id": str(message.id),
@@ -147,23 +156,34 @@ def message_dict(message: CaseMessage) -> dict:
         "body": message.body,
         "created_at": message.created_at,
         "read": message.read_at is not None,
+        "status": message_status(message),
     }
 
 
-def list_messages(db: Session, case: RepairCase, *, reader: str) -> list[dict]:
-    """Messages of a case; the other side's messages are marked read by ``reader``."""
+def mark_messages(messages, *, reader: str, read: bool) -> bool:
+    """The other side's messages reached ``reader`` (delivered) or were seen (read)."""
+    now = datetime.now(timezone.utc)
+    changed = False
+    for message in messages:
+        if message.sender == reader:
+            continue
+        if message.delivered_at is None:
+            message.delivered_at = now
+            changed = True
+        if read and message.read_at is None:
+            message.read_at = now
+            changed = True
+    return changed
+
+
+def list_messages(db: Session, case: RepairCase, *, reader: str, read: bool = True) -> list[dict]:
+    """Messages of a case; the other side's ones become delivered, and read when the chat is open."""
     messages = db.scalars(
         select(CaseMessage)
         .where(CaseMessage.repair_case_id == case.id, CaseMessage.tenant_id == case.tenant_id)
         .order_by(CaseMessage.created_at, CaseMessage.id)
     ).all()
-    now = datetime.now(timezone.utc)
-    changed = False
-    for message in messages:
-        if message.sender != reader and message.read_at is None:
-            message.read_at = now
-            changed = True
-    if changed:
+    if mark_messages(messages, reader=reader, read=read):
         db.commit()
     return [message_dict(message) for message in messages]
 

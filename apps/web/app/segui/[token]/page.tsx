@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { NakamaLogo } from "../../../components/NakamaLogo";
 import { ChatMessage, ChatThread } from "../../../components/ChatThread";
+import { ChatLauncher } from "../../../components/ChatLauncher";
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../../components/CustomerPhotos";
 
@@ -50,11 +51,15 @@ export default function TrackingPage() {
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [photos, setPhotos] = useState<MapPhoto[]>([]);
   const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
+  const [chatOpen, setChatOpen] = useState(false);
+  const chatOpenRef = useRef(false);
+  const unreadCount = messages.filter((message) => message.sender === "WORKSHOP" && !message.read).length;
+  chatOpenRef.current = chatOpen;
   const base = `${api}/public/tracking/${params.token}`;
 
   const refresh = useCallback(async () => {
     try {
-      const [info, chat] = await Promise.all([fetch(base), fetch(`${base}/messages`)]);
+      const [info, chat] = await Promise.all([fetch(base), fetch(`${base}/messages?read=${chatOpenRef.current}`)]);
       if (!info.ok) { setState("missing"); return; }
       setData(await info.json());
       if (chat.ok) setMessages(await chat.json());
@@ -71,6 +76,9 @@ export default function TrackingPage() {
   }, [params.token, base]);
 
   const loadRender = useCallback((view: MarkerView, version: string) => fetch(`${base}/renders/${view}?v=${version}`), [base]);
+
+  // Opening the chat marks the workshop messages as read (blue ticks on their side).
+  useEffect(() => { if (chatOpen) refresh(); }, [chatOpen, refresh]);
 
   useEffect(() => {
     if (!params.token || !api) return;
@@ -115,7 +123,10 @@ export default function TrackingPage() {
   return (
     <main className="public-estimate tracking-page">
       <div className="public-card">
-        <div className="public-brand nakama-public-brand"><NakamaLogo /></div>
+        <div className="public-brand nakama-public-brand tracking-brand">
+          <NakamaLogo />
+          <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} />
+        </div>
         <div className="public-head">
           <div>
             <small>{t("STATO DELLA RIPARAZIONE")}</small>
@@ -180,22 +191,20 @@ export default function TrackingPage() {
           </section>
         )}
 
-        <section className="tracking-section">
-          <ChatThread
-            id="chat"
-            title="Chat con l'officina"
-            subtitle={data.workshop.name}
-            messages={messages}
-            mine="CUSTOMER"
-            onSend={data.closed ? undefined : send}
-            closedText="Pratica chiusa: per altre richieste chiama l'officina."
-          />
-        </section>
-
-        <a className="chat-fab" href="#chat" aria-label={t("Apri la chat")}>
-          💬 <span>{t("Chat")}</span>
-          {data.unread > 0 && <b>{data.unread}</b>}
-        </a>
+        {chatOpen && (
+          <div className="chat-dock" role="dialog" aria-label={t("Chat con l'officina")}>
+            <ChatThread
+              id="chat"
+              title="Chat con l'officina"
+              subtitle={data.workshop.name}
+              messages={messages}
+              mine="CUSTOMER"
+              onSend={data.closed ? undefined : send}
+              closedText="Pratica chiusa: per altre richieste chiama l'officina."
+              onMinimize={() => setChatOpen(false)}
+            />
+          </div>
+        )}
 
         <footer className="tracking-workshop">
           <strong>{workshop.name}</strong>
