@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { NakamaLogo } from "../../../components/NakamaLogo";
 import { ChatMessage, ChatThread } from "../../../components/ChatThread";
+import { DamageMarker, DamagePhotoMap, MarkerView } from "../../../components/DamagePhotoMap";
 
 type Step = { code: string; label: string; done: boolean; current: boolean };
 type Tracking = {
@@ -45,6 +46,7 @@ export default function TrackingPage() {
   const params = useParams<{ token: string }>();
   const [data, setData] = useState<Tracking | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
   const base = `${api}/public/tracking/${params.token}`;
 
@@ -59,6 +61,13 @@ export default function TrackingPage() {
       setState((current) => (current === "loading" ? "missing" : current));
     }
   }, [base]);
+
+  useEffect(() => {
+    if (!params.token || !api) return;
+    fetch(`${base}/damage-markers`).then(async (response) => { if (response.ok) setMarkers(await response.json()); }).catch(() => undefined);
+  }, [params.token, base]);
+
+  const loadRender = useCallback((view: MarkerView, version: string) => fetch(`${base}/renders/${view}?v=${version}`), [base]);
 
   useEffect(() => {
     if (!params.token || !api) return;
@@ -125,6 +134,19 @@ export default function TrackingPage() {
           ))}
         </ol>
         <p className="hint">{t("Pratica")} {data.case_number} · {t("aggiornato")} {date(data.updated_at)}</p>
+
+        {(markers.length > 0 || (data.vehicle.make && data.vehicle.model)) && (
+          <section className="tracking-section">
+            <h2>{t("Danni e interventi sul veicolo")}</h2>
+            <p className="hint">{markers.length ? t("Gira l'auto trascinandola: i numeri indicano i punti su cui interveniamo.") : t("Nessun danno segnato sul veicolo.")}</p>
+            <DamagePhotoMap
+              vehicle={{ make: data.vehicle.make || "", model: data.vehicle.model || "", year: data.vehicle.year, color: data.vehicle.color || "" }}
+              plate={data.vehicle.license_plate}
+              markers={markers}
+              loadRender={loadRender}
+            />
+          </section>
+        )}
 
         {data.tasks_total > 0 && (
           <section className="tracking-section">

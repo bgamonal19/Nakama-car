@@ -185,3 +185,30 @@ def customer_messages_last_hour(db: Session, case: RepairCase) -> int:
             CaseMessage.sender == "CUSTOMER", CaseMessage.created_at >= since,
         )
     ) or 0
+
+
+def customer_markers(db: Session, case: RepairCase) -> list[dict]:
+    """Damage pins of the case as the customer sees them (no internal notes)."""
+    from app.models.renders import DamageMarker
+
+    markers = db.scalars(
+        select(DamageMarker)
+        .where(DamageMarker.repair_case_id == case.id, DamageMarker.tenant_id == case.tenant_id)
+        .order_by(DamageMarker.created_at, DamageMarker.id)
+    ).all()
+    return [
+        {"id": str(marker.id), "view": marker.view, "x": float(marker.x), "y": float(marker.y), "operation": marker.operation, "area_label": marker.area_label}
+        for marker in markers
+    ]
+
+
+def case_render(db: Session, case: RepairCase, view: str):
+    """Studio picture of the case vehicle (same cache the workshop uses)."""
+    from fastapi import HTTPException
+
+    from app.api.v1.renders import serve_render
+
+    vehicle = db.scalar(select(Vehicle).where(Vehicle.id == case.vehicle_id, Vehicle.tenant_id == case.tenant_id))
+    if vehicle is None or not (vehicle.make and vehicle.model):
+        raise HTTPException(status_code=404, detail="Vehicle not in render catalog")
+    return serve_render(db, case.tenant_id, make=vehicle.make, model=vehicle.model, year=vehicle.year, color=vehicle.color_name, view=view)

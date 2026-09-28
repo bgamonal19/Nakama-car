@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -173,3 +173,18 @@ def public_send_message(token: str, payload: MessageCreate, db: Session = Depend
     db.commit()
     db.refresh(message)
     return tracking.message_dict(message)
+
+
+VIEW = Path(pattern="^(front|front-3-4|side|rear-3-4|rear|rear-3-4-right|side-right|front-3-4-right|top)$")
+
+
+@router.get("/public/tracking/{token}/damage-markers")
+def public_markers(token: str, db: Session = Depends(get_db)):
+    _, case = public_case(db, token)
+    return tracking.customer_markers(db, case)
+
+
+@router.get("/public/tracking/{token}/renders/{view}")
+def public_render(token: str, view: str = VIEW, db: Session = Depends(get_db)):
+    _, case = public_case(db, token)
+    return tracking.case_render(db, case, view)

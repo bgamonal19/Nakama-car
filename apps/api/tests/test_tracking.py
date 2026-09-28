@@ -75,3 +75,27 @@ def test_tracking_link_is_tenant_scoped(client):
     c, _, _ = client
     assert c.get("/api/v1/public/tracking/not-a-token").status_code == 404
     assert c.post("/api/v1/cases/00000000-0000-0000-0000-000000000000/tracking-link").status_code == 404
+
+
+def test_customer_sees_damage_map_without_internal_notes(client, monkeypatch):
+    import test_renders
+    from app.providers import carimage
+
+    c, _, _ = client
+    customer = c.post("/api/v1/customers", json={"first_name": "Mario"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "GM267TJ", "customer_id": customer["id"], "make": "Fiat", "model": "Panda", "color_name": "Bianco"}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
+    c.post(f"/api/v1/cases/{case['id']}/damage-markers", json={"view": "side", "x": 0.42, "y": 0.6, "operation": "PAINT", "area_label": "Lato sinistro · centro", "notes": "solo interno"})
+    token = c.post(f"/api/v1/cases/{case['id']}/tracking-link").json()["public_token"]
+    public = f"/api/v1/public/tracking/{token}"
+
+    markers = c.get(public + "/damage-markers").json()
+    assert markers == [{"id": markers[0]["id"], "view": "side", "x": 0.42, "y": 0.6, "operation": "PAINT", "area_label": "Lato sinistro · centro"}]
+    assert c.get(public + "/renders/side").status_code == 503
+    fake = test_renders.FakeRenders()
+    monkeypatch.setattr(carimage, "get_render_provider", lambda: fake)
+    picture = c.get(public + "/renders/side")
+    assert picture.status_code == 200 and picture.headers["content-type"] == "image/webp"
+    assert fake.calls == [("Fiat", "Panda", None, "white", "side")]
+    assert c.get(public + "/renders/inside").status_code == 422
+    assert c.get("/api/v1/public/tracking/wrong/renders/side").status_code == 404

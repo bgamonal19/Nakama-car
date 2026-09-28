@@ -1116,6 +1116,13 @@ Object.assign(spanish, {
   "Accesso area clienti": "Acceso área de clientes"
 });
 
+Object.assign(spanish, {
+  "Danni e interventi sul veicolo": "Daños e intervenciones en el vehículo",
+  "Gira l'auto trascinandola: i numeri indicano i punti su cui interveniamo.": "Gira el coche arrastrándolo: los números indican los puntos donde intervenimos.",
+  "Nessun danno segnato sul veicolo.": "Ningún daño marcado en el vehículo.",
+  "Trascina per ruotare il veicolo": "Arrastra para girar el vehículo"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

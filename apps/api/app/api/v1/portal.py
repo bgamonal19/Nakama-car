@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field
@@ -134,6 +134,7 @@ def vehicle_summary(db: Session, vehicle: Vehicle) -> dict:
         "fleet_number": vehicle.fleet_number,
         "vehicle_category": vehicle.vehicle_category,
         "mileage": vehicle.mileage,
+        "color": vehicle.color_name,
         "maintenance": maintenance_status(vehicle),
         "current_case": current,
     }
@@ -389,3 +390,18 @@ def portal_send_message(case_id: UUID, payload: MessageCreate, db: Session = Dep
     db.commit()
     db.refresh(message)
     return tracking.message_dict(message)
+
+
+@router.get("/portal/cases/{case_id}/damage-markers")
+def portal_case_markers(case_id: UUID, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    return tracking.customer_markers(db, portal_case(db, context, case_id))
+
+
+@router.get("/portal/cases/{case_id}/renders/{view}")
+def portal_case_render(
+    case_id: UUID,
+    view: str = Path(pattern="^(front|front-3-4|side|rear-3-4|rear|rear-3-4-right|side-right|front-3-4-right|top)$"),
+    db: Session = Depends(get_db),
+    context: PortalContext = Depends(get_portal_context),
+):
+    return tracking.case_render(db, portal_case(db, context, case_id), view)

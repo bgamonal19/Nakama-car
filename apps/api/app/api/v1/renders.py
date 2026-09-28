@@ -54,19 +54,27 @@ def render_car(
     auth: AuthContext = Depends(require_permission("vehicle.read")),
 ):
     """Studio picture of the vehicle; each make/model/year/color/view is paid once."""
+    return serve_render(db, auth.tenant_id, make=make, model=model, year=year, color=color, view=view)
+
+
+VIEW_PATTERN = "^(front|front-3-4|side|rear-3-4|rear|rear-3-4-right|side-right|front-3-4-right|top)$"
+
+
+def serve_render(db: Session, tenant_id: UUID, *, make: str, model: str, year: int | None, color: str | None, view: str) -> Response:
+    """Studio picture from the tenant cache, bought once from the provider when missing."""
     provider = carimage.get_render_provider()
     if provider is None:
         raise HTTPException(status_code=503, detail="Vehicle renders not configured")
     paint = carimage.normalize_color(color)
     make_clean, model_clean = make.strip(), model.strip()
     key = "|".join([make_clean.lower(), model_clean.lower(), str(year or ""), paint, view])
-    cached = db.scalar(select(VehicleRender).where(VehicleRender.tenant_id == auth.tenant_id, VehicleRender.render_key == key))
+    cached = db.scalar(select(VehicleRender).where(VehicleRender.tenant_id == tenant_id, VehicleRender.render_key == key))
     if cached is None:
         # Same model, colour and view already paid for another model year: reuse it.
         cached = db.scalar(
             select(VehicleRender)
             .where(
-                VehicleRender.tenant_id == auth.tenant_id,
+                VehicleRender.tenant_id == tenant_id,
                 func.lower(VehicleRender.make) == make_clean.lower(),
                 func.lower(VehicleRender.model) == model_clean.lower(),
                 VehicleRender.color == paint,
@@ -85,7 +93,7 @@ def render_car(
             cached.content, cached.mime_type = carimage.to_webp(cached.content, cached.mime_type)
             db.commit()
         return Response(content=cached.content, media_type=(cached.mime_type or "image/webp").split(";")[0], headers=headers)
-    if renders_this_month(db, auth.tenant_id) >= get_settings().car_image_monthly_limit:
+    if renders_this_month(db, tenant_id) >= get_settings().car_image_monthly_limit:
         raise HTTPException(status_code=429, detail="Monthly render limit reached")
 
     content, mime, found = None, None, True
@@ -105,7 +113,7 @@ def render_car(
         content, mime = carimage.to_webp(content, mime)
 
     db.add(VehicleRender(
-        tenant_id=auth.tenant_id, render_key=key, make=make_clean, model=model_clean, year=year,
+        tenant_id=tenant_id, render_key=key, make=make_clean, model=model_clean, year=year,
         color=paint, view=view, found=found, mime_type=mime, content=content,
     ))
     try:
