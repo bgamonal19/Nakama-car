@@ -142,3 +142,16 @@ def test_chat_status_and_conversations(client):
     chats = c.get("/api/v1/messages/conversations").json()
     assert chats[0]["plate"] == "EX030XG" and chats[0]["unread"] == 1
     assert chats[0]["last_message"]["body"] == "Ci siete?" and chats[0]["customer_name"] == "Carlos"
+
+
+def test_mechanical_case_keeps_its_work_type(client):
+    c, _, _ = client
+    customer = c.post("/api/v1/customers", json={"first_name": "Luca"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "MC123AB", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"})
+    assert case.status_code == 201, case.text
+    assert case.json()["work_type"] == "MECHANICAL"
+    assert c.get("/api/v1/cases?q=MC123AB").json()[0]["work_type"] == "MECHANICAL"
+    assert c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "PAINT"}).status_code == 422
+    body = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
+    assert body["work_type"] == "BODY"

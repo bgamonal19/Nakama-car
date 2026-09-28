@@ -1401,3 +1401,19 @@ button.damage-dot { border: 0; cursor: pointer; }
 [data-theme="dark"] .chooser-option { background: #10233a; }
 [data-theme="dark"] .chooser-list button { background: #0f1d2c; border-color: #2c4258; }
 @media (max-width: 560px) { .chooser-go { display: none; } }
+
+/* Bodywork vs mechanical intake */
+.work-type-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 560px; margin: 0 auto 18px; }
+.work-type-switch button, .chooser-new .chooser-option { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 2px solid #dfe3e8; background: var(--panel, #fff); text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.work-type-switch b, .chooser-new .chooser-option b { font-size: 26px; background: none; width: auto; height: auto; flex: none; color: inherit; }
+.work-type-switch span { display: grid; }
+.work-type-switch small { color: #62666d; font-size: 12px; }
+.work-type-switch button.active.body { border-color: #1257a0; background: #f0f6fd; }
+.work-type-switch button.active.mechanical { border-color: #d94152; background: #fdf1f2; }
+.chooser-new { display: grid; gap: 8px; }
+.chooser-new > div { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chooser-new .chooser-option { border-color: #1257a0; background: #f0f6fd; }
+.chooser-new .chooser-option.mechanical { border-color: #d94152; background: #fdf1f2; }
+[data-theme="dark"] .work-type-switch button.active.body, [data-theme="dark"] .chooser-new .chooser-option { background: #10233a; }
+[data-theme="dark"] .work-type-switch button.active.mechanical, [data-theme="dark"] .chooser-new .chooser-option.mechanical { background: #2a1418; }
+@media (max-width: 560px) { .work-type-switch, .chooser-new > div { grid-template-columns: 1fr; } }

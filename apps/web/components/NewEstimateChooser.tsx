@@ -9,7 +9,7 @@ type OpenCase = { id: string; case_number: string; status: string; plate: string
 const CLOSED = ["DELIVERED", "INVOICED"];
 
 /** "Nuovo preventivo": for a vehicle already in the workshop, or a brand new intake. */
-export function NewEstimateChooser({ onClose, onNewVehicle }: { onClose: () => void; onNewVehicle: () => void }) {
+export function NewEstimateChooser({ onClose, onNewVehicle }: { onClose: () => void; onNewVehicle: (workType: "BODY" | "MECHANICAL") => void }) {
   const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [cases, setCases] = useState<OpenCase[]>([]);
@@ -57,10 +57,19 @@ export function NewEstimateChooser({ onClose, onNewVehicle }: { onClose: () => v
           <button type="button" className="secondary" onClick={onClose}>{t("Chiudi")}</button>
         </div>
 
-        <button type="button" className="chooser-option new" onClick={onNewVehicle}>
-          <b aria-hidden="true">＋</b>
-          <span><strong>{t("Veicolo nuovo")}</strong><small>{t("Apre la pratica completa: targa, cliente, foto, danni e preventivo.")}</small></span>
-        </button>
+        <div className="chooser-new">
+          <strong>{t("Veicolo nuovo")}</strong>
+          <div>
+            <button type="button" className="chooser-option new" onClick={() => onNewVehicle("BODY")}>
+              <b aria-hidden="true">🚗</b>
+              <span><strong>{t("Carrozzeria")}</strong><small>{t("Targa, cliente, foto, mappa danni e preventivo.")}</small></span>
+            </button>
+            <button type="button" className="chooser-option new mechanical" onClick={() => onNewVehicle("MECHANICAL")}>
+              <b aria-hidden="true">🔧</b>
+              <span><strong>{t("Meccanica")}</strong><small>{t("Targa, cliente, richiesta e preventivo, senza foto.")}</small></span>
+            </button>
+          </div>
+        </div>
 
         <div className="chooser-section">
           <strong>{t("Veicolo già in officina")}</strong>

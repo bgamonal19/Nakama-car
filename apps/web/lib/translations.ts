@@ -1182,6 +1182,15 @@ Object.assign(spanish, {
   "Impossibile creare il preventivo.": "No se pudo crear el presupuesto."
 });
 
+Object.assign(spanish, {
+  "Tipo di lavoro": "Tipo de trabajo", "Carrozzeria": "Carrocería", "Meccanica": "Mecánica",
+  "Foto, mappa danni, verniciatura": "Fotos, mapa de daños, pintura",
+  "Tagliando, freni, diagnosi… senza foto": "Revisión, frenos, diagnosis… sin fotos",
+  "MECCANICA": "MECÁNICA", "CARROZZERIA": "CARROCERÍA", "TIPO": "TIPO", "RICHIESTA": "SOLICITUD",
+  "Targa, cliente, foto, mappa danni e preventivo.": "Matrícula, cliente, fotos, mapa de daños y presupuesto.",
+  "Targa, cliente, richiesta e preventivo, senza foto.": "Matrícula, cliente, solicitud y presupuesto, sin fotos."
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
