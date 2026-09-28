@@ -8,6 +8,8 @@ export type MarkerView =
   | "front" | "front-3-4" | "side" | "rear-3-4" | "rear" | "rear-3-4-right" | "side-right" | "front-3-4-right" | "top";
 export type MarkerOperation = "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string };
+/** A photo of the case, optionally pinned to a damage marker. */
+export type MapPhoto = { id: string; url: string; markerId?: string | null; category: string };
 export type VehicleLook = { make?: string; model?: string; year?: string | number | null; color?: string };
 
 // Turntable frames every 45°, walking around the car. The roof is a separate view.
@@ -120,11 +122,18 @@ type Props = {
   vehicle: VehicleLook;
   plate?: string;
   markers: DamageMarker[];
-  onAdd?: (marker: Omit<DamageMarker, "id">) => void | Promise<void>;
+  onAdd?: (marker: Omit<DamageMarker, "id">) => void | DamageMarker | Promise<void | DamageMarker>;
   onRemove?: (marker: DamageMarker) => void | Promise<void>;
   /** Fetch a picture from another endpoint (customer link / portal) instead of the staff API. */
   loadRender?: (view: MarkerView, version: string) => Promise<Response>;
+  /** Photos of the case: shown on their damage pin, or on the matching view (front, rear, sides). */
+  photos?: MapPhoto[];
+  /** Attach a new photo to a damage pin (workshop only). */
+  onAttachPhoto?: (marker: DamageMarker, file: File) => void | Promise<void>;
 };
+
+// Photo categories that belong to one side of the turntable.
+const viewOfCategory: Record<string, MarkerView> = { FRONT: "front", REAR: "rear", LEFT: "side", RIGHT: "side-right" };
 
 const RENDER_VERSION = "4";
 
@@ -134,7 +143,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -147,6 +156,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const canvas = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; start: number; moved: boolean; lastX: number; lastT: number; velocity: number } | null>(null);
   const animation = useRef<number | null>(null);
+  const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string } | null>(null);
+  const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState<string | null>(null);
   const renderLoader = useRef(loadRender);
   renderLoader.current = loadRender;
   const make = (vehicle.make || "").trim();
@@ -282,10 +294,19 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       animateTo(Math.round(angle / STEP) * STEP, fresh ? state.velocity : 0);
       return;
     }
-    if (!onAdd || !settled) return;
+    if (!settled && !roof) return;
     const stage = event.currentTarget.querySelector<HTMLElement>(".car-frame");
     if (!stage) return;
     const box = stage.getBoundingClientRect();
+    // A tap on an existing pin opens its photos instead of adding a new pin.
+    const hit = markers.find((marker) => marker.view === view
+      && Math.hypot(box.left + marker.x * box.width - event.clientX, box.top + marker.y * box.height - event.clientY) < 18);
+    if (hit) {
+      const items = photos.filter((photo) => photo.markerId === hit.id);
+      if (items.length) setLightbox({ items, index: 0, title: `${markers.indexOf(hit) + 1} · ${hit.area_label}` });
+      return;
+    }
+    if (!onAdd) return;
     const x = (event.clientX - box.left) / box.width;
     const y = (event.clientY - box.top) / box.height;
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
@@ -294,8 +315,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
 
   async function choose(operation: MarkerOperation) {
     if (!pending || !onAdd) return;
-    await onAdd({ view, x: pending.x, y: pending.y, operation, area_label: areaLabel(view, pending.x, pending.y) });
+    const created = await onAdd({ view, x: pending.x, y: pending.y, operation, area_label: areaLabel(view, pending.x, pending.y) });
     setPending(null);
+    if (created && onAttachPhoto) setJustAdded(created.id);
   }
 
   // Two neighbouring pictures cross-fade while the turntable moves.
@@ -320,6 +342,19 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const visible = settled || roof ? markers.filter((marker) => marker.view === view) : [];
   const loaded = ring.filter((code) => images[code]).length;
   const showPlate = Boolean(plate && images[view] && (settled || roof));
+  const viewPhotos = photos.filter((photo) => !photo.markerId && viewOfCategory[photo.category] === view);
+  const photosOf = (marker: DamageMarker) => photos.filter((photo) => photo.markerId === marker.id);
+
+  async function attach(marker: DamageMarker, file: File | undefined) {
+    if (!file || !onAttachPhoto) return;
+    setAttaching(marker.id);
+    try {
+      await onAttachPhoto(marker, file);
+      setJustAdded(null);
+    } finally {
+      setAttaching(null);
+    }
+  }
 
   return (
     <div className="damage-photo-map">
@@ -330,6 +365,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         <button type="button" className={`roof-button${roof ? " active" : ""}`} onClick={() => { setRoof(!roof); setPending(null); }}>
           {roof ? t("Vista laterale") : t("Tetto")}
         </button>
+        {viewPhotos.length > 0 && (settled || roof) && (
+          <button type="button" className="roof-button" onClick={() => setLightbox({ items: viewPhotos, index: 0, title: t(viewNames[view]) })}>
+            📷 {viewPhotos.length}
+          </button>
+        )}
       </div>
       <div
         ref={canvas}
@@ -356,7 +396,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
           <div className="car-frame" style={{ width: frameWidth || undefined }}>
           {showPlate && plate && <Plate view={view} plate={plate.toUpperCase()} />}
           {visible.map((marker) => (
-            <span key={marker.id} className="damage-pin" style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
+            <span key={marker.id} className={`damage-pin${photosOf(marker).length ? " has-photo" : ""}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
               {markers.indexOf(marker) + 1}
             </span>
           ))}
@@ -405,10 +445,42 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
               >{position + 1}</button>
               <span>{marker.area_label}</span>
               <strong style={{ color: operationStyle[marker.operation].color }}>{t(operationStyle[marker.operation].label)}</strong>
+              {photosOf(marker).length > 0 && (
+                <span className="damage-thumbs">
+                  {photosOf(marker).map((photo, photoIndex) => (
+                    <button key={photo.id} type="button" onClick={() => setLightbox({ items: photosOf(marker), index: photoIndex, title: `${position + 1} · ${marker.area_label}` })}>
+                      <img src={photo.url} alt={`${t("Foto")} ${position + 1}`} loading="lazy" />
+                    </button>
+                  ))}
+                </span>
+              )}
+              {onAttachPhoto && (
+                <label className={`damage-photo-add${justAdded === marker.id ? " highlight" : ""}`} title={t("Aggiungi foto di questo danno")}>
+                  {attaching === marker.id ? "…" : `📷${justAdded === marker.id ? ` ${t("Foto")}` : ""}`}
+                  <input type="file" accept="image/*" capture="environment" hidden disabled={attaching !== null} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; attach(marker, file); }} />
+                </label>
+              )}
               {onRemove && <button type="button" className="ghost" aria-label={t("Elimina")} onClick={() => onRemove(marker)}>✕</button>}
             </li>
           ))}
         </ol>
+      )}
+      {lightbox && (
+        <div className="photo-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.title} onClick={() => setLightbox(null)}>
+          <figure onClick={(event) => event.stopPropagation()}>
+            <img src={lightbox.items[lightbox.index].url} alt={lightbox.title} />
+            <figcaption>
+              <span>{lightbox.title}{lightbox.items.length > 1 ? ` · ${lightbox.index + 1}/${lightbox.items.length}` : ""}</span>
+              {lightbox.items.length > 1 && (
+                <>
+                  <button type="button" aria-label={t("Precedente")} onClick={() => setLightbox({ ...lightbox, index: (lightbox.index - 1 + lightbox.items.length) % lightbox.items.length })}>◀</button>
+                  <button type="button" aria-label={t("Successiva")} onClick={() => setLightbox({ ...lightbox, index: (lightbox.index + 1) % lightbox.items.length })}>▶</button>
+                </>
+              )}
+              <button type="button" onClick={() => setLightbox(null)}>{t("Chiudi")}</button>
+            </figcaption>
+          </figure>
+        </div>
       )}
     </div>
   );

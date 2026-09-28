@@ -1,8 +1,8 @@
 import enum
 import uuid
 
-from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, String, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import BigInteger, Enum, ForeignKey, Integer, LargeBinary, String, Uuid
+from sqlalchemy.orm import Mapped, deferred, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -46,3 +46,16 @@ class Media(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    # Pin on the 3D damage map this photo documents (optional).
+    damage_marker_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("damage_markers.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Photos kept in the database when no S3 storage is configured (compressed WebP).
+    content: Mapped[bytes | None] = deferred(mapped_column(LargeBinary, nullable=True))
+
+    @property
+    def in_database(self) -> bool:
+        return self.storage_key.startswith(DB_STORAGE_PREFIX)
+
+
+DB_STORAGE_PREFIX = "db/"

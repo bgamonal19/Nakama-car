@@ -405,3 +405,13 @@ def portal_case_render(
     context: PortalContext = Depends(get_portal_context),
 ):
     return tracking.case_render(db, portal_case(db, context, case_id), view)
+
+
+@router.get("/portal/cases/{case_id}/photos")
+def portal_case_photos(case_id: UUID, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    return tracking.customer_photos(db, portal_case(db, context, case_id))
+
+
+@router.get("/portal/cases/{case_id}/photos/{media_id}")
+def portal_case_photo(case_id: UUID, media_id: UUID, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    return tracking.customer_photo_content(db, portal_case(db, context, case_id), media_id)

@@ -1123,6 +1123,13 @@ Object.assign(spanish, {
   "Trascina per ruotare il veicolo": "Arrastra para girar el vehículo"
 });
 
+Object.assign(spanish, {
+  "Aggiungi foto di questo danno": "Añadir foto de este daño",
+  "Precedente": "Anterior",
+  "Successiva": "Siguiente",
+  "Altre foto": "Otras fotos"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
