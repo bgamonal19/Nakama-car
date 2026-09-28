@@ -11,7 +11,7 @@ export type MarkerView =
 export type MarkerOperation = "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string };
 /** A photo of the case, optionally pinned to a damage marker. */
-export type MapPhoto = { id: string; url: string; markerId?: string | null; category: string };
+export type MapPhoto = { id: string; url: string; markerId?: string | null; partId?: string | null; category: string };
 export type VehicleLook = { make?: string; model?: string; year?: string | number | null; color?: string };
 
 // Turntable frames every 45°, walking around the car. The roof is a separate view.
@@ -161,6 +161,8 @@ type Props = {
   photos?: MapPhoto[];
   /** Attach a new photo to a damage pin (workshop only). */
   onAttachPhoto?: (marker: DamageMarker, file: File) => void | Promise<void>;
+  /** Attach a photo of the real part (new or removed) to a part line (workshop only). */
+  onAttachPartPhoto?: (partId: string, file: File) => void | Promise<void>;
   /** Plate positions saved for this make/model (override the defaults). */
   plateSpots?: Partial<Record<MarkerView, PlateSpotValue>>;
   /** Workshop: save (or reset with null) the plate position of a view for this model. */
@@ -217,7 +219,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave, parts = [] }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave, parts = [], onAttachPartPhoto }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -397,6 +399,12 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       if (items.length) setLightbox({ items, index: 0, title: `${markers.indexOf(hit) + 1} · ${hit.area_label}` });
       return;
     }
+    // A tap on an x-ray lens opens the photos of that part.
+    const lens = visibleParts.find((part) => Math.hypot(box.left + part.x * box.width - event.clientX, box.top + part.y * box.height - event.clientY) < 28);
+    if (lens) {
+      const items = photos.filter((photo) => photo.partId === lens.id);
+      if (items.length) { setLightbox({ items, index: 0, title: `${lens.letter} · ${lens.label}` }); return; }
+    }
     if (!onAdd) return;
     const x = (event.clientX - box.left) / box.width;
     const y = (event.clientY - box.top) / box.height;
@@ -532,7 +540,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
             // X-ray lens: the body becomes see-through and the part appears in its place.
             <span key={part.key} className="part-lens" style={{ left: `${part.x * 100}%`, top: `${part.y * 100}%` }} title={part.label}>
               <span className="part-lens-glass" aria-hidden="true" />
-              <PartIcon zone={part.zone} size={30} />
+              <PartIcon zone={part.zone} label={part.label} size={30} />
               <b>{part.letter}</b>
             </span>
           ))}
@@ -650,10 +658,30 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
             {placedParts.map((part) => (
               <li key={part.id}>
                 <button type="button" className="part-thumb" disabled={!part.zone} onClick={() => showPart(part.zone)} aria-label={`${t("Mostra")} ${part.label}`}>
-                  <PartIcon zone={part.zone} size={30} />
+                  <PartIcon zone={part.zone} label={part.label} size={30} />
                   <b>{part.letter}</b>
                 </button>
                 <span>{part.label}</span>
+                <span className="part-photos">
+                  {photos.filter((photo) => photo.partId === part.id).map((photo, photoIndex, own) => (
+                    <button key={photo.id} type="button" onClick={() => setLightbox({ items: own, index: photoIndex, title: `${part.letter} · ${part.label}` })}>
+                      <img src={photo.url} alt={`${t("Foto")} ${part.label}`} loading="lazy" />
+                    </button>
+                  ))}
+                  {onAttachPartPhoto && (
+                    <label className={`damage-photo-add${attaching === part.id ? " busy" : ""}`} title={t("Foto del ricambio")}>
+                      {attaching === part.id ? "…" : "📷"}
+                      <input type="file" accept="image/*" capture="environment" hidden disabled={attaching !== null}
+                        onChange={async (event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (!file) return;
+                          setAttaching(part.id);
+                          try { await onAttachPartPhoto(part.id, file); } finally { setAttaching(null); }
+                        }} />
+                    </label>
+                  )}
+                </span>
                 <small>{part.zone ? t(zoneNames[part.zone]) : t("Posizione non indicata")}</small>
               </li>
             ))}

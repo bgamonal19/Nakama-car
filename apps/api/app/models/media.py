@@ -50,6 +50,10 @@ class Media(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     damage_marker_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid, ForeignKey("damage_markers.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    # Estimate line (part / service) this photo shows, e.g. the new part before fitting it.
+    estimate_line_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("estimate_lines.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     # Photos kept in the database when no S3 storage is configured (compressed WebP).
     content: Mapped[bytes | None] = deferred(mapped_column(LargeBinary, nullable=True))
 

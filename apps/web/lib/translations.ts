@@ -1289,6 +1289,10 @@ Object.assign(spanish, {
   "righe nel preventivo: prezzi e quantità si completano al passo Preventivo.": "líneas en el presupuesto: precios y cantidades se completan en el paso Presupuesto."
 });
 
+Object.assign(spanish, {
+  "Foto del ricambio": "Foto del recambio"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

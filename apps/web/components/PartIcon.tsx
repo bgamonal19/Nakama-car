@@ -1,7 +1,12 @@
 import type { PartZone } from "../lib/partZones";
+import { partKind } from "../lib/partKinds";
+import { PartDrawing } from "./PartDrawing";
 
 /** Original drawings of the part families, used on the car (x-ray lens) and in the parts list. */
-export function PartIcon({ zone, size = 40 }: { zone: PartZone | null; size?: number }) {
+export function PartIcon({ zone, size = 40, label }: { zone: PartZone | null; size?: number; label?: string }) {
+  // The specific part drawing when the description names one, else the family drawing.
+  const kind = label ? partKind(label) : null;
+  if (kind) return <PartDrawing kind={kind} size={size} />;
   const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2.2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   const solid = { fill: "currentColor", stroke: "none" };
   const polar = (radius: number, degrees: number): [number, number] => [24 + radius * Math.cos((degrees * Math.PI) / 180), 24 + radius * Math.sin((degrees * Math.PI) / 180)];
