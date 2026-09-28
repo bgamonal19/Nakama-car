@@ -820,6 +820,7 @@ export default function HomePage() {
                         markers={[]}
                         plateSpots={plateSpots}
                         parts={lines.filter((line) => line.description.trim() && !["BODY_LABOR", "PAINT", "MATERIAL"].includes(line.category)).map((line) => ({ id: line.id, label: line.description }))}
+                        scene="lift"
                         onColorChange={(color) => setVehicle((current) => ({ ...current, color }))}
                       />
                     </div>
