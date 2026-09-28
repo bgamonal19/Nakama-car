@@ -88,6 +88,12 @@ def workshop_info(db: Session, tenant_id: UUID) -> dict:
     }
 
 
+def plate_spots(db: Session, tenant_id, vehicle: Vehicle | None) -> dict:
+    from app.api.v1.renders import plate_spots_for
+
+    return plate_spots_for(db, tenant_id, vehicle.make, vehicle.model) if vehicle else {}
+
+
 def case_progress(db: Session, case: RepairCase) -> dict:
     """Status, steps, work done and estimate of a repair case, for customer eyes."""
     tenant_id = case.tenant_id
@@ -131,6 +137,7 @@ def case_progress(db: Session, case: RepairCase) -> dict:
             "model": vehicle.model if vehicle else None,
             "year": vehicle.year if vehicle else None,
             "color": vehicle.color_name if vehicle else None,
+            "plate_spots": plate_spots(db, case.tenant_id, vehicle),
         },
         "tasks": [{"description": task.description, "status": task.status.value} for task in tasks],
         "tasks_done": done,

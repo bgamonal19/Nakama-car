@@ -7,6 +7,7 @@ import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, getAccessToken, clearSession, customerLabel, uploadCasePhoto } from "../lib/api";
+import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -129,6 +130,11 @@ export default function HomePage() {
   const [plateLookupMessage, setPlateLookupMessage] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
   const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "", fuelType: "", engineSize: "", powerKw: "" });
+  const [plateSpots, setPlateSpots] = useState<PlateSpots>({});
+  useEffect(() => {
+    const timer = window.setTimeout(() => { loadPlateSpots(vehicle.make.trim(), vehicle.model.trim()).then(setPlateSpots); }, 600);
+    return () => window.clearTimeout(timer);
+  }, [vehicle.make, vehicle.model]);
   const [customerRequest, setCustomerRequest] = useState("");
   const [customerQuery, setCustomerQuery] = useState("");
   const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
@@ -748,6 +754,10 @@ export default function HomePage() {
                     onAdd={(marker) => setMarkers((current) => [...current, { ...marker, id: crypto.randomUUID() }])}
                     onRemove={(marker) => setMarkers((current) => current.filter((item) => item.id !== marker.id))}
                     onColorChange={(color) => setVehicle((current) => ({ ...current, color }))}
+                    plateSpots={plateSpots}
+                    onPlateSpotSave={vehicle.make && vehicle.model ? async (view, spot) => {
+                      try { setPlateSpots(await savePlateSpot(vehicle.make, vehicle.model, view, spot)); } catch { /* keep the default position */ }
+                    } : undefined}
                   />
                   <details className="damage-grid-details"><summary>{t("Elenco zone (alternativa)")}</summary>
                   <div className="damage-grid">

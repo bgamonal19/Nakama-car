@@ -99,19 +99,48 @@ function Silhouette({ view }: { view: MarkerView }) {
   );
 }
 
-function Plate({ view, plate }: { view: MarkerView; plate: string }) {
-  const spot = platePlacement[view];
-  if (!spot) return null;
+export type PlateSpotValue = { x: number; y: number; width: number; turn: number };
+
+function Plate({ spot, plate, editing, onMove }: {
+  spot: PlateSpotValue;
+  plate: string;
+  editing?: boolean;
+  onMove?: (x: number, y: number) => void;
+}) {
+  function start(event: PointerEvent<HTMLSpanElement>) {
+    if (!editing || !onMove) return;
+    event.stopPropagation();
+    const element = event.currentTarget;
+    element.setPointerCapture(event.pointerId);
+    const frame = element.closest(".car-frame")?.getBoundingClientRect();
+    if (!frame) return;
+    const move = (moveEvent: globalThis.PointerEvent) => {
+      onMove(
+        Math.min(1, Math.max(0, (moveEvent.clientX - frame.left) / frame.width)),
+        Math.min(1, Math.max(0, (moveEvent.clientY - frame.top) / frame.height)),
+      );
+    };
+    const stop = () => {
+      element.removeEventListener("pointermove", move);
+      element.removeEventListener("pointerup", stop);
+      element.removeEventListener("pointercancel", stop);
+    };
+    element.addEventListener("pointermove", move);
+    element.addEventListener("pointerup", stop);
+    element.addEventListener("pointercancel", stop);
+  }
   return (
     <span
-      className="vehicle-plate"
+      className={`vehicle-plate${editing ? " editing" : ""}`}
       style={{
         left: `${spot.x * 100}%`,
         top: `${spot.y * 100}%`,
         width: `${spot.width * 100}%`,
         transform: `translate(-50%, -50%) perspective(400px) rotateY(${spot.turn}deg)`,
       }}
-      aria-hidden="true"
+      aria-hidden={!editing}
+      onPointerDown={start}
+      onPointerUp={(event) => { if (editing) event.stopPropagation(); }}
     >
       <i>I</i><b>{plate}</b><i />
     </span>
@@ -130,6 +159,10 @@ type Props = {
   photos?: MapPhoto[];
   /** Attach a new photo to a damage pin (workshop only). */
   onAttachPhoto?: (marker: DamageMarker, file: File) => void | Promise<void>;
+  /** Plate positions saved for this make/model (override the defaults). */
+  plateSpots?: Partial<Record<MarkerView, PlateSpotValue>>;
+  /** Workshop: save (or reset with null) the plate position of a view for this model. */
+  onPlateSpotSave?: (view: MarkerView, spot: PlateSpotValue | null) => void | Promise<void>;
   /** Workshop: change the paint of the car (saved on the vehicle). */
   onColorChange?: (color: string) => void | Promise<void>;
 };
@@ -180,7 +213,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -196,6 +229,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string } | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [attaching, setAttaching] = useState<string | null>(null);
+  const [editSpot, setEditSpot] = useState<PlateSpotValue | null>(null);
   const customTimer = useRef<number | null>(null);
   // The native colour dialog fires on every move: only the colour kept for a moment is applied
   // (each new colour costs render credits the first time).
@@ -315,6 +349,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (editSpot) return;
     if (animation.current) { cancelAnimationFrame(animation.current); animation.current = null; }
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { x: event.clientX, start: angle, moved: false, lastX: event.clientX, lastT: performance.now(), velocity: 0 };
@@ -337,6 +372,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   }
 
   function onPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (editSpot) { drag.current = null; return; }
     const state = drag.current;
     drag.current = null;
     if (!state) return;
@@ -393,6 +429,19 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const visible = settled || roof ? markers.filter((marker) => marker.view === view) : [];
   const loaded = ring.filter((code) => images[code]).length;
   const showPlate = Boolean(plate && images[view] && (settled || roof));
+  const savedSpot = plateSpots?.[view];
+  const plateSpot: PlateSpotValue | undefined = editSpot || savedSpot || platePlacement[view];
+  const canEditPlate = Boolean(onPlateSpotSave && showPlate && platePlacement[view] && !roof);
+  const nudge = (change: Partial<PlateSpotValue>) => setEditSpot((current) => current && ({
+    ...current, ...change,
+    width: Math.min(0.8, Math.max(0.05, change.width ?? current.width)),
+    turn: Math.min(80, Math.max(-80, change.turn ?? current.turn)),
+  }));
+  async function savePlate(spot: PlateSpotValue | null) {
+    if (!onPlateSpotSave) return;
+    await onPlateSpotSave(view, spot);
+    setEditSpot(null);
+  }
   const viewPhotos = photos.filter((photo) => !photo.markerId && viewOfCategory[photo.category] === view);
   const photosOf = (marker: DamageMarker) => photos.filter((photo) => photo.markerId === marker.id);
 
@@ -410,12 +459,17 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   return (
     <div className="damage-photo-map">
       <div className="turntable-bar">
-        <button type="button" className="turn-button" aria-label={t("Ruota a sinistra")} onClick={() => turn(-1)}>◀</button>
+        <button type="button" className="turn-button" aria-label={t("Ruota a sinistra")} disabled={Boolean(editSpot)} onClick={() => turn(-1)}>◀</button>
         <strong>{t(viewNames[view])}</strong>
-        <button type="button" className="turn-button" aria-label={t("Ruota a destra")} onClick={() => turn(1)}>▶</button>
+        <button type="button" className="turn-button" aria-label={t("Ruota a destra")} disabled={Boolean(editSpot)} onClick={() => turn(1)}>▶</button>
         <button type="button" className={`roof-button${roof ? " active" : ""}`} onClick={() => { setRoof(!roof); setPending(null); }}>
           {roof ? t("Vista laterale") : t("Tetto")}
         </button>
+        {canEditPlate && !editSpot && (
+          <button type="button" className="roof-button" title={t("Allinea la targa su questo modello")} onClick={() => { setPending(null); setEditSpot({ ...(plateSpot as PlateSpotValue) }); }}>
+            ✎ {t("Targa")}
+          </button>
+        )}
         {viewPhotos.length > 0 && (settled || roof) && (
           <button type="button" className="roof-button" onClick={() => setLightbox({ items: viewPhotos, index: 0, title: t(viewNames[view]) })}>
             📷 {viewPhotos.length}
@@ -445,7 +499,14 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
             return <div key={code} className="damage-loading stage-layer" style={{ opacity }}>{t("Caricamento…")}</div>;
           })}
           <div className="car-frame" style={{ width: frameWidth || undefined }}>
-          {showPlate && plate && <Plate view={view} plate={plate.toUpperCase()} />}
+          {showPlate && plate && plateSpot && (
+            <Plate
+              spot={plateSpot}
+              plate={plate.toUpperCase()}
+              editing={Boolean(editSpot)}
+              onMove={(x, y) => setEditSpot((current) => current && { ...current, x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 })}
+            />
+          )}
           {visible.map((marker) => (
             <span key={marker.id} className={`damage-pin${photosOf(marker).length ? " has-photo" : ""}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
               {markers.indexOf(marker) + 1}
@@ -455,7 +516,27 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
           </div>
         </div>
       </div>
-      {onColorChange && ready && (
+      {editSpot && (
+        <div className="plate-editor" role="group" aria-label={t("Allinea la targa")}>
+          <p className="hint">{t("Trascina la targa nel suo alloggio. Vale per tutti i veicoli di questo modello.")}</p>
+          <div>
+            <button type="button" onClick={() => nudge({ width: editSpot.width - 0.01 })} aria-label={t("Più piccola")}>－</button>
+            <button type="button" onClick={() => nudge({ width: editSpot.width + 0.01 })} aria-label={t("Più grande")}>＋</button>
+            <button type="button" onClick={() => nudge({ turn: editSpot.turn - 4 })} aria-label={t("Ruota a sinistra")}>⟲</button>
+            <button type="button" onClick={() => nudge({ turn: editSpot.turn + 4 })} aria-label={t("Ruota a destra")}>⟳</button>
+            <button type="button" onClick={() => nudge({ y: Math.max(0, editSpot.y - 0.004) })} aria-label={t("Su")}>▲</button>
+            <button type="button" onClick={() => nudge({ y: Math.min(1, editSpot.y + 0.004) })} aria-label={t("Giù")}>▼</button>
+            <button type="button" onClick={() => nudge({ x: Math.max(0, editSpot.x - 0.004) })} aria-label={t("Sinistra")}>◀</button>
+            <button type="button" onClick={() => nudge({ x: Math.min(1, editSpot.x + 0.004) })} aria-label={t("Destra")}>▶</button>
+          </div>
+          <div>
+            <button type="button" className="primary" onClick={() => savePlate(editSpot)}>{t("Salva posizione")}</button>
+            {savedSpot && <button type="button" className="ghost" onClick={() => savePlate(null)}>{t("Ripristina")}</button>}
+            <button type="button" className="secondary" onClick={() => setEditSpot(null)}>{t("Annulla")}</button>
+          </div>
+        </div>
+      )}
+      {onColorChange && ready && !editSpot && (
         <div className="paint-picker" role="group" aria-label={t("Colore del veicolo")}>
           <span>{t("Colore")}</span>
           {paintSwatches.map((swatch) => (

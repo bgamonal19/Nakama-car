@@ -1150,6 +1150,16 @@ Object.assign(spanish, {
   "nuovi messaggi": "mensajes nuevos"
 });
 
+Object.assign(spanish, {
+  "Allinea la targa su questo modello": "Alinear la matrícula en este modelo",
+  "Targa": "Matrícula",
+  "Allinea la targa": "Alinear la matrícula",
+  "Trascina la targa nel suo alloggio. Vale per tutti i veicoli di questo modello.": "Arrastra la matrícula a su hueco. Sirve para todos los vehículos de este modelo.",
+  "Più piccola": "Más pequeña", "Più grande": "Más grande", "Su": "Arriba", "Giù": "Abajo", "Sinistra": "Izquierda", "Destra": "Derecha",
+  "Salva posizione": "Guardar posición", "Ripristina": "Restablecer",
+  "Impossibile salvare la posizione della targa.": "No se pudo guardar la posición de la matrícula."
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

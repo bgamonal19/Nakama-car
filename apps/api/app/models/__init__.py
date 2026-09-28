@@ -2,7 +2,7 @@ from app.models.approval import EstimateApproval
 from app.models.billing import Invoice, InvoiceLine
 from app.models.contracts import ServiceContract
 from app.models.lookup import VehicleLookup
-from app.models.renders import DamageMarker, VehicleRender
+from app.models.renders import DamageMarker, PlateSpot, VehicleRender
 from app.models.damage import Damage, VehicleArea
 from app.models.estimating import Estimate, EstimateLine, LaborRate
 from app.models.garage import Customer, RepairCase, Vehicle
@@ -17,5 +17,5 @@ __all__ = [
     "User", "UserRole", "UserTenant", "Customer", "Vehicle", "RepairCase", "Media",
     "VehicleArea", "Damage", "LaborRate", "Estimate", "EstimateLine", "EstimateApproval",
     "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine", "ServiceContract", "VehicleLookup", "VehicleRender", "DamageMarker",
-    "CaseTrackingLink", "CaseMessage", "PortalAccount",
+    "CaseTrackingLink", "CaseMessage", "PortalAccount", "PlateSpot",
 ]

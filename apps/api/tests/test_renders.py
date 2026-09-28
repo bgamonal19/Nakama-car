@@ -123,3 +123,24 @@ def test_colour_names_fall_back_to_exact_paint():
     provider = Provider()
     assert provider.render(make="Fiat", model="Panda", year=None, color="purple", view="side")[0] == PNG
     assert provider.colors == ["purple", "#5b2a86"]
+
+
+def test_plate_spot_saved_per_model_and_shown_to_customer(client):
+    c, _, _ = client
+    assert c.get("/api/v1/renders/plate-spots?make=Audi&model=A3").json() == {}
+    saved = c.put("/api/v1/renders/plate-spots", json={
+        "make": "Audi", "model": "A3 Sportback (8VA, 8VF)", "view": "front", "x": 0.5, "y": 0.71, "width": 0.3, "turn": 0,
+    })
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["front"] == {"x": 0.5, "y": 0.71, "width": 0.3, "turn": 0.0}
+    # Same model written differently shares the position.
+    assert c.get("/api/v1/renders/plate-spots?make=AUDI&model=A3%20Sportback").json()["front"]["y"] == 0.71
+    assert c.put("/api/v1/renders/plate-spots", json={"make": "Audi", "model": "A3", "view": "side", "x": 0.5, "y": 0.5, "width": 0.3, "turn": 0}).status_code == 422
+
+    customer = c.post("/api/v1/customers", json={"first_name": "Carlos"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "EX030XG", "customer_id": customer["id"], "make": "Audi", "model": "A3 Sportback (8VA, 8VF)"}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
+    token = c.post(f"/api/v1/cases/{case['id']}/tracking-link").json()["public_token"]
+    assert c.get(f"/api/v1/public/tracking/{token}").json()["vehicle"]["plate_spots"]["front"]["width"] == 0.3
+
+    assert c.delete("/api/v1/renders/plate-spots?make=Audi&model=A3%20Sportback&view=front").json() == {}
