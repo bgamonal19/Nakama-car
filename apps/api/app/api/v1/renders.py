@@ -46,7 +46,7 @@ def render_info(
 def render_car(
     make: str = Query(min_length=1, max_length=120),
     model: str = Query(min_length=1, max_length=120),
-    view: str = Query(pattern="^(front|side|side-right|rear|top)$"),
+    view: str = Query(pattern="^(front|front-3-4|side|rear-3-4|rear|rear-3-4-right|side-right|front-3-4-right|top)$"),
     year: int | None = Query(None, ge=1950, le=2100),
     color: str | None = None,
     db: Session = Depends(get_db),
@@ -64,6 +64,10 @@ def render_car(
     if cached is not None:
         if not cached.found or not cached.content:
             raise HTTPException(status_code=404, detail="Vehicle not in render catalog")
+        if cached.mime_type != "image/webp":
+            # Renders stored before the WebP conversion are shrunk once, on first read.
+            cached.content, cached.mime_type = carimage.to_webp(cached.content, cached.mime_type)
+            db.commit()
         return Response(content=cached.content, media_type=cached.mime_type or "image/webp", headers=headers)
     if renders_this_month(db, auth.tenant_id) >= get_settings().car_image_monthly_limit:
         raise HTTPException(status_code=429, detail="Monthly render limit reached")
@@ -81,6 +85,8 @@ def render_car(
         found = False
     except carimage.RenderError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if content is not None:
+        content, mime = carimage.to_webp(content, mime)
 
     db.add(VehicleRender(
         tenant_id=auth.tenant_id, render_key=key, make=make_clean, model=model_clean, year=year,

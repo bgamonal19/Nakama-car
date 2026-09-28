@@ -1,7 +1,9 @@
 from app.providers import carimage
 from test_users import client  # noqa: F401  (pytest fixture)
 
-PNG = b"\x89PNG\r\n\x1a\nfake"
+from io import BytesIO
+from PIL import Image
+_b = BytesIO(); Image.new("RGB", (40, 20), "white").save(_b, "PNG"); PNG = _b.getvalue()
 
 
 class FakeRenders:
@@ -26,16 +28,19 @@ def test_render_is_paid_once_and_falls_back_without_year(client, monkeypatch):
     fake = FakeRenders()
     monkeypatch.setattr(carimage, "get_render_provider", lambda: fake)
     first = c.get("/api/v1/renders/car?" + params)
-    assert first.status_code == 200 and first.content == PNG and first.headers["content-type"] == "image/png"
+    assert first.status_code == 200 and first.headers["content-type"] == "image/webp"
+    assert first.content[:4] == b"RIFF" and first.content[8:12] == b"WEBP"
     assert fake.calls == [("Fiat", "Panda", 2023, "white", "front"), ("Fiat", "Panda", None, "white", "front")]
-    assert c.get("/api/v1/renders/car?" + params).content == PNG
+    assert c.get("/api/v1/renders/car?" + params).content == first.content
     assert len(fake.calls) == 2
     assert c.get("/api/v1/renders/car?make=Fiat&model=Unknown&view=side").status_code == 404
     assert c.get("/api/v1/renders/car?make=Fiat&model=Unknown&view=side").status_code == 404
     assert len(fake.calls) == 3
     assert c.get("/api/v1/renders/car?make=Fiat&model=Panda&view=inside").status_code == 422
+    assert c.get("/api/v1/renders/car?make=Fiat&model=Panda&view=rear-3-4-right").status_code == 200
     info = c.get("/api/v1/renders/info?color=nero").json()
-    assert info["configured"] is True and info["color"] == "black" and info["used_this_month"] == 2
+    assert info["configured"] is True and info["color"] == "black" and info["used_this_month"] == 3
+    assert len(info["views"]) == 9
 
 
 def test_damage_markers_on_a_case(client):

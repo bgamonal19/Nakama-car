@@ -10,7 +10,11 @@ import urllib.parse
 import urllib.request
 
 PROVIDER_NAME = "carimage.dev"
-VIEWS = ("front", "side", "side-right", "rear", "top")
+# Turntable order: walking around the car, then the roof.
+VIEWS = (
+    "front", "front-3-4", "side", "rear-3-4", "rear", "rear-3-4-right", "side-right", "front-3-4-right", "top",
+)
+MAX_WIDTH = 1200
 PRESET_COLORS = {
     "silver", "red", "black", "white", "blue", "gray", "green", "orange", "purple",
     "brown", "gold", "beige", "pink", "yellow", "cyan",
@@ -24,6 +28,28 @@ ITALIAN_COLORS = [
     ("silver", "silver"), ("grey", "gray"), ("gray", "gray"), ("black", "black"), ("white", "white"),
     ("red", "red"), ("blue", "blue"), ("green", "green"),
 ]
+
+
+def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
+    """Shrink studio renders for phones and handhelds (PNG ~870 KB -> WebP ~100 KB)."""
+    if mime == "image/webp":
+        return content, mime
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        with Image.open(BytesIO(content)) as image:
+            image.load()
+            if image.width > MAX_WIDTH:
+                image = image.resize((MAX_WIDTH, round(image.height * MAX_WIDTH / image.width)))
+            if image.mode not in ("RGB", "RGBA"):
+                image = image.convert("RGBA")
+            output = BytesIO()
+            image.save(output, format="WEBP", quality=82, method=4)
+            return output.getvalue(), "image/webp"
+    except Exception:  # noqa: BLE001 - an unreadable image is served as received
+        return content, mime or "application/octet-stream"
 
 
 class RenderError(RuntimeError):
