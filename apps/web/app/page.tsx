@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch, getAccessToken, clearSession, customerLabel, uploadCasePhoto } from "../lib/api";
 import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
 import { NewEstimateChooser } from "../components/NewEstimateChooser";
+import { catalogItems, mechanicalCatalog } from "../lib/mechanicalCatalog";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -86,19 +87,6 @@ type CustomerOption = { id: string; company_name?: string | null; first_name?: s
 const vehicleCategories = ["CAR", "VAN", "TRUCK", "TRACTOR", "TRAILER", "BUS", "MOTORCYCLE", "OTHER"];
 
 // Frequent mechanical jobs for cars and industrial vehicles (hours are editable afterwards).
-const mechanicalOperations: [string, string, number][] = [
-  ["Tagliando (olio e filtri)", "MECHANICAL_LABOR", 1.5],
-  ["Diagnosi elettronica", "DIAGNOSTIC", 1],
-  ["Sostituzione pastiglie e dischi freno", "MECHANICAL_LABOR", 2],
-  ["Controllo e regolazione freni", "MECHANICAL_LABOR", 1],
-  ["Sostituzione pneumatici", "MECHANICAL_LABOR", 1],
-  ["Sostituzione frizione", "MECHANICAL_LABOR", 6],
-  ["Kit distribuzione", "MECHANICAL_LABOR", 4],
-  ["Impianto elettrico / luci", "ELECTRICAL", 1],
-  ["Ricarica climatizzatore", "MECHANICAL_LABOR", 1],
-  ["Preparazione revisione", "MECHANICAL_LABOR", 1.5],
-];
-
 type WorkOrderSummary = {
   id: string;
   work_order_number: string;
@@ -381,6 +369,20 @@ export default function HomePage() {
     setCustomerQuery("");
   }
 
+  const [catalogGroup, setCatalogGroup] = useState(0);
+  const [customItem, setCustomItem] = useState({ kind: "PART", description: "", code: "", quantity: 1, price: 0, hours: 0 });
+
+  function addCustomItem() {
+    const description = [customItem.code.trim(), customItem.description.trim()].filter(Boolean).join(" · ");
+    if (!customItem.description.trim()) return;
+    const rate = customItem.kind === "DIAGNOSTIC" ? rates.diagnostic : customItem.kind === "ELECTRICAL" ? rates.electrical : rates.mechanical;
+    setLines((prev) => [...prev, {
+      id: crypto.randomUUID(), description, category: customItem.kind, quantity: customItem.quantity || 1, unitPrice: customItem.price || 0,
+      laborHours: customItem.hours || 0, laborRate: rate, paintHours: 0, paintRate: rates.paint, materials: 0, vatRate: 22,
+    }]);
+    setCustomItem({ kind: customItem.kind, description: "", code: "", quantity: 1, price: 0, hours: 0 });
+  }
+
   function addOperation(description: string, category: string, hours: number) {
     const rate = category === "DIAGNOSTIC" ? rates.diagnostic : category === "ELECTRICAL" ? rates.electrical : rates.mechanical;
     setLines((prev) => [...prev, {
@@ -655,10 +657,11 @@ export default function HomePage() {
       )}
       {wizardOpen && (
         <div className="modal-backdrop">
-          <div className="wizard" role="dialog" aria-modal="true" aria-labelledby="intake-title">
+          <div className={`wizard work-${workType.toLowerCase()}`} role="dialog" aria-modal="true" aria-labelledby="intake-title">
             <div className="wizard-head">
               <div>
-                <p className="eyebrow">{t("NUOVA PRATICA")} · {workType === "MECHANICAL" ? t("MECCANICA") : t("CARROZZERIA")}</p>
+                <p className="eyebrow">{t("NUOVA PRATICA")}</p>
+                <span className={`work-badge big ${workType === "MECHANICAL" ? "mechanical" : "body"}`}>{workType === "MECHANICAL" ? `🔧 ${t("Meccanica")}` : `🚗 ${t("Carrozzeria")}`}</span>
                 <h2 id="intake-title">{t(steps[step])}</h2>
               </div>
               <button className="close" aria-label={t("Chiudi nuova pratica")} onClick={() => setWizardOpen(false)}>×</button>
@@ -821,12 +824,49 @@ export default function HomePage() {
                       />
                     </div>
                   )}
-                  <h3 className="operations-title">{t("Interventi meccanici frequenti")}</h3>
-                  <div className="operation-suggestions">
-                    {mechanicalOperations.map(([description, category, hours]) => (
-                      <button key={description} onClick={() => addOperation(description, category, hours)}>+ {t(description)}</button>
+                  <div className="custom-item">
+                    <h3>{t("Aggiungi ricambio o servizio")}</h3>
+                    <div className="custom-item-grid">
+                      <label>{t("Tipo")}
+                        <select value={customItem.kind} onChange={(e) => setCustomItem({ ...customItem, kind: e.target.value })}>
+                          <option value="PART">{t("Ricambio")}</option>
+                          <option value="MECHANICAL_LABOR">{t("Servizio / manodopera")}</option>
+                          <option value="DIAGNOSTIC">{t("DIAGNOSTIC")}</option>
+                          <option value="ELECTRICAL">{t("ELECTRICAL")}</option>
+                          <option value="EXTERNAL_SERVICE">{t("EXTERNAL_SERVICE")}</option>
+                          <option value="MATERIAL">{t("MATERIAL")}</option>
+                        </select>
+                      </label>
+                      <label className="wide">{t("Descrizione")}
+                        <input list="mechanical-catalog" value={customItem.description} placeholder={t("Es. Pastiglie freno anteriori")}
+                          onChange={(e) => {
+                            const match = catalogItems.find(([name]) => name.toLowerCase() === e.target.value.trim().toLowerCase());
+                            setCustomItem(match ? { ...customItem, description: e.target.value, kind: match[1], hours: customItem.hours || match[2] } : { ...customItem, description: e.target.value });
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomItem(); } }} />
+                        <datalist id="mechanical-catalog">{catalogItems.map(([name]) => <option key={name} value={t(name)} />)}</datalist>
+                      </label>
+                      <label>{t("Codice ricambio")}<input value={customItem.code} placeholder="OEM / fornitore" onChange={(e) => setCustomItem({ ...customItem, code: e.target.value })} /></label>
+                      <label>{t("Q.tà")}<input type="number" min="0" step="1" value={customItem.quantity} onChange={(e) => setCustomItem({ ...customItem, quantity: Number(e.target.value) })} /></label>
+                      <label>{t("Prezzo €")}<input type="number" min="0" step="0.01" value={customItem.price} onChange={(e) => setCustomItem({ ...customItem, price: Number(e.target.value) })} /></label>
+                      <label>{t("Ore")}<input type="number" min="0" step="0.1" value={customItem.hours} onChange={(e) => setCustomItem({ ...customItem, hours: Number(e.target.value) })} /></label>
+                    </div>
+                    <button type="button" className="primary" disabled={!customItem.description.trim()} onClick={addCustomItem}>+ {t("Aggiungi al preventivo")}</button>
+                  </div>
+                  <h3 className="operations-title">{t("Catalogo interventi meccanici")}</h3>
+                  <div className="catalog-tabs" role="tablist">
+                    {mechanicalCatalog.map((group, index) => (
+                      <button key={group.group} type="button" role="tab" aria-selected={catalogGroup === index} className={catalogGroup === index ? "active" : ""} onClick={() => setCatalogGroup(index)}>
+                        <span aria-hidden="true">{group.icon}</span> {t(group.group)}
+                      </button>
                     ))}
                   </div>
+                  <div className="operation-suggestions">
+                    {mechanicalCatalog[catalogGroup].items.map(([description, category, hours]) => (
+                      <button key={description} onClick={() => addOperation(t(description), category, hours)}>+ {t(description)}</button>
+                    ))}
+                  </div>
+                  {lines.length > 0 && <p className="hint">{lines.length} {t("righe nel preventivo: prezzi e quantità si completano al passo Preventivo.")}</p>}
                   {workType === "BODY" && selectedDamageCount > 0 && <h3 className="operations-title">{t("Da mappa danni carrozzeria")}</h3>}
                   <div className="operation-suggestions">
                     {markers.map((marker) => (
