@@ -1051,3 +1051,14 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 [data-theme="dark"] .damage-canvas { background: #13263a; border-color: #34475c; }
 [data-theme="dark"] :is(.damage-view-tabs button, .damage-chooser button, .damage-list li) { background: #13263a; border-color: #47617a; }
 [data-theme="dark"] .damage-view-tabs button.active { background: #226fae; }
+.turntable-bar { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.turntable-bar strong { min-width: 180px; text-align: center; font-size: 14px; }
+.turn-button, .roof-button { border: 1px solid var(--line); background: var(--panel); color: inherit; border-radius: 999px; min-width: 44px; height: 40px; padding: 0 12px; cursor: pointer; font: inherit; }
+.roof-button.active { background: var(--nakama-navy); color: #fff; }
+.damage-canvas { touch-action: pan-y; cursor: grab; }
+.turntable-dots { display: flex; justify-content: center; gap: 6px; }
+.turntable-dots i { width: 8px; height: 8px; border-radius: 50%; background: #cfd6de; }
+.turntable-dots i.current { background: var(--nakama-navy); transform: scale(1.3); }
+.turntable-dots i.marked { box-shadow: 0 0 0 2px var(--nakama-red); }
+button.damage-dot { border: 0; cursor: pointer; }
+[data-theme="dark"] :is(.turn-button, .roof-button) { background: #13263a; border-color: #47617a; }

@@ -4,7 +4,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MarkerView = Literal["front", "side", "side-right", "rear", "top"]
+MarkerView = Literal[
+    "front", "front-3-4", "side", "rear-3-4", "rear", "rear-3-4-right", "side-right", "front-3-4-right", "top",
+]
 MarkerOperation = Literal["CHECK", "REPAIR", "REPLACE", "PAINT"]
 
 

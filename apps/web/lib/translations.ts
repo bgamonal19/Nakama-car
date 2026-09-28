@@ -961,6 +961,19 @@ Object.assign(spanish, {
   "Impossibile salvare il danno.": "No se pudo guardar el daño."
 });
 
+Object.assign(spanish, {
+  "3/4 anteriore sinistro": "3/4 delantero izquierdo",
+  "3/4 posteriore sinistro": "3/4 trasero izquierdo",
+  "3/4 posteriore destro": "3/4 trasero derecho",
+  "3/4 anteriore destro": "3/4 delantero derecho",
+  "Ruota a sinistra": "Girar a la izquierda",
+  "Ruota a destra": "Girar a la derecha",
+  "Vista laterale": "Vista lateral",
+  "Trascina per ruotare il veicolo, tocca per segnare un danno": "Arrastra para girar el vehículo, toca para marcar un daño",
+  "Caricamento vista 360°": "Cargando vista 360°",
+  "Mostra": "Mostrar"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
