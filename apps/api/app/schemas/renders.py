@@ -32,3 +32,4 @@ class RenderAvailability(BaseModel):
     color: str
     used_this_month: int
     monthly_limit: int
+    webp: bool = False

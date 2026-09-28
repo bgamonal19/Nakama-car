@@ -136,10 +136,12 @@ export function DamagePhotoMap({ vehicle, markers, onAdd, onRemove }: Props) {
         return;
       }
       setImages((current) => ({ ...current, [next]: null }));
-      if (!response || response.status === 503 || response.status === 429 || response.status === 502) {
+      // Only a missing service or the monthly cap stop the other views; a single
+      // view the catalog cannot render just shows the outline.
+      if (!response || response.status === 503 || response.status === 429) {
         setDisabled(true);
         setNotice(response?.status === 429 ? "Limite mensile di foto raggiunto: uso lo schema del veicolo." : "Foto reali non disponibili: uso lo schema del veicolo.");
-      } else if (response.status === 404) {
+      } else if (response.status === 404 && next !== "top") {
         setNotice("Modello non presente nel catalogo foto: uso lo schema del veicolo.");
       }
     })();

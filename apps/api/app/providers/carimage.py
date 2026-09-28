@@ -5,11 +5,13 @@ return the image bytes, cached per make/model/year/color/view so each render
 is paid only once.
 """
 import json
+import logging
 import urllib.error
 import urllib.parse
 import urllib.request
 
 PROVIDER_NAME = "carimage.dev"
+logger = logging.getLogger(__name__)
 # Turntable order: walking around the car, then the roof.
 VIEWS = (
     "front", "front-3-4", "side", "rear-3-4", "rear", "rear-3-4-right", "side-right", "front-3-4-right", "top",
@@ -49,7 +51,17 @@ def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
             image.save(output, format="WEBP", quality=82, method=4)
             return output.getvalue(), "image/webp"
     except Exception:  # noqa: BLE001 - an unreadable image is served as received
+        logger.exception("WebP conversion failed, serving the original render")
         return content, mime or "application/octet-stream"
+
+
+def webp_supported() -> bool:
+    try:
+        from PIL import features
+
+        return bool(features.check("webp"))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 class RenderError(RuntimeError):
@@ -96,7 +108,8 @@ class CarImageProvider:
                 content_type = response.headers.get("Content-Type", "")
                 body = response.read()
         except urllib.error.HTTPError as exc:
-            if exc.code in (404, 422):
+            if exc.code in (400, 404, 422):
+                # Unknown vehicle, or a view the catalog does not have for it.
                 raise RenderNotFound(f"{make} {model} not in catalog") from exc
             if exc.code in (401, 403):
                 raise RenderError("Render service key not valid") from exc

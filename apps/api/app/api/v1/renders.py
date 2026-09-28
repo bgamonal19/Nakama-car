@@ -39,6 +39,7 @@ def render_info(
         color=carimage.normalize_color(color),
         used_this_month=renders_this_month(db, auth.tenant_id),
         monthly_limit=get_settings().car_image_monthly_limit,
+        webp=carimage.webp_supported(),
     )
 
 
