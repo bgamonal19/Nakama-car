@@ -25,6 +25,8 @@ type Tracking = {
   tasks_done: number;
   tasks_total: number;
   estimate: { estimate_number: string; status: string; total: string; approval_path?: string | null } | null;
+  parts?: { id: string; label: string }[];
+  work_type?: string;
   workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null; chat_status?: ChatPresence };
   unread: number;
 };
@@ -150,10 +152,10 @@ export default function TrackingPage() {
         </ol>
         <p className="hint">{t("Pratica")} {data.case_number} · {t("aggiornato")} {date(data.updated_at)}</p>
 
-        {(markers.length > 0 || photos.length > 0 || (data.vehicle.make && data.vehicle.model)) && (
+        {(markers.length > 0 || photos.length > 0 || (data.parts?.length ?? 0) > 0 || (data.vehicle.make && data.vehicle.model)) && (
           <section className="tracking-section">
             <h2>{t("Danni e interventi sul veicolo")}</h2>
-            <p className="hint">{markers.length ? t("Gira l'auto trascinandola: i numeri indicano i punti su cui interveniamo.") : t("Nessun danno segnato sul veicolo.")}</p>
+            <p className="hint">{markers.length || data.parts?.length ? t("Gira l'auto trascinandola: i numeri indicano i danni, le lettere arancioni dove si trovano i ricambi e gli interventi.") : t("Nessun danno segnato sul veicolo.")}</p>
             <DamagePhotoMap
               vehicle={{ make: data.vehicle.make || "", model: data.vehicle.model || "", year: data.vehicle.year, color: data.vehicle.color || "" }}
               plate={data.vehicle.license_plate}
@@ -161,6 +163,7 @@ export default function TrackingPage() {
               loadRender={loadRender}
               photos={photos}
               plateSpots={data.vehicle.plate_spots}
+              parts={data.parts}
             />
             <OtherPhotos photos={photos} />
           </section>

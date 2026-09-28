@@ -84,6 +84,12 @@ def revoke_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: Aut
     return link_payload(db, case, link)
 
 
+@router.get("/cases/{case_id}/parts")
+def staff_case_parts(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
+    """Parts and mechanical jobs of the latest estimate (drafts included)."""
+    return tracking.case_parts(db, get_case(db, auth.tenant_id, case_id), include_draft=True)
+
+
 @router.get("/cases/{case_id}/messages")
 def staff_messages(case_id: UUID, read: bool = True, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
     return tracking.list_messages(db, get_case(db, auth.tenant_id, case_id), reader="WORKSHOP", read=read)

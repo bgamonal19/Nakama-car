@@ -89,6 +89,39 @@ def workshop_info(db: Session, tenant_id: UUID) -> dict:
     }
 
 
+MECHANICAL_CATEGORIES = ("PART", "MECHANICAL_LABOR", "ELECTRICAL", "DIAGNOSTIC", "EXTERNAL_SERVICE")
+
+
+def case_parts(db: Session, case: RepairCase, *, include_draft: bool) -> list[dict]:
+    """Parts and mechanical jobs of the latest estimate, to pin them on the 3D car."""
+    from app.models.estimating import EstimateLine
+
+    excluded = [EstimateStatus.SUPERSEDED] if include_draft else [EstimateStatus.DRAFT, EstimateStatus.SUPERSEDED]
+    estimate = db.scalar(
+        select(Estimate)
+        .where(Estimate.repair_case_id == case.id, Estimate.tenant_id == case.tenant_id, Estimate.status.not_in(excluded))
+        .order_by(Estimate.created_at.desc())
+        .limit(1)
+    )
+    if estimate is None:
+        return []
+    lines = db.scalars(
+        select(EstimateLine)
+        .where(EstimateLine.estimate_id == estimate.id, EstimateLine.tenant_id == case.tenant_id)
+        .order_by(EstimateLine.created_at, EstimateLine.id)
+    ).all()
+    seen: set[str] = set()
+    parts = []
+    for line in lines:
+        category = getattr(line.category, "value", line.category)
+        label = (line.description or "").strip()
+        if category not in MECHANICAL_CATEGORIES or not label or label.lower() in seen:
+            continue
+        seen.add(label.lower())
+        parts.append({"id": str(line.id), "label": label})
+    return parts[:30]
+
+
 def plate_spots(db: Session, tenant_id, vehicle: Vehicle | None) -> dict:
     from app.api.v1.renders import plate_spots_for
 
@@ -144,6 +177,8 @@ def case_progress(db: Session, case: RepairCase) -> dict:
         "tasks_done": done,
         "tasks_total": len(tasks),
         "estimate": estimate_info,
+        "work_type": getattr(case, "work_type", "BODY") or "BODY",
+        "parts": case_parts(db, case, include_draft=False),
     }
 
 

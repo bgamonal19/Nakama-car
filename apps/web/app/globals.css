@@ -1417,3 +1417,17 @@ button.damage-dot { border: 0; cursor: pointer; }
 [data-theme="dark"] .work-type-switch button.active.body, [data-theme="dark"] .chooser-new .chooser-option { background: #10233a; }
 [data-theme="dark"] .work-type-switch button.active.mechanical, [data-theme="dark"] .chooser-new .chooser-option.mechanical { background: #2a1418; }
 @media (max-width: 560px) { .work-type-switch, .chooser-new > div { grid-template-columns: 1fr; } }
+
+/* Mechanical parts on the 3D car */
+.part-pin { position: absolute; transform: translate(-50%, -50%); z-index: 4; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 7px; background: #ee7418; color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center; border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(238, 116, 24, .28), 0 2px 6px rgba(0,0,0,.4); pointer-events: none; animation: part-pulse 2.2s ease-in-out infinite; }
+@keyframes part-pulse { 50% { box-shadow: 0 0 0 9px rgba(238, 116, 24, .08), 0 2px 6px rgba(0,0,0,.4); } }
+.parts-list { margin-top: 10px; border: 1px solid #f3c79f; background: #fff8f1; border-radius: 12px; padding: 10px 12px; }
+.parts-list > strong { font-size: 14px; }
+.parts-list ol { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.parts-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 14px; }
+.parts-list small { color: #8a5a2b; font-size: 12px; }
+.part-dot { min-width: 26px; height: 26px; border-radius: 7px; border: 0; background: #ee7418; color: #fff; font-weight: 800; cursor: pointer; }
+.part-dot:disabled { background: #c9ced4; cursor: default; }
+[data-theme="dark"] .parts-list { background: #2a1d10; border-color: #6b4a26; }
+[data-theme="dark"] .parts-list small { color: #f0c79a; }
+.mechanical-map { margin-bottom: 16px; }
