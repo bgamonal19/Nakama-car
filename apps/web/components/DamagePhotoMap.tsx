@@ -124,6 +124,8 @@ type Props = {
   onRemove?: (marker: DamageMarker) => void | Promise<void>;
 };
 
+const RENDER_VERSION = "4";
+
 const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
 
 /**
@@ -172,7 +174,8 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
     if (!next) return;
     let cancelled = false;
     (async () => {
-      const params = new URLSearchParams({ make, model, view: next });
+      // "v" follows the server crop version, so browsers drop pictures cached before a re-crop.
+      const params = new URLSearchParams({ make, model, view: next, v: RENDER_VERSION });
       if (year) params.set("year", year);
       if (color) params.set("color", color);
       const response = await apiFetch(`/renders/car?${params.toString()}`).catch(() => null);
