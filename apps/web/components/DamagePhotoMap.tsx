@@ -10,8 +10,11 @@ export type MarkerOperation = "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string };
 export type VehicleLook = { make?: string; model?: string; year?: string | number | null; color?: string };
 
-// Turntable frames, walking around the car. The roof is a separate view.
+// Turntable frames every 45°, walking around the car. The roof is a separate view.
 const ring: MarkerView[] = ["front", "front-3-4", "side", "rear-3-4", "rear", "rear-3-4-right", "side-right", "front-3-4-right"];
+const STEP = 360 / ring.length;
+const DEGREES_PER_PX = 0.55;
+
 export const viewNames: Record<MarkerView, string> = {
   "front": "Frontale",
   "front-3-4": "3/4 anteriore sinistro",
@@ -29,6 +32,17 @@ export const operationStyle: Record<MarkerOperation, { label: string; color: str
   REPAIR: { label: "Riparare", color: "#185FA5" },
   REPLACE: { label: "Sostituire", color: "#A32D2D" },
   PAINT: { label: "Verniciare", color: "#534AB7" },
+};
+
+// Where the number plate sits on each studio picture (share of the picture box),
+// with the turn of the plate for three-quarter views. Pure side and roof views have none.
+const platePlacement: Partial<Record<MarkerView, { x: number; y: number; width: number; turn: number }>> = {
+  "front": { x: 0.5, y: 0.8, width: 0.2, turn: 0 },
+  "rear": { x: 0.5, y: 0.66, width: 0.2, turn: 0 },
+  "front-3-4": { x: 0.25, y: 0.75, width: 0.13, turn: -48 },
+  "front-3-4-right": { x: 0.75, y: 0.75, width: 0.13, turn: 48 },
+  "rear-3-4": { x: 0.8, y: 0.63, width: 0.12, turn: 48 },
+  "rear-3-4-right": { x: 0.2, y: 0.63, width: 0.12, turn: -48 },
 };
 
 /** Italian name of the zone touched, from the view and the relative position on the picture. */
@@ -82,6 +96,25 @@ function Silhouette({ view }: { view: MarkerView }) {
   );
 }
 
+function Plate({ view, plate }: { view: MarkerView; plate: string }) {
+  const spot = platePlacement[view];
+  if (!spot) return null;
+  return (
+    <span
+      className="vehicle-plate"
+      style={{
+        left: `${spot.x * 100}%`,
+        top: `${spot.y * 100}%`,
+        width: `${spot.width * 100}%`,
+        transform: `translate(-50%, -50%) perspective(400px) rotateY(${spot.turn}deg)`,
+      }}
+      aria-hidden="true"
+    >
+      <i>I</i><b>{plate}</b><i />
+    </span>
+  );
+}
+
 type Props = {
   vehicle: VehicleLook;
   plate?: string;
@@ -90,28 +123,41 @@ type Props = {
   onRemove?: (marker: DamageMarker) => void | Promise<void>;
 };
 
-const DRAG_STEP_PX = 45;
+const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
 
-/** Real pictures of the vehicle as a 360° turntable: drag to turn, tap to pin a damage. */
+/**
+ * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
+ * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
+ */
 export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Props) {
   const { t } = useLanguage();
-  const [view, setView] = useState<MarkerView>("front-3-4");
+  const [angle, setAngle] = useState(STEP);
+  const [roof, setRoof] = useState(false);
   const [images, setImages] = useState<Partial<Record<MarkerView, string | null>>>({});
+  const [ratios, setRatios] = useState<Partial<Record<MarkerView, number>>>({});
   const [disabled, setDisabled] = useState(false);
   const [notice, setNotice] = useState("");
   const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
-  const drag = useRef<{ x: number; startIndex: number; moved: boolean } | null>(null);
+  const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
+  const canvas = useRef<HTMLDivElement>(null);
+  const drag = useRef<{ x: number; start: number; moved: boolean; lastX: number; lastT: number; velocity: number } | null>(null);
+  const animation = useRef<number | null>(null);
   const make = (vehicle.make || "").trim();
   const model = (vehicle.model || "").trim();
   const color = (vehicle.color || "").trim();
   const year = vehicle.year ? String(vehicle.year) : "";
   const ready = Boolean(make && model);
 
+  const settled = Math.abs(angle - Math.round(angle / STEP) * STEP) < 0.5;
+  const index = ((Math.round(angle / STEP) % ring.length) + ring.length) % ring.length;
+  const view: MarkerView = roof ? "top" : ring[index];
+
   useEffect(() => {
     setImages((current) => {
       Object.values(current).forEach((url) => { if (url) URL.revokeObjectURL(url); });
       return {};
     });
+    setRatios({});
     setDisabled(false);
     setNotice(ready ? "" : "Inserisci marca e modello per vedere le foto reali del veicolo.");
   }, [make, model, year, color, ready]);
@@ -133,12 +179,14 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
       if (response && response.ok) {
         const url = URL.createObjectURL(await response.blob());
         if (cancelled) { URL.revokeObjectURL(url); return; }
+        const picture = new Image();
+        picture.onload = () => setRatios((current) => ({ ...current, [next]: picture.naturalWidth / Math.max(1, picture.naturalHeight) }));
+        picture.src = url;
         setImages((current) => ({ ...current, [next]: url }));
         return;
       }
       setImages((current) => ({ ...current, [next]: null }));
-      // Only a missing service or the monthly cap stop the other views; a single
-      // view the catalog cannot render just shows the outline.
+      // Only a missing service or the monthly cap stop the other views.
       if (!response || response.status === 503 || response.status === 429) {
         setDisabled(true);
         setNotice(response?.status === 429 ? "Limite mensile di foto raggiunto: uso lo schema del veicolo." : "Foto reali non disponibili: uso lo schema del veicolo.");
@@ -149,33 +197,88 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
     return () => { cancelled = true; };
   }, [make, model, year, color, view, disabled, images, ready]);
 
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setStageSize({ width: element.clientWidth, height: element.clientHeight }));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => () => { if (animation.current) cancelAnimationFrame(animation.current); }, []);
+
+  function animateTo(target: number, velocity = 0) {
+    if (animation.current) cancelAnimationFrame(animation.current);
+    let current = angle;
+    let speed = velocity;
+    let last = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(48, now - last) / 1000;
+      last = now;
+      if (Math.abs(speed) > 25) {
+        // Inertia: keep spinning and slow down like a real turntable.
+        current += speed * dt;
+        speed *= Math.pow(0.12, dt);
+        target = Math.round(current / STEP) * STEP;
+      } else {
+        const delta = target - current;
+        current += delta * Math.min(1, dt * 12);
+        if (Math.abs(delta) < 0.4) {
+          setAngle(target);
+          animation.current = null;
+          return;
+        }
+      }
+      setAngle(current);
+      animation.current = requestAnimationFrame(tick);
+    };
+    animation.current = requestAnimationFrame(tick);
+  }
+
   function turn(step: number) {
-    const index = ring.indexOf(view);
-    const from = index < 0 ? 0 : index;
-    setView(ring[(from + step + ring.length) % ring.length]);
+    setRoof(false);
     setPending(null);
+    animateTo(Math.round(angle / STEP) * STEP + step * STEP);
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (animation.current) { cancelAnimationFrame(animation.current); animation.current = null; }
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { x: event.clientX, startIndex: Math.max(0, ring.indexOf(view)), moved: false };
+    drag.current = { x: event.clientX, start: angle, moved: false, lastX: event.clientX, lastT: performance.now(), velocity: 0 };
   }
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
-    if (!drag.current || view === "top") return;
-    const steps = Math.trunc((event.clientX - drag.current.x) / DRAG_STEP_PX);
-    if (steps !== 0) drag.current.moved = true;
-    const target = ring[(((drag.current.startIndex - steps) % ring.length) + ring.length) % ring.length];
-    if (target !== view) { setView(target); setPending(null); }
+    const state = drag.current;
+    if (!state || roof) return;
+    const dx = event.clientX - state.x;
+    if (Math.abs(dx) > 4) state.moved = true;
+    const now = performance.now();
+    const dt = Math.max(1, now - state.lastT);
+    state.velocity = (-(event.clientX - state.lastX) * DEGREES_PER_PX) / (dt / 1000);
+    state.lastX = event.clientX;
+    state.lastT = now;
+    if (state.moved) {
+      setPending(null);
+      setAngle(state.start - dx * DEGREES_PER_PX);
+    }
   }
 
   function onPointerUp(event: PointerEvent<HTMLDivElement>) {
     const state = drag.current;
     drag.current = null;
-    if (!state || state.moved || !onAdd) return;
-    const box = event.currentTarget.getBoundingClientRect();
-    const x = Math.min(1, Math.max(0, (event.clientX - box.left) / box.width));
-    const y = Math.min(1, Math.max(0, (event.clientY - box.top) / box.height));
+    if (!state) return;
+    if (state.moved) {
+      const fresh = performance.now() - state.lastT < 80;
+      animateTo(Math.round(angle / STEP) * STEP, fresh ? state.velocity : 0);
+      return;
+    }
+    if (!onAdd || !settled) return;
+    const stage = event.currentTarget.querySelector<HTMLElement>(".car-stage");
+    if (!stage) return;
+    const box = stage.getBoundingClientRect();
+    const x = (event.clientX - box.left) / box.width;
+    const y = (event.clientY - box.top) / box.height;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
     setPending({ x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 });
   }
 
@@ -185,46 +288,69 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
     setPending(null);
   }
 
-  const image = images[view];
-  const visible = markers.filter((marker) => marker.view === view);
+  // Two neighbouring pictures cross-fade while the turntable moves.
+  const base = Math.floor(angle / STEP);
+  const fraction = angle / STEP - base;
+  const eased = fraction * fraction * (3 - 2 * fraction);
+  const layers: { code: MarkerView; opacity: number }[] = roof
+    ? [{ code: "top", opacity: 1 }]
+    : [
+        { code: ring[((base % ring.length) + ring.length) % ring.length], opacity: 1 - eased },
+        { code: ring[(((base + 1) % ring.length) + ring.length) % ring.length], opacity: eased },
+      ];
+  const ratio = ratios[view] || 5 / 3;
+  const maxWidth = stageSize.width * 0.84;
+  const maxHeight = stageSize.height * (roof ? 0.86 : 0.64);
+  const stageWidth = Math.min(maxWidth, maxHeight * ratio);
+  const stageHeight = stageWidth / ratio;
+  const visible = settled || roof ? markers.filter((marker) => marker.view === view) : [];
   const loaded = ring.filter((code) => images[code]).length;
+  const showPlate = Boolean(plate && images[view] && (settled || roof));
+
   return (
     <div className="damage-photo-map">
       <div className="turntable-bar">
         <button type="button" className="turn-button" aria-label={t("Ruota a sinistra")} onClick={() => turn(-1)}>◀</button>
         <strong>{t(viewNames[view])}</strong>
         <button type="button" className="turn-button" aria-label={t("Ruota a destra")} onClick={() => turn(1)}>▶</button>
-        <button type="button" className={`roof-button${view === "top" ? " active" : ""}`} onClick={() => { setView(view === "top" ? "front-3-4" : "top"); setPending(null); }}>
-          {view === "top" ? t("Vista laterale") : t("Tetto")}
+        <button type="button" className={`roof-button${roof ? " active" : ""}`} onClick={() => { setRoof(!roof); setPending(null); }}>
+          {roof ? t("Vista laterale") : t("Tetto")}
         </button>
       </div>
       <div
-        className={`damage-canvas${onAdd ? " editable" : ""}`}
+        ref={canvas}
+        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
         aria-label={t("Trascina per ruotare il veicolo, tocca per segnare un danno")}
       >
-        <div className="studio-floor" aria-hidden="true" />
-        {plate && (
-          <span className="plate-badge" aria-label={`${t("Targa")} ${plate}`}>
-            <i aria-hidden="true">I</i><b>{plate.toUpperCase()}</b>
-          </span>
+        <div className="workshop-wall" aria-hidden="true" />
+        <div className="workshop-floor" aria-hidden="true" />
+        {!roof && (
+          <div className="turntable" aria-hidden="true" style={{ transform: `translateX(-50%) perspective(700px) rotateX(74deg) rotateZ(${normalizeAngle(angle)}deg)` }} />
         )}
-        {image ? (
-          <img src={image} alt={`${make} ${model} · ${t(viewNames[view])}`} draggable={false} />
-        ) : image === null || disabled || !ready ? <Silhouette view={view} /> : <div className="damage-loading">{t("Caricamento…")}</div>}
-        {visible.map((marker) => (
-          <span key={marker.id} className="damage-pin" style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
-            {markers.indexOf(marker) + 1}
-          </span>
-        ))}
-        {pending && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
+        <div className="car-stage" style={{ width: stageWidth || undefined, height: stageHeight || undefined }}>
+          {layers.map(({ code, opacity }) => {
+            const url = images[code];
+            if (opacity < 0.01) return null;
+            if (url) return <img key={code} src={url} alt={opacity > 0.5 ? `${make} ${model} · ${t(viewNames[code])}` : ""} draggable={false} style={{ opacity }} />;
+            if (url === null || disabled || !ready) return <div key={code} className="stage-layer" style={{ opacity }}><Silhouette view={code} /></div>;
+            return <div key={code} className="damage-loading stage-layer" style={{ opacity }}>{t("Caricamento…")}</div>;
+          })}
+          {showPlate && plate && <Plate view={view} plate={plate.toUpperCase()} />}
+          {visible.map((marker) => (
+            <span key={marker.id} className="damage-pin" style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
+              {markers.indexOf(marker) + 1}
+            </span>
+          ))}
+          {pending && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
+        </div>
       </div>
       <div className="turntable-dots" aria-hidden="true">
         {ring.map((code) => (
-          <i key={code} className={`${code === view ? "current" : ""}${markers.some((marker) => marker.view === code) ? " marked" : ""}`} />
+          <i key={code} className={`${!roof && code === view ? "current" : ""}${markers.some((marker) => marker.view === code) ? " marked" : ""}`} />
         ))}
       </div>
       {ready && !disabled && loaded < ring.length && <p className="hint">{t("Caricamento vista 360°")} {loaded}/{ring.length}</p>}
@@ -242,9 +368,25 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
       {notice && <p className="hint">{t(notice)}</p>}
       {markers.length > 0 && (
         <ol className="damage-list">
-          {markers.map((marker, index) => (
+          {markers.map((marker, position) => (
             <li key={marker.id}>
-              <button type="button" className="damage-dot" style={{ background: operationStyle[marker.operation].color }} aria-label={t("Mostra")} onClick={() => { setView(marker.view); setPending(null); }}>{index + 1}</button>
+              <button
+                type="button"
+                className="damage-dot"
+                style={{ background: operationStyle[marker.operation].color }}
+                aria-label={t("Mostra")}
+                onClick={() => {
+                  setPending(null);
+                  if (marker.view === "top") { setRoof(true); return; }
+                  setRoof(false);
+                  const target = ring.indexOf(marker.view) * STEP;
+                  const current = normalizeAngle(angle);
+                  let delta = target - current;
+                  if (delta > 180) delta -= 360;
+                  if (delta < -180) delta += 360;
+                  animateTo(angle + delta);
+                }}
+              >{position + 1}</button>
               <span>{marker.area_label}</span>
               <strong style={{ color: operationStyle[marker.operation].color }}>{t(operationStyle[marker.operation].label)}</strong>
               {onRemove && <button type="button" className="ghost" aria-label={t("Elimina")} onClick={() => onRemove(marker)}>✕</button>}
