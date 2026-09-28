@@ -80,3 +80,25 @@ def test_crop_trims_antenna_and_halo_to_the_body():
         assert result.size == (649, 233)
     assert to_webp(content, "image/webp")[0] != b""
     assert mime.startswith("image/webp")
+
+
+def test_registry_model_names_are_cleaned_for_the_catalog(client, monkeypatch):
+    c, _, _ = client
+    assert carimage.model_candidates("A3 Sportback (8VA, 8VF)") == ["A3 Sportback", "A3"]
+    assert carimage.clean_model("Classe A (W177)") == "A-Class"
+    assert carimage.clean_model("Serie 3 Touring") == "3 Series Touring"
+
+    class OnlyBaseModel(FakeRenders):
+        def render(self, *, make, model, year, color, view):
+            self.calls.append((make, model, year, color, view))
+            if model != "A3":
+                raise carimage.RenderNotFound("no")
+            return PNG, "image/png"
+
+    fake = OnlyBaseModel()
+    monkeypatch.setattr(carimage, "get_render_provider", lambda: fake)
+    params = "make=Audi&model=A3%20Sportback%20(8VA%2C%208VF)&year=2013&view=side&color=Grigio"
+    assert c.get("/api/v1/renders/car?" + params).status_code == 200
+    assert [call[1:3] for call in fake.calls] == [("A3 Sportback", 2013), ("A3 Sportback", None), ("A3", 2013)]
+    assert c.get("/api/v1/renders/car?" + params).status_code == 200
+    assert len(fake.calls) == 3
