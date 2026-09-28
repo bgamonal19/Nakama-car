@@ -1191,6 +1191,19 @@ Object.assign(spanish, {
   "Targa, cliente, richiesta e preventivo, senza foto.": "Matrícula, cliente, solicitud y presupuesto, sin fotos."
 });
 
+Object.assign(spanish, {
+  "Ricambi e interventi": "Recambios e intervenciones", "Posizione non indicata": "Ubicación no indicada",
+  "Vano motore": "Vano motor", "Batteria (vano motore)": "Batería (vano motor)", "Ruote / freni anteriori": "Ruedas / frenos delanteros",
+  "Ruote / freni posteriori": "Ruedas / frenos traseros", "Tutte le ruote": "Todas las ruedas", "Scarico": "Escape",
+  "Frizione / cambio": "Embrague / caja de cambios", "Fari anteriori": "Faros delanteros", "Fanali posteriori": "Pilotos traseros",
+  "Parabrezza / tergicristalli": "Parabrisas / limpiaparabrisas", "Abitacolo": "Habitáculo", "Radiatore / clima": "Radiador / climatización",
+  "Serbatoio / alimentazione": "Depósito / alimentación"
+});
+
+Object.assign(spanish, {
+  "Gira l'auto trascinandola: i numeri indicano i danni, le lettere arancioni dove si trovano i ricambi e gli interventi.": "Gira el coche arrastrándolo: los números indican los daños y las letras naranjas dónde están los recambios y las intervenciones."
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

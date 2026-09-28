@@ -24,6 +24,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
   const [vehicle, setVehicle] = useState<VehicleLook | null>(null);
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [plateSpots, setPlateSpots] = useState<PlateSpots>({});
+  const [parts, setParts] = useState<{ id: string; label: string }[]>([]);
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -89,6 +90,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
   useEffect(() => {
     setCanEdit(hasPermission("case.update"));
     loadMarkers();
+    apiFetch(`/cases/${caseId}/parts`).then(async (response) => { if (response.ok) setParts(await response.json()); }).catch(() => undefined);
     setVehicle(null);
     if (plate) {
       apiFetch(`/vehicles/by-plate/${encodeURIComponent(plate)}`).then(async (response) => {
@@ -151,6 +153,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           onAttachPhoto={canEdit ? attachPhoto : undefined}
           onColorChange={canEdit && vehicleId ? changeColor : undefined}
           plateSpots={plateSpots}
+          parts={parts}
           onPlateSpotSave={canEdit && vehicle?.make && vehicle?.model ? async (view, spot) => {
             try { setPlateSpots(await savePlateSpot(vehicle.make || "", vehicle.model || "", view, spot)); }
             catch (e) { setMessage(e instanceof Error ? e.message : "Errore di connessione."); }

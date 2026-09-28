@@ -155,3 +155,19 @@ def test_mechanical_case_keeps_its_work_type(client):
     assert c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "PAINT"}).status_code == 422
     body = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
     assert body["work_type"] == "BODY"
+
+
+def test_parts_of_the_estimate_for_the_3d_car(client):
+    c, _, _ = client
+    _, _, _, case = fleet.create_fleet_case(c, plate="PR123TS")
+    estimate = c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json()
+    c.post(f"/api/v1/estimates/{estimate['id']}/lines", json=fleet.mechanical_line(description="Pastiglie freno anteriori"))
+    c.post(f"/api/v1/estimates/{estimate['id']}/lines", json=fleet.mechanical_line(description="Pastiglie freno anteriori"))
+    c.post(f"/api/v1/estimates/{estimate['id']}/lines", json=fleet.mechanical_line(description="Verniciatura paraurti", category="PAINT"))
+    parts = c.get(f"/api/v1/cases/{case['id']}/parts").json()
+    assert [part["label"] for part in parts] == ["Pastiglie freno anteriori"]
+
+    token = c.post(f"/api/v1/cases/{case['id']}/tracking-link").json()["public_token"]
+    assert c.get(f"/api/v1/public/tracking/{token}").json()["parts"] == []  # draft estimate stays private
+    c.patch(f"/api/v1/estimates/{estimate['id']}/status", json={"status": "APPROVED"})
+    assert [part["label"] for part in c.get(f"/api/v1/public/tracking/{token}").json()["parts"]] == ["Pastiglie freno anteriori"]

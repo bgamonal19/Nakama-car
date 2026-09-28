@@ -39,7 +39,7 @@ type Me = {
   workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null; chat_status?: ChatPresence };
 };
 type Step = { code: string; label: string; done: boolean; current: boolean };
-type CaseProgress = { case_number: string; status_text: string; steps: Step[]; closed: boolean; tasks: { description: string; status: string }[]; tasks_done: number; tasks_total: number; vehicle?: { plate_spots?: PlateSpots } };
+type CaseProgress = { case_number: string; status_text: string; steps: Step[]; closed: boolean; tasks: { description: string; status: string }[]; tasks_done: number; tasks_total: number; vehicle?: { plate_spots?: PlateSpots }; parts?: { id: string; label: string }[] };
 
 const POLL_MS = 20000;
 const stateLabel: Record<Maintenance["state"], string> = { OK: "In regola", SOON: "Manutenzione vicina", DUE: "Manutenzione scaduta", UNKNOWN: "Piano non impostato" };
@@ -243,6 +243,7 @@ export default function PortalPage() {
                       loadRender={loadRender}
                       photos={photos}
                       plateSpots={openCase.vehicle?.plate_spots}
+                      parts={openCase.parts}
                     />
                     <OtherPhotos photos={photos} />
                   </>

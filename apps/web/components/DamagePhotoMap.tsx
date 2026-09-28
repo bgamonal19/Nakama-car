@@ -3,6 +3,7 @@
 import { PointerEvent, useEffect, useRef, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiFetch } from "../lib/api";
+import { bestView, partPoints, partZone, zoneNames } from "../lib/partZones";
 
 export type MarkerView =
   | "front" | "front-3-4" | "side" | "rear-3-4" | "rear" | "rear-3-4-right" | "side-right" | "front-3-4-right" | "top";
@@ -163,6 +164,8 @@ type Props = {
   plateSpots?: Partial<Record<MarkerView, PlateSpotValue>>;
   /** Workshop: save (or reset with null) the plate position of a view for this model. */
   onPlateSpotSave?: (view: MarkerView, spot: PlateSpotValue | null) => void | Promise<void>;
+  /** Parts / mechanical jobs: each is pinned where it sits on the car (engine, wheels, exhaust…). */
+  parts?: { id: string; label: string }[];
   /** Workshop: change the paint of the car (saved on the vehicle). */
   onColorChange?: (color: string) => void | Promise<void>;
 };
@@ -213,7 +216,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange, plateSpots, onPlateSpotSave, parts = [] }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -442,6 +445,18 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     await onPlateSpotSave(view, spot);
     setEditSpot(null);
   }
+  const placedParts = parts.map((part, position) => ({ ...part, zone: partZone(part.label), letter: String.fromCharCode(65 + (position % 26)) }));
+  const visibleParts = settled && !roof ? placedParts.flatMap((part) => (part.zone ? partPoints(part.zone, view) : []).map(([x, y], index) => ({ ...part, x, y, key: `${part.id}-${index}` }))) : [];
+  function showPart(zone: ReturnType<typeof partZone>) {
+    if (!zone) return;
+    setRoof(false);
+    const target = ring.indexOf(bestView[zone]) * STEP;
+    const current = normalizeAngle(angle);
+    let delta = target - current;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+    animateTo(angle + delta);
+  }
   const viewPhotos = photos.filter((photo) => !photo.markerId && viewOfCategory[photo.category] === view);
   const photosOf = (marker: DamageMarker) => photos.filter((photo) => photo.markerId === marker.id);
 
@@ -510,6 +525,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
           {visible.map((marker) => (
             <span key={marker.id} className={`damage-pin${photosOf(marker).length ? " has-photo" : ""}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
               {markers.indexOf(marker) + 1}
+            </span>
+          ))}
+          {visibleParts.map((part) => (
+            <span key={part.key} className="part-pin" style={{ left: `${part.x * 100}%`, top: `${part.y * 100}%` }} title={part.label}>
+              {part.letter}
             </span>
           ))}
           {pending && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
@@ -618,6 +638,20 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
             </li>
           ))}
         </ol>
+      )}
+      {placedParts.length > 0 && (
+        <div className="parts-list">
+          <strong>🔧 {t("Ricambi e interventi")}</strong>
+          <ol>
+            {placedParts.map((part) => (
+              <li key={part.id}>
+                <button type="button" className="part-dot" disabled={!part.zone} onClick={() => showPart(part.zone)} aria-label={t("Mostra")}>{part.letter}</button>
+                <span>{part.label}</span>
+                <small>{part.zone ? t(zoneNames[part.zone]) : t("Posizione non indicata")}</small>
+              </li>
+            ))}
+          </ol>
+        </div>
       )}
       {lightbox && (
         <div className="photo-lightbox" role="dialog" aria-modal="true" aria-label={lightbox.title} onClick={() => setLightbox(null)}>

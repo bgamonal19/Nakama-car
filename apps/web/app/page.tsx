@@ -809,6 +809,18 @@ export default function HomePage() {
                       <NumberField label={t("Diagnosi €/h")} value={rates.diagnostic} onChange={(v) => setRates({ ...rates, diagnostic: v })} />
                     </div>
                   </div>
+                  {workType === "MECHANICAL" && vehicle.make && vehicle.model && (
+                    <div className="mechanical-map">
+                      <DamagePhotoMap
+                        vehicle={{ make: vehicle.make, model: vehicle.model, year: vehicle.year, color: vehicle.color }}
+                        plate={plate.trim()}
+                        markers={[]}
+                        plateSpots={plateSpots}
+                        parts={lines.filter((line) => line.description.trim() && !["BODY_LABOR", "PAINT", "MATERIAL"].includes(line.category)).map((line) => ({ id: line.id, label: line.description }))}
+                        onColorChange={(color) => setVehicle((current) => ({ ...current, color }))}
+                      />
+                    </div>
+                  )}
                   <h3 className="operations-title">{t("Interventi meccanici frequenti")}</h3>
                   <div className="operation-suggestions">
                     {mechanicalOperations.map(([description, category, hours]) => (
