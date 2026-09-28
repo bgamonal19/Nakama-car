@@ -1100,6 +1100,6 @@ button.damage-dot { border: 0; cursor: pointer; }
 .car-stage .damage-loading { color: #e7eef7; }
 .vehicle-plate { position: absolute; z-index: 3; aspect-ratio: 4.7 / 1; display: flex; align-items: stretch; background: #fff; border: 1px solid #222; border-radius: 3px; overflow: hidden; pointer-events: none; font-family: "Arial Narrow", Arial, sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,.4); container-type: size; }
 .vehicle-plate i { flex: 0 0 9%; background: #0b3d91; color: #fff; font-style: normal; font-weight: 700; font-size: 55cqh; display: grid; place-items: center; }
-.vehicle-plate b { flex: 1; display: grid; place-items: center; color: #111; font-weight: 700; font-size: 62cqh; letter-spacing: .08em; white-space: nowrap; }
+.vehicle-plate b { flex: 1; display: grid; place-items: center; color: #111; font-weight: 700; font-size: 66cqh; letter-spacing: .06em; white-space: nowrap; }
 .damage-canvas.workshop-scene .damage-pin { z-index: 4; }
 [data-theme="dark"] .damage-canvas.workshop-scene { background: #0d1621; }

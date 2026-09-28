@@ -34,15 +34,16 @@ export const operationStyle: Record<MarkerOperation, { label: string; color: str
   PAINT: { label: "Verniciare", color: "#534AB7" },
 };
 
-// Where the number plate sits on each studio picture (share of the picture box),
+// Where the number plate sits on each studio picture (share of the cropped picture box,
+// sized to a real 520 mm EU plate on a ~1.65 m wide car),
 // with the turn of the plate for three-quarter views. Pure side and roof views have none.
 const platePlacement: Partial<Record<MarkerView, { x: number; y: number; width: number; turn: number }>> = {
-  "front": { x: 0.5, y: 0.8, width: 0.2, turn: 0 },
-  "rear": { x: 0.5, y: 0.66, width: 0.2, turn: 0 },
-  "front-3-4": { x: 0.25, y: 0.75, width: 0.13, turn: -48 },
-  "front-3-4-right": { x: 0.75, y: 0.75, width: 0.13, turn: 48 },
-  "rear-3-4": { x: 0.8, y: 0.63, width: 0.12, turn: 48 },
-  "rear-3-4-right": { x: 0.2, y: 0.63, width: 0.12, turn: -48 },
+  "front": { x: 0.5, y: 0.66, width: 0.28, turn: 0 },
+  "rear": { x: 0.5, y: 0.63, width: 0.3, turn: 0 },
+  "front-3-4": { x: 0.23, y: 0.69, width: 0.26, turn: -40 },
+  "front-3-4-right": { x: 0.77, y: 0.69, width: 0.26, turn: 40 },
+  "rear-3-4": { x: 0.785, y: 0.63, width: 0.25, turn: 40 },
+  "rear-3-4-right": { x: 0.215, y: 0.63, width: 0.25, turn: -40 },
 };
 
 /** Italian name of the zone touched, from the view and the relative position on the picture. */
@@ -299,8 +300,8 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
         { code: ring[(((base + 1) % ring.length) + ring.length) % ring.length], opacity: eased },
       ];
   const ratio = ratios[view] || 5 / 3;
-  const maxWidth = stageSize.width * 0.84;
-  const maxHeight = stageSize.height * (roof ? 0.86 : 0.64);
+  const maxWidth = stageSize.width * 0.9;
+  const maxHeight = stageSize.height * (roof ? 0.88 : 0.72);
   const stageWidth = Math.min(maxWidth, maxHeight * ratio);
   const stageHeight = stageWidth / ratio;
   const visible = settled || roof ? markers.filter((marker) => marker.view === view) : [];

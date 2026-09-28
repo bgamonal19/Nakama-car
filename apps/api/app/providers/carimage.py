@@ -32,7 +32,7 @@ ITALIAN_COLORS = [
 ]
 
 
-PROCESSED_MIME = "image/webp; v=2"
+PROCESSED_MIME = "image/webp; v=3"
 
 
 def is_processed(mime: str | None) -> bool:
@@ -57,7 +57,8 @@ def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
             image.load()
             if image.mode in ("RGBA", "LA") or "transparency" in image.info:
                 alpha = image.convert("RGBA").getchannel("A")
-                box = alpha.point(lambda value: 255 if value > 8 else 0).getbbox()
+                # Ignore the faint shadow/halo some views carry across the whole frame.
+                box = alpha.point(lambda value: 255 if value > 48 else 0).getbbox()
                 if box:
                     margin_x = round((box[2] - box[0]) * 0.04)
                     margin_y = round((box[3] - box[1]) * 0.08)
