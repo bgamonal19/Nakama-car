@@ -776,6 +776,7 @@ export default function HomePage() {
                   <p className="hint">{t("Per interventi solo meccanici puoi saltare questo passaggio.")}</p>
                   <DamagePhotoMap
                     vehicle={{ make: vehicle.make, model: vehicle.model, year: vehicle.year, color: vehicle.color }}
+                    plate={plate.trim()}
                     markers={markers}
                     onAdd={(marker) => setMarkers((current) => [...current, { ...marker, id: crypto.randomUUID() }])}
                     onRemove={(marker) => setMarkers((current) => current.filter((item) => item.id !== marker.id))}

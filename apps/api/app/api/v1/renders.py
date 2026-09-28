@@ -61,6 +61,21 @@ def render_car(
     make_clean, model_clean = make.strip(), model.strip()
     key = "|".join([make_clean.lower(), model_clean.lower(), str(year or ""), paint, view])
     cached = db.scalar(select(VehicleRender).where(VehicleRender.tenant_id == auth.tenant_id, VehicleRender.render_key == key))
+    if cached is None:
+        # Same model, colour and view already paid for another model year: reuse it.
+        cached = db.scalar(
+            select(VehicleRender)
+            .where(
+                VehicleRender.tenant_id == auth.tenant_id,
+                func.lower(VehicleRender.make) == make_clean.lower(),
+                func.lower(VehicleRender.model) == model_clean.lower(),
+                VehicleRender.color == paint,
+                VehicleRender.view == view,
+                VehicleRender.found.is_(True),
+            )
+            .order_by(VehicleRender.created_at.desc())
+            .limit(1)
+        )
     headers = {"Cache-Control": "private, max-age=86400"}
     if cached is not None:
         if not cached.found or not cached.content:

@@ -117,6 +117,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
         <h3>{t("Mappa danni")}</h3>
         <DamagePhotoMap
           vehicle={vehicle || {}}
+          plate={plate}
           markers={markers}
           onAdd={canEdit ? addMarker : undefined}
           onRemove={canEdit ? removeMarker : undefined}

@@ -1062,3 +1062,17 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 .turntable-dots i.marked { box-shadow: 0 0 0 2px var(--nakama-red); }
 button.damage-dot { border: 0; cursor: pointer; }
 [data-theme="dark"] :is(.turn-button, .roof-button) { background: #13263a; border-color: #47617a; }
+
+/* Studio backdrop and plate badge for the vehicle pictures */
+.damage-canvas {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 38%, #ffffff 0%, #eef2f6 55%, #dfe6ee 100%);
+  border-color: #d5dde6;
+}
+.studio-floor { position: absolute; left: 12%; right: 12%; bottom: 9%; height: 14%; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(11,42,74,.22) 0%, rgba(11,42,74,.08) 45%, rgba(11,42,74,0) 72%); pointer-events: none; }
+.damage-canvas img, .damage-silhouette { position: relative; }
+.plate-badge { position: absolute; top: 10px; left: 10px; z-index: 2; display: inline-flex; align-items: stretch; height: 30px; border: 2px solid #1b1f24; border-radius: 5px; overflow: hidden; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); pointer-events: none; font-family: "Arial Narrow", Arial, sans-serif; }
+.plate-badge i { display: grid; place-items: center; width: 18px; background: #0b3d91; color: #fff; font-style: normal; font-size: 11px; font-weight: 700; }
+.plate-badge b { display: grid; place-items: center; padding: 0 10px; color: #111; font-size: 17px; letter-spacing: .12em; font-weight: 700; }
+[data-theme="dark"] .damage-canvas { background: radial-gradient(ellipse 70% 55% at 50% 38%, #2a4460 0%, #1b2d40 60%, #122233 100%); }
+[data-theme="dark"] .studio-floor { background: radial-gradient(ellipse at center, rgba(0,0,0,.45) 0%, rgba(0,0,0,.15) 45%, rgba(0,0,0,0) 72%); }
