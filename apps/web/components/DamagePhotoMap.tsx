@@ -130,7 +130,44 @@ type Props = {
   photos?: MapPhoto[];
   /** Attach a new photo to a damage pin (workshop only). */
   onAttachPhoto?: (marker: DamageMarker, file: File) => void | Promise<void>;
+  /** Workshop: change the paint of the car (saved on the vehicle). */
+  onColorChange?: (color: string) => void | Promise<void>;
 };
+
+// Paint choices offered under the car: stored name (Italian) + swatch colour + catalog code.
+export const paintSwatches: { name: string; hex: string; code: string }[] = [
+  { name: "Bianco", hex: "#f5f5f3", code: "white" },
+  { name: "Nero", hex: "#15171a", code: "black" },
+  { name: "Grigio", hex: "#6d737a", code: "gray" },
+  { name: "Argento", hex: "#c3c8cd", code: "silver" },
+  { name: "Blu", hex: "#1c3f94", code: "blue" },
+  { name: "Azzurro", hex: "#3fa7d6", code: "cyan" },
+  { name: "Rosso", hex: "#c0141c", code: "red" },
+  { name: "Verde", hex: "#23703a", code: "green" },
+  { name: "Giallo", hex: "#f2c313", code: "yellow" },
+  { name: "Arancione", hex: "#ee7418", code: "orange" },
+  { name: "Marrone", hex: "#6b4128", code: "brown" },
+  { name: "Beige", hex: "#d9c7a3", code: "beige" },
+  { name: "Oro", hex: "#b8932f", code: "gold" },
+  { name: "Viola", hex: "#5b2a86", code: "purple" },
+];
+
+const paintKeywords: [string, string][] = [
+  ["argent", "silver"], ["silver", "silver"], ["grigio", "gray"], ["antracite", "gray"], ["gray", "gray"], ["grey", "gray"],
+  ["nero", "black"], ["black", "black"], ["bianc", "white"], ["white", "white"], ["rosso", "red"], ["bordeaux", "red"], ["red", "red"],
+  ["azzurr", "cyan"], ["blu", "blue"], ["verde", "green"], ["green", "green"], ["giall", "yellow"], ["arancio", "orange"],
+  ["marron", "brown"], ["bronzo", "brown"], ["beige", "beige"], ["sabbia", "beige"], ["oro", "gold"], ["viola", "purple"],
+];
+
+/** Catalog colour code of a free-text colour (same rules as the server), or the hex value. */
+export function paintCode(color?: string | null) {
+  const text = (color || "").trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(text)) return text;
+  if (!text) return "silver";
+  const exact = paintSwatches.find((swatch) => swatch.code === text || swatch.name.toLowerCase() === text);
+  if (exact) return exact.code;
+  return paintKeywords.find(([keyword]) => text.includes(keyword))?.[1] || "silver";
+}
 
 // Photo categories that belong to one side of the turntable.
 const viewOfCategory: Record<string, MarkerView> = { FRONT: "front", REAR: "rear", LEFT: "side", RIGHT: "side-right" };
@@ -143,7 +180,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender, photos = [], onAttachPhoto, onColorChange }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -159,6 +196,13 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string } | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [attaching, setAttaching] = useState<string | null>(null);
+  const customTimer = useRef<number | null>(null);
+  // The native colour dialog fires on every move: only the colour kept for a moment is applied
+  // (each new colour costs render credits the first time).
+  function pickCustom(value: string) {
+    if (customTimer.current) window.clearTimeout(customTimer.current);
+    customTimer.current = window.setTimeout(() => { onColorChange?.(value); }, 1200);
+  }
   const renderLoader = useRef(loadRender);
   renderLoader.current = loadRender;
   const make = (vehicle.make || "").trim();
@@ -411,6 +455,28 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
           </div>
         </div>
       </div>
+      {onColorChange && ready && (
+        <div className="paint-picker" role="group" aria-label={t("Colore del veicolo")}>
+          <span>{t("Colore")}</span>
+          {paintSwatches.map((swatch) => (
+            <button
+              key={swatch.code}
+              type="button"
+              className={`paint-swatch${paintCode(color) === swatch.code ? " active" : ""}`}
+              style={{ background: swatch.hex }}
+              title={t(swatch.name)}
+              aria-label={t(swatch.name)}
+              aria-pressed={paintCode(color) === swatch.code}
+              onClick={() => onColorChange(swatch.name)}
+            />
+          ))}
+          <label className={`paint-swatch custom${/^#/.test(color) ? " active" : ""}`} title={t("Altro colore")} style={/^#/.test(color) ? { background: color } : undefined}>
+            <span aria-hidden="true">＋</span>
+            <input type="color" aria-label={t("Altro colore")} value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#808080"} onChange={(event) => pickCustom(event.target.value)} />
+          </label>
+          <small>{t(paintSwatches.find((swatch) => swatch.code === paintCode(color))?.name || (color || "Argento"))}</small>
+        </div>
+      )}
       <div className="turntable-dots" aria-hidden="true">
         {ring.map((code) => (
           <i key={code} className={`${!roof && code === view ? "current" : ""}${markers.some((marker) => marker.view === code) ? " marked" : ""}`} />

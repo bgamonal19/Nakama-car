@@ -21,6 +21,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [vehicle, setVehicle] = useState<VehicleLook | null>(null);
+  const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -50,6 +51,13 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
   async function removeMarker(marker: DamageMarker) {
     const response = await apiFetch(`/cases/${caseId}/damage-markers/${marker.id}`, { method: "DELETE" });
     if (response.ok) await loadMarkers();
+  }
+
+  async function changeColor(color: string) {
+    if (!vehicleId) return;
+    const response = await apiFetch(`/vehicles/${vehicleId}`, { method: "PATCH", body: JSON.stringify({ color_name: color }) });
+    if (response.ok) setVehicle((current) => ({ ...(current || {}), color }));
+    else setMessage(await apiError(response, "Impossibile salvare il colore."));
   }
 
   async function loadMedia() {
@@ -84,6 +92,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
       apiFetch(`/vehicles/by-plate/${encodeURIComponent(plate)}`).then(async (response) => {
         if (response.ok) {
           const data = await response.json();
+          setVehicleId(data.id);
           setVehicle({ make: data.make || "", model: data.model || "", year: data.year, color: data.color_name || "" });
         }
       });
@@ -137,6 +146,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           onRemove={canEdit ? removeMarker : undefined}
           photos={mapPhotos}
           onAttachPhoto={canEdit ? attachPhoto : undefined}
+          onColorChange={canEdit && vehicleId ? changeColor : undefined}
         />
       </div>
       <div className="case-extras-block">

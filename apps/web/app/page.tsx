@@ -747,6 +747,7 @@ export default function HomePage() {
                     markers={markers}
                     onAdd={(marker) => setMarkers((current) => [...current, { ...marker, id: crypto.randomUUID() }])}
                     onRemove={(marker) => setMarkers((current) => current.filter((item) => item.id !== marker.id))}
+                    onColorChange={(color) => setVehicle((current) => ({ ...current, color }))}
                   />
                   <details className="damage-grid-details"><summary>{t("Elenco zone (alternativa)")}</summary>
                   <div className="damage-grid">
