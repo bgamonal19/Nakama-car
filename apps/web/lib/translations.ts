@@ -1138,6 +1138,15 @@ Object.assign(spanish, {
   "Messaggi dei clienti": "Mensajes de clientes"
 });
 
+Object.assign(spanish, {
+  "Colore del veicolo": "Color del vehículo",
+  "Altro colore": "Otro color",
+  "Impossibile salvare il colore.": "No se pudo guardar el color.",
+  "Bianco": "Blanco", "Nero": "Negro", "Grigio": "Gris", "Argento": "Plata", "Blu": "Azul", "Azzurro": "Celeste",
+  "Rosso": "Rojo", "Verde": "Verde", "Giallo": "Amarillo", "Arancione": "Naranja", "Marrone": "Marrón", "Beige": "Beige",
+  "Oro": "Oro", "Viola": "Morado"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
