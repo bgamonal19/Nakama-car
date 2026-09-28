@@ -103,6 +103,8 @@ class RepairCase(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
         default=RepairCaseStatus.NEW,
         index=True,
     )
+    # BODY = carrozzeria (photos + damage map), MECHANICAL = officina meccanica.
+    work_type: Mapped[str] = mapped_column(String(12), nullable=False, default="BODY", server_default="BODY")
     mileage: Mapped[int | None] = mapped_column(Integer)
     fuel_level_percent: Mapped[int | None] = mapped_column(Integer)
     customer_notes: Mapped[str | None] = mapped_column(Text)

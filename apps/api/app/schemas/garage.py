@@ -68,6 +68,7 @@ class VehicleRead(VehicleCreate):
 class RepairCaseCreate(BaseModel):
     customer_id: UUID
     vehicle_id: UUID
+    work_type: Literal["BODY", "MECHANICAL"] = "BODY"
     mileage: int | None = Field(default=None, ge=0)
     fuel_level_percent: int | None = Field(default=None, ge=0, le=100)
     customer_notes: str | None = None
@@ -85,6 +86,7 @@ class RepairCaseListItem(BaseModel):
     id: UUID
     case_number: str
     status: RepairCaseStatus
+    work_type: str = "BODY"
     plate: str
     vehicle_name: str
     customer_name: str

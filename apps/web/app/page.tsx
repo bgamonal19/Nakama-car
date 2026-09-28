@@ -121,6 +121,8 @@ export default function HomePage() {
   const [wizardOpen, setWizardOpen] = useState(false);
   const [chooserOpen, setChooserOpen] = useState(false);
   const [step, setStep] = useState(0);
+  // BODY = carrozzeria (foto + mappa danni), MECHANICAL = meccanica (senza foto e danni).
+  const [workType, setWorkType] = useState<"BODY" | "MECHANICAL">("BODY");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -211,10 +213,17 @@ export default function HomePage() {
     return { subtotal, vat, total: subtotal + vat };
   }, [lines, contract]);
 
+  // Mechanical jobs skip the bodywork steps (Foto, Danni).
+  const activeSteps = workType === "MECHANICAL" ? [0, 1, 2, 5, 6, 7] : steps.map((_, index) => index);
+  const stepPosition = Math.max(0, activeSteps.indexOf(step));
+  const goNext = () => setStep(activeSteps[Math.min(activeSteps.length - 1, stepPosition + 1)]);
+  const goBack = () => setStep(activeSteps[Math.max(0, stepPosition - 1)]);
+
   const selectedDamageCount = Object.values(damages).filter((v) => v !== "NO_DAMAGE").length + markers.length;
 
   function resetWizard() {
     setStep(0);
+    setWorkType("BODY");
     setPlate("");
     setExistingVehicleId(null);
     setExistingCustomerId(null);
@@ -478,6 +487,7 @@ export default function HomePage() {
         body: JSON.stringify({
           customer_id: savedCustomer.id,
           vehicle_id: savedVehicle.id,
+          work_type: workType,
           mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
           fuel_level_percent: Number(vehicle.fuel),
           customer_notes: customerRequest.trim() || null,
@@ -488,7 +498,7 @@ export default function HomePage() {
       const savedCase = await caseResponse.json();
 
       let mediaWarning = "";
-      for (const [category, file] of Object.entries(photos)) {
+      for (const [category, file] of workType === "BODY" ? Object.entries(photos) : []) {
         try {
           const saved = await uploadCasePhoto(savedCase.id, file, category);
           if (!saved.ok) mediaWarning = "Alcune foto non sono state caricate.";
@@ -497,7 +507,7 @@ export default function HomePage() {
         }
       }
 
-      for (const [code, operation] of Object.entries(damages)) {
+      for (const [code, operation] of workType === "BODY" ? Object.entries(damages) : []) {
         if (operation === "NO_DAMAGE") continue;
         const damageResponse = await apiFetch(`/cases/${savedCase.id}/damages/${code}`, {
           method: "PUT",
@@ -506,7 +516,7 @@ export default function HomePage() {
         if (!damageResponse.ok) throw new Error("Errore salvataggio danni");
       }
 
-      for (const marker of markers) {
+      for (const marker of workType === "BODY" ? markers : []) {
         const markerResponse = await apiFetch(`/cases/${savedCase.id}/damage-markers`, {
           method: "POST",
           body: JSON.stringify({ view: marker.view, x: marker.x, y: marker.y, operation: marker.operation, area_label: marker.area_label }),
@@ -582,7 +592,7 @@ export default function HomePage() {
         </section>
 
         <div className="nakama-actions">
-          <button className="nakama-action blue" onClick={() => setWizardOpen(true)}><b>▤</b><span><strong>{t("Nuova Pratica")}</strong><small>{t("Apri una nuova pratica")}</small></span></button>
+          <button className="nakama-action blue" onClick={() => { setWorkType("BODY"); setWizardOpen(true); }}><b>▤</b><span><strong>{t("Nuova Pratica")}</strong><small>{t("Apri una nuova pratica")}</small></span></button>
           <button className="nakama-action green" onClick={() => setChooserOpen(true)}><b>▦</b><span><strong>{t("Nuovo Preventivo")}</strong><small>{t("Crea un preventivo")}</small></span></button>
           <a className="nakama-action red" href="/lavori"><b>⌁</b><span><strong>{t("Ordine di Lavoro")}</strong><small>{t("Invia in officina")}</small></span></a>
           <a className="nakama-action white" href="/clienti"><b>◎</b><span><strong>{t("Nuovo Cliente")}</strong><small>{t("Gestisci anagrafica")}</small></span></a>
@@ -641,23 +651,23 @@ export default function HomePage() {
       </section>
 
       {chooserOpen && (
-        <NewEstimateChooser onClose={() => setChooserOpen(false)} onNewVehicle={() => { setChooserOpen(false); setWizardOpen(true); }} />
+        <NewEstimateChooser onClose={() => setChooserOpen(false)} onNewVehicle={(type) => { setChooserOpen(false); setWorkType(type); setWizardOpen(true); }} />
       )}
       {wizardOpen && (
         <div className="modal-backdrop">
           <div className="wizard" role="dialog" aria-modal="true" aria-labelledby="intake-title">
             <div className="wizard-head">
               <div>
-                <p className="eyebrow">{t("NUOVA PRATICA")}</p>
+                <p className="eyebrow">{t("NUOVA PRATICA")} · {workType === "MECHANICAL" ? t("MECCANICA") : t("CARROZZERIA")}</p>
                 <h2 id="intake-title">{t(steps[step])}</h2>
               </div>
               <button className="close" aria-label={t("Chiudi nuova pratica")} onClick={() => setWizardOpen(false)}>×</button>
             </div>
 
             <div className="stepper">
-              {steps.map((label, index) => (
-                <button key={label} className={index === step ? "current" : index < step ? "done" : ""} onClick={() => setStep(index)}>
-                  <span>{index < step ? "✓" : index + 1}</span><small>{t(label)}</small>
+              {activeSteps.map((index, position) => (
+                <button key={steps[index]} className={index === step ? "current" : position < stepPosition ? "done" : ""} onClick={() => setStep(index)}>
+                  <span>{position < stepPosition ? "✓" : position + 1}</span><small>{t(steps[index])}</small>
                 </button>
               ))}
             </div>
@@ -665,6 +675,14 @@ export default function HomePage() {
             <div className="wizard-body">
               {step === 0 && (
                 <div className="hero-step">
+                  <div className="work-type-switch" role="radiogroup" aria-label={t("Tipo di lavoro")}>
+                    <button type="button" role="radio" aria-checked={workType === "BODY"} className={workType === "BODY" ? "active body" : "body"} onClick={() => setWorkType("BODY")}>
+                      <b aria-hidden="true">🚗</b><span><strong>{t("Carrozzeria")}</strong><small>{t("Foto, mappa danni, verniciatura")}</small></span>
+                    </button>
+                    <button type="button" role="radio" aria-checked={workType === "MECHANICAL"} className={workType === "MECHANICAL" ? "active mechanical" : "mechanical"} onClick={() => setWorkType("MECHANICAL")}>
+                      <b aria-hidden="true">🔧</b><span><strong>{t("Meccanica")}</strong><small>{t("Tagliando, freni, diagnosi… senza foto")}</small></span>
+                    </button>
+                  </div>
                   <label>{t("Targa del veicolo")}</label>
                   <input className="plate-input" placeholder="AB123CD" value={plate} onChange={(e) => { setPlate(e.target.value.toUpperCase()); setExistingVehicleId(null); setExistingCustomerId(null); setPlateLookupMessage(""); }} autoFocus />
                   {authenticated && <button className="secondary plate-search" type="button" onClick={lookupPlate}>{t("Cerca nella tua anagrafica")}</button>}
@@ -784,9 +802,9 @@ export default function HomePage() {
                   <div className="rates">
                     <h3>{t("Tariffe NAKAMA CAR")}</h3>
                     <div className="rate-grid">
-                      <NumberField label={t("Carrozzeria €/h")} value={rates.body} onChange={(v) => setRates({ ...rates, body: v })} />
+                      {workType === "BODY" && <NumberField label={t("Carrozzeria €/h")} value={rates.body} onChange={(v) => setRates({ ...rates, body: v })} />}
                       <NumberField label={t("Meccanica €/h")} value={rates.mechanical} onChange={(v) => setRates({ ...rates, mechanical: v })} />
-                      <NumberField label={t("Verniciatura €/h")} value={rates.paint} onChange={(v) => setRates({ ...rates, paint: v })} />
+                      {workType === "BODY" && <NumberField label={t("Verniciatura €/h")} value={rates.paint} onChange={(v) => setRates({ ...rates, paint: v })} />}
                       <NumberField label={t("Elettrico €/h")} value={rates.electrical} onChange={(v) => setRates({ ...rates, electrical: v })} />
                       <NumberField label={t("Diagnosi €/h")} value={rates.diagnostic} onChange={(v) => setRates({ ...rates, diagnostic: v })} />
                     </div>
@@ -797,7 +815,7 @@ export default function HomePage() {
                       <button key={description} onClick={() => addOperation(description, category, hours)}>+ {t(description)}</button>
                     ))}
                   </div>
-                  {selectedDamageCount > 0 && <h3 className="operations-title">{t("Da mappa danni carrozzeria")}</h3>}
+                  {workType === "BODY" && selectedDamageCount > 0 && <h3 className="operations-title">{t("Da mappa danni carrozzeria")}</h3>}
                   <div className="operation-suggestions">
                     {markers.map((marker) => (
                       <button key={marker.id} onClick={() => setLines((prev) => [...prev, {
@@ -858,8 +876,15 @@ export default function HomePage() {
                     <div><small>{t("TARGA")}</small><strong>{plate || "—"}</strong></div>
                     <div><small>{t("CLIENTE")}</small><strong>{customer.company || `${customer.firstName} ${customer.lastName}`.trim() || "—"}</strong></div>
                     <div><small>{t("VEICOLO")}</small><strong>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "—"}</strong></div>
-                    <div><small>{t("FOTO")}</small><strong>{Object.keys(photos).length}</strong></div>
-                    <div><small>{t("DANNI")}</small><strong>{selectedDamageCount}</strong></div>
+                    <div><small>{t("TIPO")}</small><strong>{workType === "MECHANICAL" ? t("Meccanica") : t("Carrozzeria")}</strong></div>
+                    {workType === "BODY" ? (
+                      <>
+                        <div><small>{t("FOTO")}</small><strong>{Object.keys(photos).length}</strong></div>
+                        <div><small>{t("DANNI")}</small><strong>{selectedDamageCount}</strong></div>
+                      </>
+                    ) : (
+                      <div><small>{t("RICHIESTA")}</small><strong>{customerRequest.trim() || "—"}</strong></div>
+                    )}
                     <div><small>{t("PREVENTIVO")}</small><strong>{money(totals.total)}</strong></div>
                   </div>
                   {contract && <ContractBanner contract={contract} />}
@@ -869,10 +894,10 @@ export default function HomePage() {
             </div>
 
             <div className="wizard-footer">
-              <button className="ghost" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))}>{t("← Indietro")}</button>
+              <button className="ghost" disabled={stepPosition === 0} onClick={goBack}>{t("← Indietro")}</button>
               <div>
-                {step < steps.length - 1 ? (
-                  <button className="primary" onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}>{t("Continua →")}</button>
+                {stepPosition < activeSteps.length - 1 ? (
+                  <button className="primary" onClick={goNext}>{t("Continua →")}</button>
                 ) : (
                   <button className="primary" onClick={savePractice} disabled={saving}>{saving ? t("Salvataggio…") : t("Salva pratica")}</button>
                 )}
