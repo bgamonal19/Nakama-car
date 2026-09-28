@@ -4,6 +4,7 @@ import { PointerEvent, useEffect, useRef, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiFetch } from "../lib/api";
 import { bestView, partPoints, partZone, zoneNames } from "../lib/partZones";
+import { PartIcon } from "./PartIcon";
 
 export type MarkerView =
   | "front" | "front-3-4" | "side" | "rear-3-4" | "rear" | "rear-3-4-right" | "side-right" | "front-3-4-right" | "top";
@@ -528,8 +529,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
             </span>
           ))}
           {visibleParts.map((part) => (
-            <span key={part.key} className="part-pin" style={{ left: `${part.x * 100}%`, top: `${part.y * 100}%` }} title={part.label}>
-              {part.letter}
+            // X-ray lens: the body becomes see-through and the part appears in its place.
+            <span key={part.key} className="part-lens" style={{ left: `${part.x * 100}%`, top: `${part.y * 100}%` }} title={part.label}>
+              <span className="part-lens-glass" aria-hidden="true" />
+              <PartIcon zone={part.zone} size={30} />
+              <b>{part.letter}</b>
             </span>
           ))}
           {pending && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
@@ -645,7 +649,10 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
           <ol>
             {placedParts.map((part) => (
               <li key={part.id}>
-                <button type="button" className="part-dot" disabled={!part.zone} onClick={() => showPart(part.zone)} aria-label={t("Mostra")}>{part.letter}</button>
+                <button type="button" className="part-thumb" disabled={!part.zone} onClick={() => showPart(part.zone)} aria-label={`${t("Mostra")} ${part.label}`}>
+                  <PartIcon zone={part.zone} size={30} />
+                  <b>{part.letter}</b>
+                </button>
                 <span>{part.label}</span>
                 <small>{part.zone ? t(zoneNames[part.zone]) : t("Posizione non indicata")}</small>
               </li>
