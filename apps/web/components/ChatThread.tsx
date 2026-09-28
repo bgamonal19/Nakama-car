@@ -11,12 +11,16 @@ function when(value: string) {
 }
 
 /** Chat bubbles between customer and workshop; `mine` is the side of whoever is reading. */
-export function ChatThread({ messages, mine, onSend, closedText, placeholder }: {
+export function ChatThread({ messages, mine, onSend, closedText, placeholder, title, subtitle, id }: {
   messages: ChatMessage[];
   mine: "CUSTOMER" | "WORKSHOP";
   onSend?: (body: string) => Promise<string | null>;
   closedText?: string;
   placeholder?: string;
+  /** Header of the chat card, e.g. "Chat con il cliente". */
+  title?: string;
+  subtitle?: string;
+  id?: string;
 }) {
   const { t } = useLanguage();
   const [draft, setDraft] = useState("");
@@ -40,7 +44,17 @@ export function ChatThread({ messages, mine, onSend, closedText, placeholder }: 
   }
 
   return (
-    <div className="chat-thread">
+    <div className="chat-thread chat-card" id={id}>
+      {title && (
+        <div className="chat-head">
+          <span className="chat-icon" aria-hidden="true">💬</span>
+          <div>
+            <strong>{t(title)}</strong>
+            {subtitle && <small>{subtitle}</small>}
+          </div>
+          {onSend && <span className="chat-live"><i />{t("Attiva")}</span>}
+        </div>
+      )}
       <div className="chat-messages" ref={list} aria-live="polite">
         {messages.length === 0 && <p className="chat-empty">{t("Nessun messaggio. Scrivi qui per qualsiasi domanda.")}</p>}
         {messages.map((message) => (

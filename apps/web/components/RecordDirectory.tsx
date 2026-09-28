@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, useRef } from "react";
 import { SectionShell } from "./SectionShell";
 import { useLanguage } from "./LanguageProvider";
 import { apiFetch, getAccessToken } from "../lib/api";
@@ -89,6 +89,17 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       .finally(()=>{if(!controller.signal.aborted)setBusy(false);});
     return ()=>controller.abort();
   },[kind,search,offset,refresh]);
+  // Coming from a chat alert (?chat=<case id>): open that case and jump to its chat.
+  const chatTarget=useRef<string|null>(null);
+  useEffect(()=>{chatTarget.current=kind==="cases"?new URLSearchParams(window.location.search).get("chat"):null;},[kind]);
+  useEffect(()=>{
+    const target=chatTarget.current;
+    if(!target)return;
+    const item=items.find(entry=>String(entry.id)===target);
+    if(!item)return;
+    chatTarget.current=null;
+    open(item).then(()=>window.setTimeout(()=>document.getElementById("chat")?.scrollIntoView({behavior:"smooth",block:"center"}),600));
+  },[items]);
   useEffect(()=>{
     const controller=new AbortController();
     setHistory([]);setHistoryError("");

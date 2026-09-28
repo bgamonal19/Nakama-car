@@ -181,14 +181,21 @@ export default function TrackingPage() {
         )}
 
         <section className="tracking-section">
-          <h2>{t("Chat con l'officina")}</h2>
           <ChatThread
+            id="chat"
+            title="Chat con l'officina"
+            subtitle={data.workshop.name}
             messages={messages}
             mine="CUSTOMER"
             onSend={data.closed ? undefined : send}
             closedText="Pratica chiusa: per altre richieste chiama l'officina."
           />
         </section>
+
+        <a className="chat-fab" href="#chat" aria-label={t("Apri la chat")}>
+          💬 <span>{t("Chat")}</span>
+          {data.unread > 0 && <b>{data.unread}</b>}
+        </a>
 
         <footer className="tracking-workshop">
           <strong>{workshop.name}</strong>
