@@ -974,6 +974,8 @@ Object.assign(spanish, {
   "Mostra": "Mostrar"
 });
 
+Object.assign(spanish, {"Sessione scaduta. Accedi di nuovo per continuare.": "Sesión vencida. Inicia sesión de nuevo para continuar."});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
