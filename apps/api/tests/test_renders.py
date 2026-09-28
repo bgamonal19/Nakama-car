@@ -33,6 +33,9 @@ def test_render_is_paid_once_and_falls_back_without_year(client, monkeypatch):
     assert fake.calls == [("Fiat", "Panda", 2023, "white", "front"), ("Fiat", "Panda", None, "white", "front")]
     assert c.get("/api/v1/renders/car?" + params).content == first.content
     assert len(fake.calls) == 2
+    # Another year of the same model, colour and view is served from the saved picture.
+    assert c.get("/api/v1/renders/car?make=FIAT&model=panda&year=2021&view=front&color=bianco").status_code == 200
+    assert len(fake.calls) == 2
     assert c.get("/api/v1/renders/car?make=Fiat&model=Unknown&view=side").status_code == 404
     assert c.get("/api/v1/renders/car?make=Fiat&model=Unknown&view=side").status_code == 404
     assert len(fake.calls) == 3

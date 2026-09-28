@@ -84,6 +84,7 @@ function Silhouette({ view }: { view: MarkerView }) {
 
 type Props = {
   vehicle: VehicleLook;
+  plate?: string;
   markers: DamageMarker[];
   onAdd?: (marker: Omit<DamageMarker, "id">) => void | Promise<void>;
   onRemove?: (marker: DamageMarker) => void | Promise<void>;
@@ -92,7 +93,7 @@ type Props = {
 const DRAG_STEP_PX = 45;
 
 /** Real pictures of the vehicle as a 360° turntable: drag to turn, tap to pin a damage. */
-export function DamagePhotoMap({ vehicle, markers, onAdd, onRemove }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Props) {
   const { t } = useLanguage();
   const [view, setView] = useState<MarkerView>("front-3-4");
   const [images, setImages] = useState<Partial<Record<MarkerView, string | null>>>({});
@@ -205,6 +206,12 @@ export function DamagePhotoMap({ vehicle, markers, onAdd, onRemove }: Props) {
         onPointerCancel={() => { drag.current = null; }}
         aria-label={t("Trascina per ruotare il veicolo, tocca per segnare un danno")}
       >
+        <div className="studio-floor" aria-hidden="true" />
+        {plate && (
+          <span className="plate-badge" aria-label={`${t("Targa")} ${plate}`}>
+            <i aria-hidden="true">I</i><b>{plate.toUpperCase()}</b>
+          </span>
+        )}
         {image ? (
           <img src={image} alt={`${make} ${model} · ${t(viewNames[view])}`} draggable={false} />
         ) : image === null || disabled || !ready ? <Silhouette view={view} /> : <div className="damage-loading">{t("Caricamento…")}</div>}
