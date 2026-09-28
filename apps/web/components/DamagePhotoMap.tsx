@@ -1,6 +1,7 @@
 "use client";
 
 import { PointerEvent, useEffect, useRef, useState } from "react";
+import type { ReactElement } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiFetch } from "../lib/api";
 import { bestView, partPoints, partZone, zoneNames } from "../lib/partZones";
@@ -149,28 +150,92 @@ function Plate({ spot, plate, editing, onMove }: {
   );
 }
 
-// Car raised on a two-post lift (mechanical jobs): posts, arms under the sills, shadow on the floor.
+// Car raised on a two-post lift (mechanical jobs). The camera orbits: the lift is projected
+// from the current angle, so posts, arms and base plate move around the car as it turns.
 const LIFT_RISE = 0.28; // car raised to this share of the scene height
 
-function LiftRig({ stageWidth, stageHeight, sceneHeight }: { stageWidth: number; stageHeight: number; sceneHeight: number }) {
-  if (!stageWidth || !stageHeight || !sceneHeight) return null;
-  const span = stageWidth * 0.62;
-  // Posts stand on the floor (rig from 6% below the top, posts leave 6% at the bottom): arms just under the sills.
-  const rigHeight = sceneHeight * 0.94;
-  const armBottom = sceneHeight * LIFT_RISE - rigHeight * 0.06 + stageHeight * 0.13;
+type LiftShape = { key: string; depth: number; element: ReactElement };
+
+function LiftRig({ angle, sceneWidth, sceneHeight, stageHeight }: { angle: number; sceneWidth: number; sceneHeight: number; stageHeight: number }) {
+  if (!sceneWidth || !sceneHeight || !stageHeight) return null;
+  const a = (angle * Math.PI) / 180;
+  const cx = sceneWidth / 2;
+  const floorY = sceneHeight * 0.9;
+  const tilt = 0.12; // how much depth moves things down on screen
+  const d = stageHeight * 0.95; // posts: half distance across the car
+  const length = stageHeight * 1.05; // arms reach this far along the car
+  // Car frame: u = towards the car's left, v = towards its nose. Screen x and depth (towards camera).
+  const project = (u: number, v: number) => ({ x: cx + u * Math.cos(a) - v * Math.sin(a), z: u * Math.sin(a) + v * Math.cos(a) });
+  const scale = (z: number) => 1 + (0.16 * z) / d;
+  const armY = sceneHeight * (1 - LIFT_RISE) - stageHeight * 0.1;
+  const postTop = sceneHeight * 0.06;
+  const shapes: LiftShape[] = [];
+
+  // Base plate on the floor (rotates with the camera).
+  const corners = [[-1.1 * d, -length], [1.1 * d, -length], [1.1 * d, length], [-1.1 * d, length]].map(([u, v]) => project(u, v));
+  const plate = corners.map((p) => `${p.x},${floorY + p.z * tilt}`).join(" ");
+  shapes.push({ key: "plate", depth: -1e6, element: <polygon key="plate" points={plate} fill="url(#lift-stripes)" opacity="0.85" /> });
+  shapes.push({ key: "shadow", depth: -1e5, element: <ellipse key="shadow" cx={cx} cy={floorY} rx={stageHeight * 1.1} ry={stageHeight * 0.12} fill="url(#lift-shadow)" /> });
+
+  for (const side of [1, -1]) {
+    const post = project(side * d, 0);
+    const k = scale(post.z);
+    const baseY = floorY + post.z * tilt;
+    const width = 16 * k;
+    shapes.push({
+      key: `post${side}`, depth: post.z,
+      element: (
+        <g key={`post${side}`} opacity={post.z > d * 0.2 ? (Math.abs(post.x - cx) < d * 0.6 ? 0.35 : 0.7) : 1}>
+          <rect x={post.x - width * 1.4} y={baseY - 4 * k} width={width * 2.8} height={8 * k} rx={2} fill="#2a2f36" />
+          <rect x={post.x - width / 2} y={postTop + (post.z * tilt) / 3} width={width} height={baseY - postTop - (post.z * tilt) / 3} rx={3} fill="url(#lift-post)" />
+          <rect x={post.x - width * 0.12} y={postTop + 10} width={width * 0.24} height={baseY - postTop - 20} fill="#4a0814" opacity="0.8" />
+        </g>
+      ),
+    });
+    for (const end of [1, -1]) {
+      const tip = project(side * d * 0.35, end * length * 0.45);
+      const from = { x: post.x, y: armY + (post.z * tilt) / 2 };
+      const to = { x: tip.x, y: armY + (tip.z * tilt) / 2 };
+      const depth = (post.z + tip.z) / 2;
+      const k2 = scale(depth);
+      shapes.push({
+        key: `arm${side}${end}`, depth,
+        element: (
+          <g key={`arm${side}${end}`}>
+            <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="url(#lift-arm)" strokeWidth={8 * k2} strokeLinecap="round" />
+            <rect x={to.x - 7 * k2} y={to.y - 9 * k2} width={14 * k2} height={7 * k2} rx={2} fill="#1b1f24" />
+          </g>
+        ),
+      });
+    }
+    shapes.push({ key: `carriage${side}`, depth: post.z + 1, element: <rect key={`carriage${side}`} x={post.x - width * 0.9} y={armY + (post.z * tilt) / 2 - 9 * k} width={width * 1.8} height={18 * k} rx={3} fill="url(#lift-arm)" /> });
+  }
+
+  shapes.sort((first, second) => first.depth - second.depth);
+  const defs = (
+    <defs>
+      <pattern id="lift-stripes" width="24" height="24" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="12" height="24" fill="#f2c313" /><rect x="12" width="12" height="24" fill="#1b1f24" />
+      </pattern>
+      <radialGradient id="lift-shadow"><stop offset="0" stopColor="#000" stopOpacity="0.55" /><stop offset="1" stopColor="#000" stopOpacity="0" /></radialGradient>
+      <linearGradient id="lift-post" x1="0" x2="1"><stop offset="0" stopColor="#7a0c1c" /><stop offset="0.4" stopColor="#c8102e" /><stop offset="0.6" stopColor="#e0354a" /><stop offset="1" stopColor="#8d0e21" /></linearGradient>
+      <linearGradient id="lift-arm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#d9dde2" /><stop offset="1" stopColor="#6f7780" /></linearGradient>
+    </defs>
+  );
+  // Parts farther than the car go behind it, nearer parts in front of it.
+  const behind = shapes.filter((shape) => shape.depth <= d * 0.2);
+  const inFront = shapes.filter((shape) => shape.depth > d * 0.2);
+  const layer = (items: LiftShape[], className: string) => (
+    <svg className={className} viewBox={`0 0 ${sceneWidth} ${sceneHeight}`} width={sceneWidth} height={sceneHeight} aria-hidden="true">
+      {defs}
+      {items.map((shape) => shape.element)}
+    </svg>
+  );
   return (
-    <div className="lift-rig" aria-hidden="true" style={{ width: span * 2 }}>
-      <div className="lift-floor-plate" />
-      <div className="lift-shadow" style={{ width: stageWidth * 0.8 }} />
-      {["left", "right"].map((side) => (
-        <div key={side} className={`lift-post ${side}`}>
-          <div className="lift-carriage" style={{ bottom: armBottom }}>
-            <span className="lift-arm front" style={{ width: span * 0.62 }}><i /></span>
-            <span className="lift-arm back" style={{ width: span * 0.5 }}><i /></span>
-          </div>
-        </div>
-      ))}
-    </div>
+    <>
+      {layer(behind, "lift-layer back")}
+      {layer(inFront, "lift-layer front")}
+    </>
   );
 }
 
@@ -537,9 +602,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         onPointerCancel={() => { drag.current = null; }}
         aria-label={onAdd ? t("Trascina per ruotare il veicolo, tocca per segnare un danno") : t("Trascina per ruotare il veicolo")}
       >
-        <div className="workshop-wall" aria-hidden="true" />
+        <div className="workshop-wall" aria-hidden="true" style={{ backgroundPositionX: `calc(50% + ${(-angle / 360) * stageSize.width * 1.6}px)` }} />
         <div className="workshop-floor" aria-hidden="true" />
-        {lift && <LiftRig stageWidth={stageWidth} stageHeight={stageHeight} sceneHeight={stageSize.height} />}
+        {lift && <LiftRig angle={angle} sceneWidth={stageSize.width} sceneHeight={stageSize.height} stageHeight={stageHeight} />}
         {!roof && !lift && (
           <div className="turntable" aria-hidden="true" style={{ transform: `translateX(-50%) perspective(700px) rotateX(74deg) rotateZ(${normalizeAngle(angle)}deg)` }} />
         )}

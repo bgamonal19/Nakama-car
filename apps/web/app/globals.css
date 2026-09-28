@@ -1480,29 +1480,11 @@ button.damage-dot { border: 0; cursor: pointer; }
 .part-photos img { width: 38px; height: 38px; object-fit: cover; border-radius: 6px; display: block; }
 @media (max-width: 560px) { .parts-list li { grid-template-columns: auto 1fr; } .parts-list li small, .parts-list li .part-photos { grid-column: 2; } }
 
-/* Mechanical scene: car raised on a two-post lift */
-.damage-canvas.lift-scene { --lift-rise: 28%; }
-.damage-canvas.lift-scene .car-stage { bottom: var(--lift-rise); }
-.damage-canvas.lift-scene .workshop-floor { background:
-  linear-gradient(180deg, #2b333c 0%, #1b2128 100%); }
-.lift-rig { position: absolute; left: 50%; bottom: 0; top: 6%; transform: translateX(-50%); pointer-events: none; z-index: 1; }
-.lift-floor-plate { position: absolute; left: -2%; right: -2%; bottom: 4%; height: 7%; border-radius: 4px;
-  background: repeating-linear-gradient(-45deg, #f2c313 0 12px, #1b1f24 12px 24px); opacity: .85; box-shadow: 0 6px 14px rgba(0,0,0,.5); }
-.lift-shadow { position: absolute; left: 50%; bottom: 8%; height: 7%; transform: translateX(-50%); border-radius: 50%;
-  background: radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.25) 45%, rgba(0,0,0,0) 72%); }
-.lift-post { position: absolute; top: 0; bottom: 6%; width: 4.2%; min-width: 16px; border-radius: 4px 4px 0 0;
-  background: linear-gradient(90deg, #7a0c1c 0%, #c8102e 35%, #e0354a 55%, #9d0f24 100%); box-shadow: 0 8px 18px rgba(0,0,0,.5); }
-.lift-post::before { content: ""; position: absolute; left: 50%; top: 6%; bottom: 6%; width: 18%; transform: translateX(-50%); border-radius: 3px; background: repeating-linear-gradient(180deg, #3a0610 0 6px, #5a0a18 6px 9px); }
-.lift-post::after { content: ""; position: absolute; left: -35%; right: -35%; bottom: -6%; height: 5%; border-radius: 3px; background: #2a2f36; }
-.lift-post.left { left: 0; }
-.lift-post.right { right: 0; }
-.lift-carriage { position: absolute; left: -10%; right: -10%; height: 7%; min-height: 18px; border-radius: 3px; background: linear-gradient(180deg, #d9dde2, #8a929b); box-shadow: 0 3px 8px rgba(0,0,0,.45); }
-.lift-arm { position: absolute; top: 30%; height: 42%; min-height: 7px; border-radius: 3px; background: linear-gradient(180deg, #c7cdd3, #6f7780); box-shadow: 0 3px 6px rgba(0,0,0,.4); }
-.lift-arm i { position: absolute; top: -90%; width: 14px; height: 90%; min-height: 7px; border-radius: 2px 2px 0 0; background: #1b1f24; }
-.lift-post.left .lift-arm { left: 100%; transform-origin: left center; }
-.lift-post.left .lift-arm i { right: 0; }
-.lift-post.right .lift-arm { right: 100%; transform-origin: right center; }
-.lift-post.right .lift-arm i { left: 0; }
-.lift-post.left .lift-arm.back { transform: translateY(40%) rotate(-7deg); opacity: .8; }
-.lift-post.right .lift-arm.back { transform: translateY(40%) rotate(7deg); opacity: .8; }
+/* Mechanical scene: car raised on a two-post lift, camera orbiting around it */
+.damage-canvas.lift-scene .car-stage { bottom: 28%; }
+.damage-canvas.lift-scene .workshop-floor { background: linear-gradient(180deg, #2b333c 0%, #1b2128 100%); }
 .damage-canvas.lift-scene .car-stage img { filter: drop-shadow(0 10px 8px rgba(0,0,0,.35)); }
+.lift-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.lift-layer.back { z-index: 1; }
+.lift-layer.front { z-index: 3; }
+.workshop-wall { background-repeat: repeat-x; }
