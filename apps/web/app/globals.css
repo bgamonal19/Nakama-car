@@ -1110,3 +1110,61 @@ button.damage-dot { border: 0; cursor: pointer; }
 .vehicle-plate b { flex: 1; display: grid; place-items: center; color: #1c1e21; font-weight: 700; font-size: 66cqh; letter-spacing: .06em; white-space: nowrap; }
 .damage-canvas.workshop-scene .damage-pin { z-index: 4; }
 [data-theme="dark"] .damage-canvas.workshop-scene { background: #0d1621; }
+
+/* Customer tracking link + chat */
+.button-link { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 14px; border-radius: 10px; background: var(--nakama-navy, #0b2a4a); color: #fff; font-weight: 700; font-size: 13px; text-decoration: none; }
+.button-link.secondary { background: transparent; color: inherit; border: 1px solid var(--line, #d5dde6); }
+.button-link.whatsapp { background: #1fa855; }
+.tracking-share { display: grid; gap: 8px; }
+.tracking-share input { width: 100%; font-size: 13px; }
+.tracking-share-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.chat-thread { display: grid; gap: 8px; margin-top: 10px; }
+.chat-messages { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow-y: auto; padding: 10px; border: 1px solid var(--line, #e3e7ec); border-radius: 14px; background: rgba(11, 42, 74, .03); }
+.chat-empty { color: #8a8f95; font-size: 13px; text-align: center; margin: 8px 0; }
+.chat-bubble { max-width: 82%; padding: 8px 12px; border-radius: 14px; background: #fff; border: 1px solid #e3e7ec; align-self: flex-start; }
+.chat-bubble.mine { align-self: flex-end; background: #0b2a4a; color: #fff; border-color: #0b2a4a; }
+.chat-bubble small { display: block; font-size: 10px; opacity: .7; margin-bottom: 2px; }
+.chat-bubble p { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.4; }
+.chat-bubble em { display: block; text-align: right; font-size: 10px; opacity: .6; font-style: normal; }
+.chat-compose { display: flex; gap: 8px; align-items: flex-end; }
+.chat-compose textarea { flex: 1; resize: none; min-height: 44px; font: inherit; font-size: 14px; }
+.chat-compose button { min-height: 44px; }
+[data-theme="dark"] .chat-bubble:not(.mine) { background: #13263a; border-color: #2c4258; }
+.tracking-page .public-card { width: min(640px, 100%); }
+.tracking-page .public-head { flex-wrap: wrap; }
+.tracking-vehicle { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; color: #50565d; font-size: 14px; }
+.plate-chip { display: inline-block; padding: 2px 8px; border: 2px solid #1b1f24; border-left: 8px solid #1f4aa0; border-radius: 4px; font-weight: 800; letter-spacing: .06em; font-size: 13px; color: #111; background: #fff; }
+.public-status.ready { background: #1fa855; color: #fff; border-color: #1fa855; }
+.tracking-missing { font-size: 22px; margin: 22px 0 8px; }
+.tracking-steps { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; padding: 0; margin: 4px 0 10px; }
+.tracking-steps li { display: grid; justify-items: center; gap: 6px; text-align: center; font-size: 11px; color: #8a8f95; position: relative; }
+.tracking-steps li::before { content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 3px; background: #e3e7ec; z-index: 0; }
+.tracking-steps li:first-child::before { display: none; }
+.tracking-steps li.done::before, .tracking-steps li.current::before { background: #1fa855; }
+.tracking-steps i { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #e3e7ec; color: #fff; font-style: normal; font-weight: 800; z-index: 1; }
+.tracking-steps li.done { color: #1d6b3a; }
+.tracking-steps li.done i { background: #1fa855; }
+.tracking-steps li.current { color: #0b2a4a; font-weight: 800; }
+.tracking-steps li.current i { background: #0b2a4a; box-shadow: 0 0 0 5px rgba(11, 42, 74, .15); }
+.tracking-section { border-top: 1px solid #e7e9ec; padding: 18px 0 4px; }
+.tracking-section h2 { font-size: 16px; margin: 0 0 10px; }
+.tracking-section-head { display: flex; justify-content: space-between; align-items: center; }
+.tracking-bar { height: 8px; border-radius: 99px; background: #e3e7ec; overflow: hidden; margin-bottom: 12px; }
+.tracking-bar span { display: block; height: 100%; background: linear-gradient(90deg, #1fa855, #58c982); border-radius: 99px; transition: width .6s; }
+.tracking-tasks { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 14px; }
+.tracking-tasks li { display: flex; gap: 10px; align-items: center; }
+.tracking-tasks i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; background: #eef1f4; color: #8a8f95; flex: 0 0 22px; }
+.tracking-tasks li.done { color: #6b7178; text-decoration: line-through; text-decoration-color: rgba(0,0,0,.25); }
+.tracking-tasks li.done i { background: #1fa855; color: #fff; }
+.tracking-tasks li.in_progress i { background: #0b2a4a; color: #fff; }
+.tracking-tasks li.blocked i { background: #ba7517; color: #fff; }
+.tracking-estimate { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tracking-workshop { border-top: 1px solid #e7e9ec; margin-top: 18px; padding-top: 14px; display: grid; gap: 4px; font-size: 13px; color: #50565d; }
+.tracking-workshop div { display: flex; flex-wrap: wrap; gap: 14px; }
+.tracking-workshop a { color: #0b2a4a; font-weight: 700; text-decoration: none; }
+@media (max-width: 560px) {
+  .tracking-steps { grid-template-columns: repeat(3, 1fr); row-gap: 14px; }
+  .tracking-steps li:nth-child(4)::before { display: none; }
+  .public-estimate.tracking-page { padding: 14px 10px; }
+  .tracking-page .public-card { padding: 18px; }
+}

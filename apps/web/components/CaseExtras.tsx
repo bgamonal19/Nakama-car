@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, formatMoney, hasPermission } from "../lib/api";
 import { DamageMarker, DamagePhotoMap, VehicleLook } from "./DamagePhotoMap";
+import { CaseTracking } from "./CaseTracking";
 
 type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null };
 type EstimateSummary = { id: string; estimate_number: string; status: string; total: string; contract_name?: string | null };
@@ -113,6 +114,10 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
 
   return (
     <div className="case-extras">
+      <div className="case-extras-block">
+        <h3>{t("Cliente: link di avanzamento e chat")}</h3>
+        <CaseTracking caseId={caseId} plate={plate} />
+      </div>
       <div className="case-extras-block">
         <h3>{t("Mappa danni")}</h3>
         <DamagePhotoMap
