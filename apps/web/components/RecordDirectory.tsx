@@ -153,7 +153,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       {notice&&<p role="status">{notice}</p>}
       {selected&&<section className="panel record-editor" aria-label={words("Scheda","Ficha")}>
         <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
-        {kind==="cases"&&<p>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}</p>}
+        {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} />}
         <form className="record-form" onSubmit={save}>
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
@@ -168,11 +168,18 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       </section>}
       <section className="panel record-list" aria-busy={busy}>
         {busy?<div className="empty-state">{words("Caricamento…","Cargando…")}</div>:!error&&items.length===0?<div className="empty-state">{words("Nessun risultato.","No hay resultados.")}</div>:items.map(item=><div className="record-row" key={item.id}>
-          <div><strong>{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}</small></div>
+          <div><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}</small></div>
           <button className="secondary" disabled={opening||saving} onClick={()=>open(item)}>{words("Apri scheda","Abrir ficha")}</button>
         </div>)}
       </section>
       <div className="record-pagination"><button disabled={!offset||busy} onClick={()=>setOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><span>{words("Pagina","Página")} {offset/pageSize+1}</span><button disabled={items.length<pageSize||busy} onClick={()=>setOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div>
     </>}
   </SectionShell>;
+}
+
+/** Bodywork or mechanical job, recognisable at a glance in lists and records. */
+function WorkBadge({ type }: { type?: unknown }) {
+  const { t } = useLanguage();
+  const mechanical = type === "MECHANICAL";
+  return <span className={`work-badge ${mechanical ? "mechanical" : "body"}`}>{mechanical ? `🔧 ${t("Meccanica")}` : `🚗 ${t("Carrozzeria")}`}</span>;
 }
