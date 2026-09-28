@@ -1241,3 +1241,21 @@ button.damage-dot { border: 0; cursor: pointer; }
   .portal-accounts li { grid-template-columns: 1fr; }
   .portal-account-form { grid-template-columns: 1fr; }
 }
+
+/* Photos pinned on damages */
+.damage-pin.has-photo::after { content: "📷"; position: absolute; right: -12px; top: -12px; font-size: 11px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
+.damage-thumbs { display: inline-flex; gap: 4px; }
+.damage-thumbs button { border: 0; padding: 0; background: none; cursor: zoom-in; }
+.damage-thumbs img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; display: block; }
+.damage-photo-add { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 32px; padding: 0 8px; border: 1px dashed #9aa4ae; border-radius: 8px; cursor: pointer; font-size: 14px; }
+.damage-photo-add.highlight { border: 2px solid var(--nakama-red, #c8102e); color: var(--nakama-red, #c8102e); font-weight: 700; animation: pulse-add 1.2s ease-in-out 3; }
+@keyframes pulse-add { 50% { transform: scale(1.08); } }
+.photo-lightbox { position: fixed; inset: 0; z-index: 1000; background: rgba(5, 10, 16, .88); display: grid; place-items: center; padding: 16px; }
+.photo-lightbox figure { margin: 0; max-width: min(1100px, 100%); display: grid; gap: 10px; }
+.photo-lightbox img { max-width: 100%; max-height: 78vh; object-fit: contain; border-radius: 10px; background: #111; }
+.photo-lightbox figcaption { display: flex; align-items: center; gap: 8px; color: #fff; flex-wrap: wrap; }
+.photo-lightbox figcaption span { flex: 1; }
+.photo-lightbox figcaption button { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer; }
+.customer-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 10px; }
+.customer-photos button { border: 0; padding: 0; background: none; cursor: zoom-in; }
+.customer-photos img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; display: block; }

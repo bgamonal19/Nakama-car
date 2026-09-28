@@ -182,6 +182,10 @@ def delete_marker(
         db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="damage_marker", entity_id=marker.id,
         action="deleted", old_value={"view": marker.view, "operation": marker.operation, "area": marker.area_label},
     )
+    from app.models.media import Media
+
+    for media in db.scalars(select(Media).where(Media.damage_marker_id == marker.id, Media.tenant_id == auth.tenant_id)).all():
+        media.damage_marker_id = None
     db.delete(marker)
     db.commit()
     return None

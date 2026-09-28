@@ -5,7 +5,8 @@ import { useLanguage } from "../../components/LanguageProvider";
 import { NakamaLogo } from "../../components/NakamaLogo";
 import { PasswordInput } from "../../components/PasswordInput";
 import { ChatMessage, ChatThread } from "../../components/ChatThread";
-import { DamageMarker, DamagePhotoMap, MarkerView } from "../../components/DamagePhotoMap";
+import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../components/DamagePhotoMap";
+import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
 type Maintenance = {
@@ -71,6 +72,7 @@ export default function PortalPage() {
   const [openCase, setOpenCase] = useState<CaseProgress | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
+  const [photos, setPhotos] = useState<MapPhoto[]>([]);
   const [error, setError] = useState("");
   const [passwords, setPasswords] = useState({ current: "", next: "" });
   const [passwordNotice, setPasswordNotice] = useState("");
@@ -101,7 +103,9 @@ export default function PortalPage() {
     setOpenCase(null);
     setMessages([]);
     setMarkers([]);
+    setPhotos([]);
     if (!currentCaseId) return;
+    loadCustomerPhotos(() => portalFetch(`/portal/cases/${currentCaseId}/photos`), (id) => portalFetch(`/portal/cases/${currentCaseId}/photos/${id}`)).then(setPhotos);
     portalFetch(`/portal/cases/${currentCaseId}/damage-markers`).then(async (response) => { if (response.ok) setMarkers(await response.json()); }).catch(() => undefined);
     loadCase();
     const timer = window.setInterval(() => { if (!document.hidden) loadCase(); }, POLL_MS);
@@ -227,7 +231,9 @@ export default function PortalPage() {
                       plate={selected.license_plate}
                       markers={markers}
                       loadRender={loadRender}
+                      photos={photos}
                     />
+                    <OtherPhotos photos={photos} />
                   </>
                 )}
                 <h3>{t("Chat con l'officina")}</h3>

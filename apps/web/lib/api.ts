@@ -101,3 +101,14 @@ export function formatMoney(value: string | number | null | undefined) {
 export function customerLabel(customer: { company_name?: string | null; first_name?: string | null; last_name?: string | null }) {
   return customer.company_name || [customer.first_name, customer.last_name].filter(Boolean).join(" ");
 }
+
+/** Upload a photo of a repair case straight to the API (stored compressed with the case). */
+export async function uploadCasePhoto(caseId: string, file: File, category: string, damageMarkerId?: string) {
+  const params = new URLSearchParams({ category, filename: file.name.slice(0, 200) });
+  if (damageMarkerId) params.set("damage_marker_id", damageMarkerId);
+  return apiFetch(`/cases/${caseId}/media/direct?${params.toString()}`, {
+    method: "POST",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+}

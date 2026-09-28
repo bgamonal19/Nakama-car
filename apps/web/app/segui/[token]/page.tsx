@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { NakamaLogo } from "../../../components/NakamaLogo";
 import { ChatMessage, ChatThread } from "../../../components/ChatThread";
-import { DamageMarker, DamagePhotoMap, MarkerView } from "../../../components/DamagePhotoMap";
+import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../../components/DamagePhotoMap";
+import { loadCustomerPhotos, OtherPhotos } from "../../../components/CustomerPhotos";
 
 type Step = { code: string; label: string; done: boolean; current: boolean };
 type Tracking = {
@@ -47,6 +48,7 @@ export default function TrackingPage() {
   const [data, setData] = useState<Tracking | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
+  const [photos, setPhotos] = useState<MapPhoto[]>([]);
   const [state, setState] = useState<"loading" | "ok" | "missing">("loading");
   const base = `${api}/public/tracking/${params.token}`;
 
@@ -65,6 +67,7 @@ export default function TrackingPage() {
   useEffect(() => {
     if (!params.token || !api) return;
     fetch(`${base}/damage-markers`).then(async (response) => { if (response.ok) setMarkers(await response.json()); }).catch(() => undefined);
+    loadCustomerPhotos(() => fetch(`${base}/photos`), (id) => fetch(`${base}/photos/${id}`)).then(setPhotos);
   }, [params.token, base]);
 
   const loadRender = useCallback((view: MarkerView, version: string) => fetch(`${base}/renders/${view}?v=${version}`), [base]);
@@ -135,7 +138,7 @@ export default function TrackingPage() {
         </ol>
         <p className="hint">{t("Pratica")} {data.case_number} · {t("aggiornato")} {date(data.updated_at)}</p>
 
-        {(markers.length > 0 || (data.vehicle.make && data.vehicle.model)) && (
+        {(markers.length > 0 || photos.length > 0 || (data.vehicle.make && data.vehicle.model)) && (
           <section className="tracking-section">
             <h2>{t("Danni e interventi sul veicolo")}</h2>
             <p className="hint">{markers.length ? t("Gira l'auto trascinandola: i numeri indicano i punti su cui interveniamo.") : t("Nessun danno segnato sul veicolo.")}</p>
@@ -144,7 +147,9 @@ export default function TrackingPage() {
               plate={data.vehicle.license_plate}
               markers={markers}
               loadRender={loadRender}
+              photos={photos}
             />
+            <OtherPhotos photos={photos} />
           </section>
         )}
 

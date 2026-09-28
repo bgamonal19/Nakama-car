@@ -6,7 +6,7 @@ import { DamageMarker, DamagePhotoMap, operationStyle } from "../components/Dama
 import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch, getAccessToken, clearSession, customerLabel } from "../lib/api";
+import { apiFetch, getAccessToken, clearSession, customerLabel, uploadCasePhoto } from "../lib/api";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -482,43 +482,10 @@ export default function HomePage() {
       let mediaWarning = "";
       for (const [category, file] of Object.entries(photos)) {
         try {
-          const targetResponse = await apiFetch(`/cases/${savedCase.id}/media/upload-target`, {
-            method: "POST",
-            body: JSON.stringify({
-              filename: file.name,
-              mime_type: file.type || "image/jpeg",
-              category,
-              media_type: "PHOTO",
-            }),
-          });
-          if (!targetResponse.ok) {
-            mediaWarning = "Foto non caricate: storage S3 non ancora configurato.";
-            break;
-          }
-          const target = await targetResponse.json();
-          const uploadResponse = await fetch(target.upload_url, {
-            method: "PUT",
-            headers: { "Content-Type": file.type || "image/jpeg" },
-            body: file,
-          });
-          if (!uploadResponse.ok) {
-            mediaWarning = "Alcune foto non sono state caricate.";
-            continue;
-          }
-          const registerResponse = await apiFetch(`/cases/${savedCase.id}/media`, {
-            method: "POST",
-            body: JSON.stringify({
-              storage_key: target.storage_key,
-              original_filename: file.name,
-              mime_type: file.type || "image/jpeg",
-              size_bytes: file.size,
-              category,
-              media_type: "PHOTO",
-            }),
-          });
-          if (!registerResponse.ok) mediaWarning = "Alcune foto non sono state registrate.";
+          const saved = await uploadCasePhoto(savedCase.id, file, category);
+          if (!saved.ok) mediaWarning = "Alcune foto non sono state caricate.";
         } catch {
-          mediaWarning = "Foto non caricate: verifica lo storage.";
+          mediaWarning = "Alcune foto non sono state caricate.";
         }
       }
 

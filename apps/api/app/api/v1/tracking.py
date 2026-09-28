@@ -188,3 +188,15 @@ def public_markers(token: str, db: Session = Depends(get_db)):
 def public_render(token: str, view: str = VIEW, db: Session = Depends(get_db)):
     _, case = public_case(db, token)
     return tracking.case_render(db, case, view)
+
+
+@router.get("/public/tracking/{token}/photos")
+def public_photos(token: str, db: Session = Depends(get_db)):
+    _, case = public_case(db, token)
+    return tracking.customer_photos(db, case)
+
+
+@router.get("/public/tracking/{token}/photos/{media_id}")
+def public_photo(token: str, media_id: UUID, db: Session = Depends(get_db)):
+    _, case = public_case(db, token)
+    return tracking.customer_photo_content(db, case, media_id)

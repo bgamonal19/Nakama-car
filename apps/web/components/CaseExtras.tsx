@@ -2,11 +2,11 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
-import { apiError, apiFetch, formatMoney, hasPermission } from "../lib/api";
-import { DamageMarker, DamagePhotoMap, VehicleLook } from "./DamagePhotoMap";
+import { apiError, apiFetch, formatMoney, hasPermission, uploadCasePhoto } from "../lib/api";
+import { DamageMarker, DamagePhotoMap, MapPhoto, VehicleLook } from "./DamagePhotoMap";
 import { CaseTracking } from "./CaseTracking";
 
-type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null };
+type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null; damage_marker_id?: string | null; in_database?: boolean };
 type EstimateSummary = { id: string; estimate_number: string; status: string; total: string; contract_name?: string | null };
 
 const categories = ["DAMAGE", "FRONT", "REAR", "LEFT", "RIGHT", "INTERIOR", "ODOMETER", "VIN", "DOCUMENT", "OTHER"];
@@ -32,10 +32,19 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
     }
   }
 
-  async function addMarker(marker: Omit<DamageMarker, "id">) {
+  async function addMarker(marker: Omit<DamageMarker, "id">): Promise<DamageMarker | void> {
     const response = await apiFetch(`/cases/${caseId}/damage-markers`, { method: "POST", body: JSON.stringify(marker) });
-    if (response.ok) await loadMarkers();
-    else setMessage(await apiError(response, "Impossibile salvare il danno."));
+    if (!response.ok) { setMessage(await apiError(response, "Impossibile salvare il danno.")); return; }
+    const created = await response.json();
+    await loadMarkers();
+    return { ...created, x: Number(created.x), y: Number(created.y) };
+  }
+
+  async function attachPhoto(marker: DamageMarker, file: File) {
+    setMessage("");
+    const response = await uploadCasePhoto(caseId, file, "DAMAGE", marker.id);
+    if (!response.ok) { setMessage(await apiError(response, "Caricamento non riuscito.")); return; }
+    await loadMedia();
   }
 
   async function removeMarker(marker: DamageMarker) {
@@ -51,11 +60,19 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
     const resolved: Record<string, string> = {};
     let storageMissing = false;
     await Promise.all(items.map(async (item) => {
+      if (item.in_database) {
+        const content = await apiFetch(`/cases/${caseId}/media/${item.id}/content`);
+        if (content.ok) resolved[item.id] = URL.createObjectURL(await content.blob());
+        return;
+      }
       const access = await apiFetch(`/cases/${caseId}/media/${item.id}/access-url`);
       if (access.ok) resolved[item.id] = (await access.json()).url;
       else if (access.status === 503) storageMissing = true;
     }));
-    setUrls(resolved);
+    setUrls((previous) => {
+      Object.values(previous).forEach((url) => { if (url.startsWith("blob:")) URL.revokeObjectURL(url); });
+      return resolved;
+    });
     if (storageMissing) setMessage("Archivio foto (S3) non configurato: le foto registrate non sono visualizzabili.");
   }
 
@@ -89,19 +106,7 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
     setMessage("");
     try {
       for (const file of files) {
-        const mime = file.type || "image/jpeg";
-        const target = await apiFetch(`/cases/${caseId}/media/upload-target`, {
-          method: "POST",
-          body: JSON.stringify({ filename: file.name, mime_type: mime, category, media_type: "PHOTO" }),
-        });
-        if (!target.ok) throw new Error(target.status === 503 ? "Archivio foto (S3) non configurato." : await apiError(target, "Caricamento non riuscito."));
-        const { upload_url, storage_key } = await target.json();
-        const put = await fetch(upload_url, { method: "PUT", headers: { "Content-Type": mime }, body: file });
-        if (!put.ok) throw new Error("Caricamento non riuscito.");
-        const saved = await apiFetch(`/cases/${caseId}/media`, {
-          method: "POST",
-          body: JSON.stringify({ storage_key, original_filename: file.name, mime_type: mime, size_bytes: file.size, category, media_type: "PHOTO" }),
-        });
+        const saved = await uploadCasePhoto(caseId, file, category);
         if (!saved.ok) throw new Error(await apiError(saved, "Caricamento non riuscito."));
       }
       await loadMedia();
@@ -111,6 +116,10 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
       setUploading(false);
     }
   }
+
+  const mapPhotos: MapPhoto[] = media
+    .filter((item) => urls[item.id] && item.category !== "DOCUMENT")
+    .map((item) => ({ id: item.id, url: urls[item.id], markerId: item.damage_marker_id, category: item.category }));
 
   return (
     <div className="case-extras">
@@ -126,6 +135,8 @@ export function CaseExtras({ caseId, plate }: { caseId: string; plate?: string }
           markers={markers}
           onAdd={canEdit ? addMarker : undefined}
           onRemove={canEdit ? removeMarker : undefined}
+          photos={mapPhotos}
+          onAttachPhoto={canEdit ? attachPhoto : undefined}
         />
       </div>
       <div className="case-extras-block">

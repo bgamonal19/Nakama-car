@@ -31,9 +31,16 @@ class MediaCreate(BaseModel):
 class MediaRead(MediaCreate):
     id: UUID
     repair_case_id: UUID
+    damage_marker_id: UUID | None = None
+    in_database: bool = False
     model_config = ConfigDict(from_attributes=True)
 
 
 class MediaAccessUrl(BaseModel):
     url: str
     expires_in: int
+
+
+class MediaLink(BaseModel):
+    damage_marker_id: UUID | None = None
+    category: MediaCategory | None = None

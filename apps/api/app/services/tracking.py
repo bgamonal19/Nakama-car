@@ -212,3 +212,41 @@ def case_render(db: Session, case: RepairCase, view: str):
     if vehicle is None or not (vehicle.make and vehicle.model):
         raise HTTPException(status_code=404, detail="Vehicle not in render catalog")
     return serve_render(db, case.tenant_id, make=vehicle.make, model=vehicle.model, year=vehicle.year, color=vehicle.color_name, view=view)
+
+
+CUSTOMER_PHOTO_EXCLUDED = ("DOCUMENT",)
+
+
+def customer_photos(db: Session, case: RepairCase) -> list[dict]:
+    """Photos of the case the customer may see (vehicle and damage pictures, no documents)."""
+    from app.models.media import DB_STORAGE_PREFIX, Media, MediaType
+
+    photos = db.scalars(
+        select(Media)
+        .where(
+            Media.repair_case_id == case.id, Media.tenant_id == case.tenant_id, Media.media_type == MediaType.PHOTO,
+            Media.storage_key.startswith(DB_STORAGE_PREFIX),
+        )
+        .order_by(Media.created_at, Media.id)
+    ).all()
+    return [
+        {
+            "id": str(photo.id), "category": photo.category.value,
+            "damage_marker_id": str(photo.damage_marker_id) if photo.damage_marker_id else None,
+            "created_at": photo.created_at,
+        }
+        for photo in photos if photo.category.value not in CUSTOMER_PHOTO_EXCLUDED
+    ]
+
+
+def customer_photo_content(db: Session, case: RepairCase, media_id):
+    from fastapi import HTTPException, Response
+
+    from app.models.media import Media, MediaType
+
+    photo = db.scalar(select(Media).where(
+        Media.id == media_id, Media.repair_case_id == case.id, Media.tenant_id == case.tenant_id, Media.media_type == MediaType.PHOTO,
+    ))
+    if photo is None or photo.category.value in CUSTOMER_PHOTO_EXCLUDED or not photo.in_database or not photo.content:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return Response(content=photo.content, media_type=photo.mime_type or "image/webp", headers={"Cache-Control": "private, max-age=86400"})
