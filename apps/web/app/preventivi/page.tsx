@@ -142,7 +142,7 @@ export default function PreventiviPage() {
   }
 
   return (
-    <SectionShell title={t("Preventivi")} eyebrow={t("ESTIMATING ENGINE")} actions={<a className="primary link-button" href="/?new=practice">{t("+ Nuovo preventivo")}</a>}>
+    <SectionShell title={t("Preventivi")} eyebrow={t("ESTIMATING ENGINE")} actions={<a className="primary link-button" href="/?new=estimate">{t("+ Nuovo preventivo")}</a>}>
       {!signedIn ? (
         <div className="empty-state">{t("Accedi per visualizzare i preventivi.")} <a href="/login">{t("Accedi")}</a></div>
       ) : (

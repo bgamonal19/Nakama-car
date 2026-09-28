@@ -1383,3 +1383,21 @@ button.damage-dot { border: 0; cursor: pointer; }
 @media (max-width: 560px) {
   .chat-bubble-panel { left: 8px !important; right: 8px !important; top: auto !important; bottom: 8px !important; width: auto; max-height: 82vh; }
 }
+
+/* "Nuovo preventivo" chooser */
+.estimate-chooser { width: min(620px, calc(100vw - 24px)); max-height: 88vh; overflow-y: auto; background: var(--panel, #fff); border-radius: 18px; padding: 18px; display: grid; gap: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.35); }
+.estimate-chooser .panel-head h2 { margin: 0; }
+.chooser-option { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 14px; border: 2px solid #1257a0; background: #f0f6fd; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.chooser-option b { width: 42px; height: 42px; border-radius: 50%; background: #1257a0; color: #fff; display: grid; place-items: center; font-size: 22px; flex: 0 0 42px; }
+.chooser-option span, .chooser-section { display: grid; gap: 4px; }
+.chooser-option small, .chooser-section > small { color: #62666d; }
+.chooser-section { border: 2px solid #0b8a52; border-radius: 14px; padding: 14px; }
+.chooser-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.chooser-list button { width: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid #e3e7ec; border-radius: 12px; background: #fff; cursor: pointer; font: inherit; color: inherit; text-align: left; }
+.chooser-list button:hover:not(:disabled) { border-color: #0b8a52; background: #f1fbf5; }
+.chooser-text { display: grid; min-width: 0; }
+.chooser-text small { color: #62666d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chooser-go { font-weight: 800; color: #0b8a52; font-size: 13px; white-space: nowrap; }
+[data-theme="dark"] .chooser-option { background: #10233a; }
+[data-theme="dark"] .chooser-list button { background: #0f1d2c; border-color: #2c4258; }
+@media (max-width: 560px) { .chooser-go { display: none; } }

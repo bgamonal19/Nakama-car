@@ -8,6 +8,7 @@ import { useLanguage } from "../components/LanguageProvider";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, getAccessToken, clearSession, customerLabel, uploadCasePhoto } from "../lib/api";
 import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
+import { NewEstimateChooser } from "../components/NewEstimateChooser";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -118,6 +119,7 @@ export default function HomePage() {
   const [userName,setUserName] = useState("");
   const [search,setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
   const [step, setStep] = useState(0);
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
@@ -146,9 +148,9 @@ export default function HomePage() {
   const [lines, setLines] = useState<EstimateLine[]>([]);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("new") === "practice") {
-      setWizardOpen(true);
-    }
+    const requested = new URLSearchParams(window.location.search).get("new");
+    if (requested === "practice") setWizardOpen(true);
+    if (requested === "estimate") setChooserOpen(true);
     setAuthenticated(Boolean(getAccessToken()));
     try {const user=JSON.parse(localStorage.getItem("nakama_user")||"{}");setUserName([user.first_name,user.last_name].filter(Boolean).join(" "));}catch{}
     const api = process.env.NEXT_PUBLIC_API_URL;
@@ -581,7 +583,7 @@ export default function HomePage() {
 
         <div className="nakama-actions">
           <button className="nakama-action blue" onClick={() => setWizardOpen(true)}><b>▤</b><span><strong>{t("Nuova Pratica")}</strong><small>{t("Apri una nuova pratica")}</small></span></button>
-          <button className="nakama-action green" onClick={() => setWizardOpen(true)}><b>▦</b><span><strong>{t("Nuovo Preventivo")}</strong><small>{t("Crea un preventivo")}</small></span></button>
+          <button className="nakama-action green" onClick={() => setChooserOpen(true)}><b>▦</b><span><strong>{t("Nuovo Preventivo")}</strong><small>{t("Crea un preventivo")}</small></span></button>
           <a className="nakama-action red" href="/lavori"><b>⌁</b><span><strong>{t("Ordine di Lavoro")}</strong><small>{t("Invia in officina")}</small></span></a>
           <a className="nakama-action white" href="/clienti"><b>◎</b><span><strong>{t("Nuovo Cliente")}</strong><small>{t("Gestisci anagrafica")}</small></span></a>
           <a className="nakama-action white" href="/veicoli"><b>◇</b><span><strong>{t("Nuovo Veicolo")}</strong><small>{t("Consulta veicoli")}</small></span></a>
@@ -638,6 +640,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {chooserOpen && (
+        <NewEstimateChooser onClose={() => setChooserOpen(false)} onNewVehicle={() => { setChooserOpen(false); setWizardOpen(true); }} />
+      )}
       {wizardOpen && (
         <div className="modal-backdrop">
           <div className="wizard" role="dialog" aria-modal="true" aria-labelledby="intake-title">
