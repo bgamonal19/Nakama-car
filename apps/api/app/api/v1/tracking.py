@@ -90,13 +90,7 @@ def staff_send_message(case_id: UUID, payload: MessageCreate, db: Session = Depe
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     user = db.get(User, auth.user_id)
-    message = CaseMessage(
-        tenant_id=auth.tenant_id, repair_case_id=case.id, sender="WORKSHOP",
-        author_name=user.first_name if user else None, body=body,
-    )
-    db.add(message)
-    db.commit()
-    db.refresh(message)
+    message = tracking.new_message(db, case, sender="WORKSHOP", author_name=user.first_name if user else None, body=body)
     return tracking.message_dict(message)
 
 
@@ -168,10 +162,7 @@ def public_send_message(token: str, payload: MessageCreate, db: Session = Depend
         raise HTTPException(status_code=429, detail="Troppi messaggi: riprova tra poco.")
     customer = db.scalar(select(Customer).where(Customer.id == case.customer_id, Customer.tenant_id == case.tenant_id))
     name = (payload.author_name or "").strip() or tracking.customer_display_name(customer) or "Cliente"
-    message = CaseMessage(tenant_id=case.tenant_id, repair_case_id=case.id, sender="CUSTOMER", author_name=name[:120], body=body)
-    db.add(message)
-    db.commit()
-    db.refresh(message)
+    message = tracking.new_message(db, case, sender="CUSTOMER", author_name=name, body=body)
     return tracking.message_dict(message)
 
 

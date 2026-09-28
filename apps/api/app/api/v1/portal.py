@@ -385,10 +385,7 @@ def portal_send_message(case_id: UUID, payload: MessageCreate, db: Session = Dep
     if tracking.customer_messages_last_hour(db, case) >= tracking.CUSTOMER_MESSAGES_PER_HOUR:
         raise HTTPException(status_code=429, detail="Troppi messaggi: riprova tra poco.")
     account = db.get(PortalAccount, context.account_id)
-    message = CaseMessage(tenant_id=case.tenant_id, repair_case_id=case.id, sender="CUSTOMER", author_name=account.full_name[:120], body=body)
-    db.add(message)
-    db.commit()
-    db.refresh(message)
+    message = tracking.new_message(db, case, sender="CUSTOMER", author_name=account.full_name, body=body)
     return tracking.message_dict(message)
 
 

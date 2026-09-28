@@ -102,3 +102,24 @@ def test_registry_model_names_are_cleaned_for_the_catalog(client, monkeypatch):
     assert [call[1:3] for call in fake.calls] == [("A3 Sportback", 2013), ("A3 Sportback", None), ("A3", 2013)]
     assert c.get("/api/v1/renders/car?" + params).status_code == 200
     assert len(fake.calls) == 3
+
+
+def test_colour_names_fall_back_to_exact_paint():
+    assert carimage.normalize_color("Azzurro") == "#3fa7d6"
+    assert carimage.normalize_color("cyan") == "#3fa7d6"
+    assert carimage.normalize_color("Giallo") == "yellow"
+
+    class Provider(carimage.CarImageProvider):
+        def __init__(self):
+            super().__init__("key", "https://example.invalid")
+            self.colors = []
+
+        def _render(self, *, make, model, year, color, view):
+            self.colors.append(color)
+            if not color.startswith("#"):
+                raise carimage.RenderNotFound("colour name not accepted")
+            return PNG, "image/png"
+
+    provider = Provider()
+    assert provider.render(make="Fiat", model="Panda", year=None, color="purple", view="side")[0] == PNG
+    assert provider.colors == ["purple", "#5b2a86"]
