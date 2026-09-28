@@ -32,11 +32,38 @@ ITALIAN_COLORS = [
 ]
 
 
-PROCESSED_MIME = "image/webp; v=3"
+PROCESSED_MIME = "image/webp; v=4"
 
 
 def is_processed(mime: str | None) -> bool:
     return mime == PROCESSED_MIME
+
+
+def body_box(alpha) -> tuple[int, int, int, int] | None:
+    """Box of the car body in an alpha channel.
+
+    Faint shadows/halos are ignored and thin parts (roof antenna) are trimmed, so every
+    view is cropped to the body itself and the car keeps the same scale while turning.
+    """
+    from PIL import Image
+
+    mask = alpha.point(lambda value: 255 if value > 48 else 0)
+    box = mask.getbbox()
+    if not box:
+        return None
+    body = mask.crop(box)
+    rows = list(body.resize((1, body.height), Image.BOX).getdata())
+    cols = list(body.resize((body.width, 1), Image.BOX).getdata())
+
+    def span(values: list[int], share: float) -> tuple[int, int]:
+        limit = 255 * share
+        start = next((i for i, value in enumerate(values) if value >= limit), 0)
+        end = len(values) - next((i for i, value in enumerate(reversed(values)) if value >= limit), 0)
+        return (start, end) if end > start else (0, len(values))
+
+    top, bottom = span(rows, 0.06)
+    left, right = span(cols, 0.03)
+    return box[0] + left, box[1] + top, box[0] + right, box[1] + bottom
 
 
 def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
@@ -56,9 +83,7 @@ def to_webp(content: bytes, mime: str | None) -> tuple[bytes, str]:
         with Image.open(BytesIO(content)) as image:
             image.load()
             if image.mode in ("RGBA", "LA") or "transparency" in image.info:
-                alpha = image.convert("RGBA").getchannel("A")
-                # Ignore the faint shadow/halo some views carry across the whole frame.
-                box = alpha.point(lambda value: 255 if value > 48 else 0).getbbox()
+                box = body_box(image.convert("RGBA").getchannel("A"))
                 if box:
                     margin_x = round((box[2] - box[0]) * 0.04)
                     margin_y = round((box[3] - box[1]) * 0.08)

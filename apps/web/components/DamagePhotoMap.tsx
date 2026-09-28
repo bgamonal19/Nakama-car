@@ -38,12 +38,12 @@ export const operationStyle: Record<MarkerOperation, { label: string; color: str
 // sized to a real 520 mm EU plate on a ~1.65 m wide car),
 // with the turn of the plate for three-quarter views. Pure side and roof views have none.
 const platePlacement: Partial<Record<MarkerView, { x: number; y: number; width: number; turn: number }>> = {
-  "front": { x: 0.5, y: 0.66, width: 0.28, turn: 0 },
-  "rear": { x: 0.5, y: 0.63, width: 0.3, turn: 0 },
-  "front-3-4": { x: 0.23, y: 0.69, width: 0.26, turn: -40 },
-  "front-3-4-right": { x: 0.77, y: 0.69, width: 0.26, turn: 40 },
-  "rear-3-4": { x: 0.785, y: 0.63, width: 0.25, turn: 40 },
-  "rear-3-4-right": { x: 0.215, y: 0.63, width: 0.25, turn: -40 },
+  "front": { x: 0.5, y: 0.634, width: 0.28, turn: 0 },
+  "rear": { x: 0.5, y: 0.592, width: 0.3, turn: 0 },
+  "front-3-4": { x: 0.23, y: 0.673, width: 0.26, turn: -40 },
+  "front-3-4-right": { x: 0.771, y: 0.671, width: 0.26, turn: 40 },
+  "rear-3-4": { x: 0.786, y: 0.605, width: 0.25, turn: 40 },
+  "rear-3-4-right": { x: 0.215, y: 0.593, width: 0.25, turn: -40 },
 };
 
 /** Italian name of the zone touched, from the view and the relative position on the picture. */
@@ -274,7 +274,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
       return;
     }
     if (!onAdd || !settled) return;
-    const stage = event.currentTarget.querySelector<HTMLElement>(".car-stage");
+    const stage = event.currentTarget.querySelector<HTMLElement>(".car-frame");
     if (!stage) return;
     const box = stage.getBoundingClientRect();
     const x = (event.clientX - box.left) / box.width;
@@ -299,11 +299,15 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
         { code: ring[((base % ring.length) + ring.length) % ring.length], opacity: 1 - eased },
         { code: ring[(((base + 1) % ring.length) + ring.length) % ring.length], opacity: eased },
       ];
-  const ratio = ratios[view] || 5 / 3;
-  const maxWidth = stageSize.width * 0.9;
-  const maxHeight = stageSize.height * (roof ? 0.88 : 0.72);
-  const stageWidth = Math.min(maxWidth, maxHeight * ratio);
-  const stageHeight = stageWidth / ratio;
+  // Every picture is cropped to the car body, so drawing them all at the same height keeps
+  // the car at the same scale while it turns (the side views are just wider).
+  const ratio = ratios[view] || (view === "side" || view === "side-right" ? 2.1 : 1.5);
+  const widest = roof ? ratio : Math.max(2.2, ...ring.map((code) => ratios[code] || 0));
+  const maxWidth = stageSize.width * 0.92;
+  const maxHeight = stageSize.height * (roof ? 0.88 : 0.66);
+  const stageHeight = Math.min(maxHeight, maxWidth / widest);
+  const stageWidth = stageHeight * widest;
+  const frameWidth = stageHeight * ratio;
   const visible = settled || roof ? markers.filter((marker) => marker.view === view) : [];
   const loaded = ring.filter((code) => images[code]).length;
   const showPlate = Boolean(plate && images[view] && (settled || roof));
@@ -340,6 +344,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
             if (url === null || disabled || !ready) return <div key={code} className="stage-layer" style={{ opacity }}><Silhouette view={code} /></div>;
             return <div key={code} className="damage-loading stage-layer" style={{ opacity }}>{t("Caricamento…")}</div>;
           })}
+          <div className="car-frame" style={{ width: frameWidth || undefined }}>
           {showPlate && plate && <Plate view={view} plate={plate.toUpperCase()} />}
           {visible.map((marker) => (
             <span key={marker.id} className="damage-pin" style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
@@ -347,6 +352,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
             </span>
           ))}
           {pending && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
+          </div>
         </div>
       </div>
       <div className="turntable-dots" aria-hidden="true">

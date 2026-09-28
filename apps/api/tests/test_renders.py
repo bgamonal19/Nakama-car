@@ -59,3 +59,24 @@ def test_damage_markers_on_a_case(client):
     assert [m["operation"] for m in c.get(path).json()] == ["PAINT"]
     assert c.delete(f"{path}/{created.json()['id']}").status_code == 204
     assert c.get(path).json() == []
+
+
+def test_crop_trims_antenna_and_halo_to_the_body():
+    from io import BytesIO
+
+    from PIL import Image, ImageDraw
+
+    from app.providers.carimage import to_webp
+
+    image = Image.new("RGBA", (1000, 800), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((200, 400, 800, 600), fill=(255, 255, 255, 255))
+    draw.rectangle((600, 200, 603, 400), fill=(0, 0, 0, 255))  # roof antenna
+    draw.rectangle((0, 0, 999, 799), outline=(0, 0, 0, 20), width=30)  # faint halo
+    buffer = BytesIO()
+    image.save(buffer, format="PNG")
+    content, mime = to_webp(buffer.getvalue(), "image/png")
+    with Image.open(BytesIO(content)) as result:
+        assert result.size == (649, 233)
+    assert to_webp(content, "image/webp")[0] != b""
+    assert mime.startswith("image/webp")
