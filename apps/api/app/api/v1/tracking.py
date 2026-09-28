@@ -78,8 +78,8 @@ def revoke_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: Aut
 
 
 @router.get("/cases/{case_id}/messages")
-def staff_messages(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
-    return tracking.list_messages(db, get_case(db, auth.tenant_id, case_id), reader="WORKSHOP")
+def staff_messages(case_id: UUID, read: bool = True, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
+    return tracking.list_messages(db, get_case(db, auth.tenant_id, case_id), reader="WORKSHOP", read=read)
 
 
 @router.post("/cases/{case_id}/messages", status_code=status.HTTP_201_CREATED)
@@ -108,6 +108,12 @@ def unread_messages(db: Session = Depends(get_db), auth: AuthContext = Depends(r
         .group_by(RepairCase.id, RepairCase.case_number, Vehicle.license_plate)
         .order_by(func.max(CaseMessage.created_at).desc())
     ).all()
+    # The workshop app received them: customers see the double tick.
+    pending = db.scalars(select(CaseMessage).where(
+        CaseMessage.tenant_id == auth.tenant_id, CaseMessage.sender == "CUSTOMER", CaseMessage.delivered_at.is_(None),
+    )).all()
+    if tracking.mark_messages(pending, reader="WORKSHOP", read=False):
+        db.commit()
     return [
         {"repair_case_id": str(row[0]), "case_number": row[1], "plate": row[2], "unread": row[3], "last_at": row[4]}
         for row in rows
@@ -144,9 +150,9 @@ def public_tracking(token: str, db: Session = Depends(get_db)):
 
 
 @router.get("/public/tracking/{token}/messages")
-def public_messages(token: str, db: Session = Depends(get_db)):
+def public_messages(token: str, read: bool = True, db: Session = Depends(get_db)):
     _, case = public_case(db, token)
-    return tracking.list_messages(db, case, reader="CUSTOMER")
+    return tracking.list_messages(db, case, reader="CUSTOMER", read=read)
 
 
 @router.post("/public/tracking/{token}/messages", status_code=status.HTTP_201_CREATED)

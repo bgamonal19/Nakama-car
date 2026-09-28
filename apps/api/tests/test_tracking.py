@@ -99,3 +99,27 @@ def test_customer_sees_damage_map_without_internal_notes(client, monkeypatch):
     assert fake.calls == [("Fiat", "Panda", None, "white", "side")]
     assert c.get(public + "/renders/inside").status_code == 422
     assert c.get("/api/v1/public/tracking/wrong/renders/side").status_code == 404
+
+
+def test_message_ticks_sent_delivered_read(client):
+    c, _, _ = client
+    customer = c.post("/api/v1/customers", json={"first_name": "Carlos"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "AB123CD", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
+    token = c.post(f"/api/v1/cases/{case['id']}/tracking-link").json()["public_token"]
+    public = f"/api/v1/public/tracking/{token}/messages"
+
+    sent = c.post(public, json={"body": "Ciao"}).json()
+    assert sent["status"] == "sent"
+    assert c.get("/api/v1/messages/unread").json()[0]["unread"] == 1  # the workshop app received it
+    assert c.get(public + "?read=false").json()[0]["status"] == "delivered"
+    c.get(f"/api/v1/cases/{case['id']}/messages")  # the workshop opened the chat
+    assert c.get(public + "?read=false").json()[0]["status"] == "read"
+
+    reply = c.post(f"/api/v1/cases/{case['id']}/messages", json={"body": "Buongiorno"}).json()
+    assert reply["status"] == "sent"
+    c.get(public + "?read=false")  # customer page polling with the chat minimised
+    staff = c.get(f"/api/v1/cases/{case['id']}/messages").json()
+    assert staff[-1]["status"] == "delivered"
+    c.get(public)  # chat opened
+    assert c.get(f"/api/v1/cases/{case['id']}/messages").json()[-1]["status"] == "read"

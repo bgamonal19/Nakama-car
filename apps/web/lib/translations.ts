@@ -1144,7 +1144,10 @@ Object.assign(spanish, {
   "Impossibile salvare il colore.": "No se pudo guardar el color.",
   "Bianco": "Blanco", "Nero": "Negro", "Grigio": "Gris", "Argento": "Plata", "Blu": "Azul", "Azzurro": "Celeste",
   "Rosso": "Rojo", "Verde": "Verde", "Giallo": "Amarillo", "Arancione": "Naranja", "Marrone": "Marrón", "Beige": "Beige",
-  "Oro": "Oro", "Viola": "Morado"
+  "Oro": "Oro", "Viola": "Morado",
+  "Riduci la chat": "Minimizar el chat",
+  "Riduci chat": "Minimizar chat",
+  "nuovi messaggi": "mensajes nuevos"
 });
 
 export function translate(text: string, language: Language): string {
