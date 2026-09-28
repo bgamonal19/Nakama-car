@@ -45,6 +45,8 @@ class TenantSettings(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     email: Mapped[str | None] = mapped_column(String(255))
     logo_storage_key: Mapped[str | None] = mapped_column(String(512))
     estimate_validity_days: Mapped[int] = mapped_column(nullable=False, default=15)
+    # Workshop availability shown to customers in the chat: ONLINE | PAUSED | OFFLINE.
+    chat_status: Mapped[str] = mapped_column(String(12), nullable=False, default="ONLINE", server_default="ONLINE")
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):

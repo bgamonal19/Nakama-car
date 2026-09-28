@@ -123,3 +123,22 @@ def test_message_ticks_sent_delivered_read(client):
     assert staff[-1]["status"] == "delivered"
     c.get(public)  # chat opened
     assert c.get(f"/api/v1/cases/{case['id']}/messages").json()[-1]["status"] == "read"
+
+
+def test_chat_status_and_conversations(client):
+    c, _, _ = client
+    assert c.get("/api/v1/chat/status").json() == {"status": "ONLINE"}
+    assert c.put("/api/v1/chat/status", json={"status": "AWAY"}).status_code == 422
+    assert c.put("/api/v1/chat/status", json={"status": "PAUSED"}).json() == {"status": "PAUSED"}
+
+    customer = c.post("/api/v1/customers", json={"first_name": "Carlos"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "EX030XG", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
+    token = c.post(f"/api/v1/cases/{case['id']}/tracking-link").json()["public_token"]
+    assert c.get(f"/api/v1/public/tracking/{token}").json()["workshop"]["chat_status"] == "PAUSED"
+
+    assert c.get("/api/v1/messages/conversations").json() == []
+    c.post(f"/api/v1/public/tracking/{token}/messages", json={"body": "Ci siete?"})
+    chats = c.get("/api/v1/messages/conversations").json()
+    assert chats[0]["plate"] == "EX030XG" and chats[0]["unread"] == 1
+    assert chats[0]["last_message"]["body"] == "Ci siete?" and chats[0]["customer_name"] == "Carlos"

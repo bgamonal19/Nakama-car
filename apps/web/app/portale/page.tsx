@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "../../components/LanguageProvider";
 import { NakamaLogo } from "../../components/NakamaLogo";
 import { PasswordInput } from "../../components/PasswordInput";
-import { ChatMessage, ChatThread } from "../../components/ChatThread";
+import { ChatMessage, ChatPresence, ChatThread } from "../../components/ChatThread";
 import { ChatLauncher } from "../../components/ChatLauncher";
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
@@ -36,7 +36,7 @@ type VehicleDetail = FleetVehicle & { vin?: string | null; fuel_type?: string | 
 type Me = {
   full_name: string; email: string; must_change_password: boolean; customer_name: string; unread: number;
   contract: { name: string; start_date: string; end_date?: string | null; labor_included: boolean } | null;
-  workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null };
+  workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null; chat_status?: ChatPresence };
 };
 type Step = { code: string; label: string; done: boolean; current: boolean };
 type CaseProgress = { case_number: string; status_text: string; steps: Step[]; closed: boolean; tasks: { description: string; status: string }[]; tasks_done: number; tasks_total: number; vehicle?: { plate_spots?: PlateSpots } };
@@ -167,7 +167,7 @@ export default function PortalPage() {
     <main className="portal-page">
       <header className="portal-top">
         <NakamaLogo />
-        {openCase && <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} />}
+        {openCase && <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} presence={me?.workshop.chat_status} />}
         <div>
           <strong>{me?.customer_name}</strong>
           <small>{me?.full_name}</small>
@@ -258,6 +258,7 @@ export default function PortalPage() {
                       onSend={openCase.closed ? undefined : send}
                       closedText="Pratica chiusa: per altre richieste chiama l'officina."
                       onMinimize={() => setChatOpen(false)}
+                      presence={me?.workshop.chat_status}
                     />
                   </div>
                 )}

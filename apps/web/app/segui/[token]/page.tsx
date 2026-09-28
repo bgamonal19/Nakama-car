@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { NakamaLogo } from "../../../components/NakamaLogo";
-import { ChatMessage, ChatThread } from "../../../components/ChatThread";
+import { ChatMessage, ChatPresence, ChatThread } from "../../../components/ChatThread";
 import { ChatLauncher } from "../../../components/ChatLauncher";
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../../components/CustomerPhotos";
@@ -25,7 +25,7 @@ type Tracking = {
   tasks_done: number;
   tasks_total: number;
   estimate: { estimate_number: string; status: string; total: string; approval_path?: string | null } | null;
-  workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null };
+  workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null; chat_status?: ChatPresence };
   unread: number;
 };
 
@@ -126,7 +126,7 @@ export default function TrackingPage() {
       <div className="public-card">
         <div className="public-brand nakama-public-brand tracking-brand">
           <NakamaLogo />
-          <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} />
+          <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} presence={data.workshop.chat_status} />
         </div>
         <div className="public-head">
           <div>
@@ -204,6 +204,7 @@ export default function TrackingPage() {
               onSend={data.closed ? undefined : send}
               closedText="Pratica chiusa: per altre richieste chiama l'officina."
               onMinimize={() => setChatOpen(false)}
+              presence={data.workshop.chat_status}
             />
           </div>
         )}
