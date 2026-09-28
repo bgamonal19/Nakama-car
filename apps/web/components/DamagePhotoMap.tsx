@@ -122,6 +122,8 @@ type Props = {
   markers: DamageMarker[];
   onAdd?: (marker: Omit<DamageMarker, "id">) => void | Promise<void>;
   onRemove?: (marker: DamageMarker) => void | Promise<void>;
+  /** Fetch a picture from another endpoint (customer link / portal) instead of the staff API. */
+  loadRender?: (view: MarkerView, version: string) => Promise<Response>;
 };
 
 const RENDER_VERSION = "4";
@@ -132,7 +134,7 @@ const normalizeAngle = (value: number) => ((value % 360) + 360) % 360;
  * The vehicle on a workshop turntable: drag to turn it (smooth cross-fade between the
  * 8 real pictures, with inertia), release to settle on the nearest picture, tap to pin a damage.
  */
-export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Props) {
+export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadRender }: Props) {
   const { t } = useLanguage();
   const [angle, setAngle] = useState(STEP);
   const [roof, setRoof] = useState(false);
@@ -145,6 +147,8 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
   const canvas = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; start: number; moved: boolean; lastX: number; lastT: number; velocity: number } | null>(null);
   const animation = useRef<number | null>(null);
+  const renderLoader = useRef(loadRender);
+  renderLoader.current = loadRender;
   const make = (vehicle.make || "").trim();
   const model = (vehicle.model || "").trim();
   const color = (vehicle.color || "").trim();
@@ -178,7 +182,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
       const params = new URLSearchParams({ make, model, view: next, v: RENDER_VERSION });
       if (year) params.set("year", year);
       if (color) params.set("color", color);
-      const response = await apiFetch(`/renders/car?${params.toString()}`).catch(() => null);
+      const response = await (renderLoader.current
+        ? renderLoader.current(next, RENDER_VERSION)
+        : apiFetch(`/renders/car?${params.toString()}`)).catch(() => null);
       if (cancelled) return;
       if (response && response.ok) {
         const url = URL.createObjectURL(await response.blob());
@@ -332,7 +338,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove }: Pro
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={() => { drag.current = null; }}
-        aria-label={t("Trascina per ruotare il veicolo, tocca per segnare un danno")}
+        aria-label={onAdd ? t("Trascina per ruotare il veicolo, tocca per segnare un danno") : t("Trascina per ruotare il veicolo")}
       >
         <div className="workshop-wall" aria-hidden="true" />
         <div className="workshop-floor" aria-hidden="true" />

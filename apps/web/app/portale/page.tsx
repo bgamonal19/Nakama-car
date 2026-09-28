@@ -5,6 +5,7 @@ import { useLanguage } from "../../components/LanguageProvider";
 import { NakamaLogo } from "../../components/NakamaLogo";
 import { PasswordInput } from "../../components/PasswordInput";
 import { ChatMessage, ChatThread } from "../../components/ChatThread";
+import { DamageMarker, DamagePhotoMap, MarkerView } from "../../components/DamagePhotoMap";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
 type Maintenance = {
@@ -21,7 +22,7 @@ type Maintenance = {
 type CurrentCase = { id: string; case_number: string; status: string; status_text: string; tasks_done: number; tasks_total: number; opened_at?: string | null };
 type FleetVehicle = {
   id: string; license_plate: string; make?: string | null; model?: string | null; year?: number | null;
-  fleet_number?: string | null; mileage?: number | null; maintenance: Maintenance; current_case: CurrentCase | null;
+  fleet_number?: string | null; mileage?: number | null; color?: string | null; maintenance: Maintenance; current_case: CurrentCase | null;
 };
 type HistoryItem = {
   id: string; case_number: string; status: string; status_text: string; closed: boolean; opened_at?: string | null; updated_at: string;
@@ -69,6 +70,7 @@ export default function PortalPage() {
   const [selected, setSelected] = useState<VehicleDetail | null>(null);
   const [openCase, setOpenCase] = useState<CaseProgress | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [error, setError] = useState("");
   const [passwords, setPasswords] = useState({ current: "", next: "" });
   const [passwordNotice, setPasswordNotice] = useState("");
@@ -93,10 +95,14 @@ export default function PortalPage() {
     if (chat.ok) setMessages(await chat.json());
   }, [currentCaseId]);
 
+  const loadRender = useCallback((view: MarkerView, version: string) => portalFetch(`/portal/cases/${currentCaseId}/renders/${view}?v=${version}`), [currentCaseId]);
+
   useEffect(() => {
     setOpenCase(null);
     setMessages([]);
+    setMarkers([]);
     if (!currentCaseId) return;
+    portalFetch(`/portal/cases/${currentCaseId}/damage-markers`).then(async (response) => { if (response.ok) setMarkers(await response.json()); }).catch(() => undefined);
     loadCase();
     const timer = window.setInterval(() => { if (!document.hidden) loadCase(); }, POLL_MS);
     return () => window.clearInterval(timer);
@@ -211,6 +217,17 @@ export default function PortalPage() {
                     <ul className="tracking-tasks">
                       {openCase.tasks.map((task, index) => <li key={index} className={task.status.toLowerCase()}><i>{task.status === "DONE" ? "✓" : task.status === "IN_PROGRESS" ? "●" : "○"}</i>{task.description}</li>)}
                     </ul>
+                  </>
+                )}
+                {(markers.length > 0 || (selected.make && selected.model)) && (
+                  <>
+                    <h3>{t("Danni e interventi sul veicolo")}</h3>
+                    <DamagePhotoMap
+                      vehicle={{ make: selected.make || "", model: selected.model || "", year: selected.year, color: selected.color || "" }}
+                      plate={selected.license_plate}
+                      markers={markers}
+                      loadRender={loadRender}
+                    />
                   </>
                 )}
                 <h3>{t("Chat con l'officina")}</h3>
