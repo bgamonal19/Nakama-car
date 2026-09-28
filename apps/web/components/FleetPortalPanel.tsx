@@ -3,13 +3,14 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, hasPermission } from "../lib/api";
+import { TelemetryBadge, TelemetryReading } from "./Telemetry";
 
 type Account = { id: string; email: string; full_name: string; active: boolean; must_change_password: boolean; last_login_at?: string | null; temporary_password?: string };
 type Maintenance = {
   service_interval_km?: number | null; service_interval_months?: number | null; last_service_date?: string | null; last_service_km?: number | null;
   next_service_date?: string | null; next_service_km?: number | null; days_left?: number | null; km_left?: number | null; state: string;
 };
-type FleetVehicle = { id: string; license_plate: string; make?: string | null; model?: string | null; fleet_number?: string | null; mileage?: number | null; maintenance: Maintenance; current_case: { case_number: string; status_text: string } | null };
+type FleetVehicle = { id: string; license_plate: string; make?: string | null; model?: string | null; fleet_number?: string | null; mileage?: number | null; maintenance: Maintenance; telemetry?: TelemetryReading | null; current_case: { case_number: string; status_text: string } | null };
 type Row = { mileage: string; service_interval_km: string; service_interval_months: string; last_service_date: string; last_service_km: string };
 
 const stateLabel: Record<string, string> = { OK: "In regola", SOON: "Manutenzione vicina", DUE: "Manutenzione scaduta", UNKNOWN: "Piano non impostato" };
@@ -156,7 +157,7 @@ export function FleetPortalPanel({ customerId, customerName, onClose }: { custom
             const m = vehicle.maintenance;
             return (
               <div className="maintenance-row" key={vehicle.id}>
-                <span><strong>{vehicle.license_plate}</strong><small>{[vehicle.fleet_number && `#${vehicle.fleet_number}`, vehicle.make, vehicle.model].filter(Boolean).join(" ")}</small>{vehicle.current_case && <small>🔧 {t(vehicle.current_case.status_text)}</small>}</span>
+                <span><strong>{vehicle.license_plate}</strong><small>{[vehicle.fleet_number && `#${vehicle.fleet_number}`, vehicle.make, vehicle.model].filter(Boolean).join(" ")}</small>{vehicle.current_case && <small>🔧 {t(vehicle.current_case.status_text)}</small>}<TelemetryBadge reading={vehicle.telemetry} /></span>
                 <input aria-label={t("Km attuali")} type="number" min="0" disabled={!canEditVehicles} value={row.mileage} onChange={(e) => set("mileage", e.target.value)} />
                 <input aria-label={t("Ogni km")} type="number" min="0" step="1000" disabled={!canEditVehicles} value={row.service_interval_km} onChange={(e) => set("service_interval_km", e.target.value)} placeholder="20000" />
                 <input aria-label={t("Ogni mesi")} type="number" min="0" max="120" disabled={!canEditVehicles} value={row.service_interval_months} onChange={(e) => set("service_interval_months", e.target.value)} placeholder="12" />

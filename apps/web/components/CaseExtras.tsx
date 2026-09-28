@@ -5,6 +5,7 @@ import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, formatMoney, hasPermission, uploadCasePhoto } from "../lib/api";
 import { DamageMarker, DamagePhotoMap, MapPhoto, VehicleLook } from "./DamagePhotoMap";
 import { CaseTracking } from "./CaseTracking";
+import { TelemetryCard, TelemetryReading } from "./Telemetry";
 import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
 
 type Media = { id: string; category: string; original_filename?: string | null; mime_type?: string | null; damage_marker_id?: string | null; estimate_line_id?: string | null; in_database?: boolean };
@@ -25,6 +26,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
   const [vehicleId, setVehicleId] = useState<string | null>(null);
   const [plateSpots, setPlateSpots] = useState<PlateSpots>({});
   const [parts, setParts] = useState<{ id: string; label: string }[]>([]);
+  const [telemetry, setTelemetry] = useState<TelemetryReading | null>(null);
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [canEdit, setCanEdit] = useState(false);
 
@@ -92,11 +94,13 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
     loadMarkers();
     apiFetch(`/cases/${caseId}/parts`).then(async (response) => { if (response.ok) setParts(await response.json()); }).catch(() => undefined);
     setVehicle(null);
+    setTelemetry(null);
     if (plate) {
       apiFetch(`/vehicles/by-plate/${encodeURIComponent(plate)}`).then(async (response) => {
         if (response.ok) {
           const data = await response.json();
           setVehicleId(data.id);
+          apiFetch(`/vehicles/${data.id}/telemetry?limit=1`).then(async (reply) => { if (reply.ok) setTelemetry((await reply.json())[0] || null); }).catch(() => undefined);
           setVehicle({ make: data.make || "", model: data.model || "", year: data.year, color: data.color_name || "" });
           loadPlateSpots(data.make, data.model).then(setPlateSpots);
         }
@@ -137,6 +141,11 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
 
   return (
     <div className="case-extras">
+      {telemetry && (
+        <div className="case-extras-block">
+          <TelemetryCard reading={telemetry} />
+        </div>
+      )}
       <div className="case-extras-block">
         <h3>{t("Cliente: link di avanzamento e chat")}</h3>
         <CaseTracking caseId={caseId} plate={plate} />
