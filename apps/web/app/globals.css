@@ -1522,3 +1522,65 @@ button.damage-dot { border: 0; cursor: pointer; }
 [data-theme="dark"] .telemetry-card.alert { background: #2a1418; }
 [data-theme="dark"] .telemetry-grid div, [data-theme="dark"] .telemetry-driving span, [data-theme="dark"] .api-key-value { background: #13263a; border-color: #2c4258; }
 @media (max-width: 860px) { .integrations-grid { grid-template-columns: 1fr; } }
+
+/* ===== Phones and small tablets ===== */
+.line-field { display: block; min-width: 0; }
+.line-field small { display: none; }
+.modal-backdrop { z-index: 200; }
+body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubble-panel { display: none; }
+@media (max-width: 720px) {
+  .wizard { height: 100dvh; }
+  /* 16px inputs: iPhone does not zoom the page when a field gets the focus. */
+  input, select, textarea { font-size: 16px; }
+  .data-table input, .data-table select, .line-row input, .line-row select, .estimate-line input, .estimate-line select { font-size: 16px; }
+}
+@media (max-width: 640px) {
+  /* Tables become cards instead of scrolling sideways. */
+  .list-panel { overflow-x: visible; }
+  .data-table { min-width: 0 !important; grid-template-columns: 1fr 1fr !important; gap: 6px 12px; padding: 12px 14px; font-size: 13px; }
+  .data-table.head { display: none; }
+  .data-table > :first-child { grid-column: 1 / -1; font-size: 15px; }
+  .data-table > :last-child { grid-column: 1 / -1; }
+  .data-table span small, .data-table strong small, .data-table span > small { font-size: 11px; }
+  .data-table .table-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .data-table .table-actions button, .data-table .table-actions a { min-height: 40px; }
+  .line-editor { overflow-x: visible; border: 0; }
+  .line-row { min-width: 0; grid-template-columns: 1fr 1fr; gap: 8px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; padding: 10px; font-size: 14px; }
+  .line-row.head { display: none; }
+  .line-row > select, .line-row > input { grid-column: 1 / -1; }
+  .line-field small { display: block; font-size: 11px; color: #62666d; margin-bottom: 2px; }
+  .line-row .line-total { grid-column: 1 / -1; text-align: left; font-size: 16px; }
+  .line-row .table-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .line-row .table-actions button { flex: 1; min-height: 42px; }
+  .line-row.invoice { grid-template-columns: 1fr 1fr; }
+  .line-row.invoice > :first-child { grid-column: 1 / -1; }
+  /* 3D view: taller scene and smaller part lenses on a narrow screen. */
+  .damage-canvas.workshop-scene { aspect-ratio: 4 / 3; }
+  .part-lens { width: clamp(32px, 12%, 60px); }
+  .part-lens b { min-width: 16px; height: 16px; font-size: 10px; }
+  .turntable-bar { gap: 6px; }
+  .turntable-bar strong { min-width: 0; flex: 1 1 100%; order: -1; }
+  .paint-swatch { width: 30px; height: 30px; }
+  .chat-bubble-fab { width: 56px; height: 56px; font-size: 24px; right: 14px; bottom: 14px; }
+  .kpi-grid, .nakama-kpis { grid-template-columns: 1fr 1fr !important; }
+  .panel-head { flex-wrap: wrap; gap: 10px; }
+  .settings-grid { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 640px) {
+  /* The banner photo carries the logo at the top: the text sits below it, on a dark fade. */
+  .photo-hero { min-height: 380px; }
+  .photo-hero-image { object-position: 22% top; }
+  .photo-hero-content { top: auto; bottom: 14px; padding-top: 70px; background: linear-gradient(180deg, rgba(5,23,42,0) 0%, rgba(5,23,42,.82) 38%); border-radius: 0 0 14px 14px; left: 0; right: 0; padding-left: 16px; padding-right: 16px; padding-bottom: 4px; bottom: 0; }
+  .photo-hero .hero-values span { font-size: 10px; }
+  .nakama-actions { grid-template-columns: 1fr 1fr !important; }
+  .nakama-action small { display: none; }
+  .topbar.nakama-topbar { flex-wrap: wrap; gap: 8px; }
+}
+/* Notches and home indicator (viewport-fit=cover) */
+@media (max-width: 1100px) {
+  .mobile-nav-header { height: auto; min-height: 60px; padding-top: calc(6px + env(safe-area-inset-top)); }
+}
+.portal-top { padding-top: calc(12px + env(safe-area-inset-top)); }
+.chat-bubble-fab { margin-bottom: env(safe-area-inset-bottom); }
+.chat-dock { margin-bottom: env(safe-area-inset-bottom); }
+.wizard-footer { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
