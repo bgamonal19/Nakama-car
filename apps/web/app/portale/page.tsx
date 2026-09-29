@@ -6,6 +6,7 @@ import { NakamaLogo } from "../../components/NakamaLogo";
 import { PasswordInput } from "../../components/PasswordInput";
 import { ChatMessage, ChatPresence, ChatThread } from "../../components/ChatThread";
 import { ChatLauncher } from "../../components/ChatLauncher";
+import { TelemetryBadge, TelemetryCard, TelemetryReading } from "../../components/Telemetry";
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import type { PlateSpots } from "../../lib/plateSpots";
@@ -25,7 +26,7 @@ type Maintenance = {
 type CurrentCase = { id: string; case_number: string; status: string; status_text: string; tasks_done: number; tasks_total: number; opened_at?: string | null };
 type FleetVehicle = {
   id: string; license_plate: string; make?: string | null; model?: string | null; year?: number | null;
-  fleet_number?: string | null; mileage?: number | null; color?: string | null; maintenance: Maintenance; current_case: CurrentCase | null;
+  fleet_number?: string | null; mileage?: number | null; color?: string | null; maintenance: Maintenance; telemetry?: TelemetryReading | null; current_case: CurrentCase | null;
 };
 type HistoryItem = {
   id: string; case_number: string; status: string; status_text: string; closed: boolean; opened_at?: string | null; updated_at: string;
@@ -202,6 +203,8 @@ export default function PortalPage() {
               </div>
             </div>
 
+            <TelemetryCard reading={selected.telemetry} />
+
             <div className={`maintenance-card ${selected.maintenance.state.toLowerCase()}`}>
               <div>
                 <small>{t("PROSSIMA MANUTENZIONE")}</small>
@@ -306,6 +309,7 @@ export default function PortalPage() {
                   {vehicle.current_case ? (
                     <span className="portal-in-shop">🔧 {t(vehicle.current_case.status_text)}{vehicle.current_case.tasks_total ? ` · ${vehicle.current_case.tasks_done}/${vehicle.current_case.tasks_total}` : ""}</span>
                   ) : <span className="portal-free">{t("Non in officina")}</span>}
+                  <TelemetryBadge reading={vehicle.telemetry} />
                   <span className="portal-maintenance">{t(stateLabel[vehicle.maintenance.state])}{countdown(vehicle.maintenance, t) ? ` · ${countdown(vehicle.maintenance, t)}` : ""}</span>
                 </button>
               ))}

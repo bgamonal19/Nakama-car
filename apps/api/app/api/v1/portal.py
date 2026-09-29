@@ -21,6 +21,7 @@ from app.models.tracking import CaseMessage
 from app.security.context import AuthContext, require_permission
 from app.security.passwords import hash_password, verify_password
 from app.services import tracking
+from app.services.integrations import latest_reading
 from app.services.maintenance import maintenance_status
 
 router = APIRouter(tags=["portal"])
@@ -136,6 +137,7 @@ def vehicle_summary(db: Session, vehicle: Vehicle) -> dict:
         "mileage": vehicle.mileage,
         "color": vehicle.color_name,
         "maintenance": maintenance_status(vehicle),
+        "telemetry": latest_reading(db, vehicle),
         "current_case": current,
     }
 
