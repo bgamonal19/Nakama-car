@@ -1594,3 +1594,8 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .chat-bubble-fab { margin-bottom: env(safe-area-inset-bottom); }
 .chat-dock { margin-bottom: env(safe-area-inset-bottom); }
 .wizard-footer { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+/* New version online: refresh banner (web, installed app and APK update without a new download). */
+.update-banner { position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px; background: #0b2a4a; color: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.3); font-size: 14px; max-width: calc(100vw - 24px); }
+.update-banner button { border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 700; background: #fff; color: #0b2a4a; cursor: pointer; white-space: nowrap; }
+.update-banner button.ghost { background: transparent; color: #c5d3e2; padding: 8px; }

@@ -1,6 +1,7 @@
 import "./globals.css";
 import { ThemeProvider } from "../components/ThemeProvider";
 import { LanguageProvider } from "../components/LanguageProvider";
+import { UpdateWatcher } from "../components/UpdateWatcher";
 
 export const metadata = {
   title: "NAKAMA CAR ESTIMATE",
@@ -22,7 +23,7 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
-      <body><LanguageProvider><ThemeProvider>{children}</ThemeProvider></LanguageProvider></body>
+      <body><LanguageProvider><ThemeProvider>{children}<UpdateWatcher /></ThemeProvider></LanguageProvider></body>
     </html>
   );
 }
