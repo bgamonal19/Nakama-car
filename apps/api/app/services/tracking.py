@@ -279,7 +279,7 @@ def customer_markers(db: Session, case: RepairCase) -> list[dict]:
         .order_by(DamageMarker.created_at, DamageMarker.id)
     ).all()
     return [
-        {"id": str(marker.id), "view": marker.view, "x": float(marker.x), "y": float(marker.y), "operation": marker.operation, "area_label": marker.area_label}
+        {"id": str(marker.id), "view": marker.view, "x": float(marker.x), "y": float(marker.y), "operation": marker.operation, "area_label": marker.area_label, "sketch": marker.sketch}
         for marker in markers
     ]
 

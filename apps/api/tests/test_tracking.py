@@ -90,7 +90,7 @@ def test_customer_sees_damage_map_without_internal_notes(client, monkeypatch):
     public = f"/api/v1/public/tracking/{token}"
 
     markers = c.get(public + "/damage-markers").json()
-    assert markers == [{"id": markers[0]["id"], "view": "side", "x": 0.42, "y": 0.6, "operation": "PAINT", "area_label": "Lato sinistro · centro"}]
+    assert markers == [{"id": markers[0]["id"], "view": "side", "x": 0.42, "y": 0.6, "operation": "PAINT", "area_label": "Lato sinistro · centro", "sketch": None}]
     assert c.get(public + "/renders/side").status_code == 503
     fake = test_renders.FakeRenders()
     monkeypatch.setattr(carimage, "get_render_provider", lambda: fake)

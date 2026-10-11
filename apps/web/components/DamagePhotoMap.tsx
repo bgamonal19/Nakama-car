@@ -1,6 +1,6 @@
 "use client";
 
-import { PointerEvent, useEffect, useRef, useState } from "react";
+import { PointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiFetch } from "../lib/api";
@@ -10,7 +10,10 @@ import { PartIcon } from "./PartIcon";
 export type MarkerView =
   | "front" | "front-3-4" | "side" | "rear-3-4" | "rear" | "rear-3-4-right" | "side-right" | "front-3-4-right" | "top";
 export type MarkerOperation = "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
-export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string };
+/** sketch: hand-drawn outline (stylus or finger), strokes of [x, y] points on the picture (0..1). */
+export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string; sketch?: number[][][] | null };
+
+const sketchPath = (stroke: number[][]) => stroke.map(([x, y], index) => `${index ? "L" : "M"}${x} ${y}`).join(" ");
 /** A photo of the case, optionally pinned to a damage marker. */
 export type MapPhoto = { id: string; url: string; markerId?: string | null; partId?: string | null; category: string };
 export type VehicleLook = { make?: string; model?: string; year?: string | number | null; color?: string };
@@ -300,6 +303,20 @@ export function paintCode(color?: string | null) {
   return paintKeywords.find(([keyword]) => text.includes(keyword))?.[1] || "silver";
 }
 
+// The lift follows the finger on its own: only this small drawing re-renders while dragging.
+function LiveLift({ angle, listen, ...size }: { angle: number; listen: { current: ((value: number) => void) | null }; sceneWidth: number; sceneHeight: number; stageHeight: number }) {
+  const [live, setLive] = useState(angle);
+  useEffect(() => { setLive(angle); }, [angle]);
+  useEffect(() => {
+    listen.current = setLive;
+    return () => { listen.current = null; };
+  }, [listen]);
+  return <LiftRig angle={live} {...size} />;
+}
+
+// Size of the pre-blurred workshop wall picture (public/brand/workshop-wall.webp).
+const WALL_RATIO = 836 / 470;
+
 // Photo categories that belong to one side of the turntable.
 const viewOfCategory: Record<string, MarkerView> = { FRONT: "front", REAR: "rear", LEFT: "side", RIGHT: "side-right" };
 
@@ -322,8 +339,21 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const [pending, setPending] = useState<{ x: number; y: number } | null>(null);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
   const canvas = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; start: number; moved: boolean; lastX: number; lastT: number; velocity: number } | null>(null);
+  const drag = useRef<{ x: number; start: number; moved: boolean; lastX: number; lastT: number; velocity: number; target: number } | null>(null);
   const animation = useRef<number | null>(null);
+  // While turning, the live angle is written straight to the scene (CSS variables) and React
+  // re-renders only when the next picture comes in: smooth on phones.
+  const angleRef = useRef(STEP);
+  const committed = useRef({ base: 1, settled: true });
+  const moveFrame = useRef<number | null>(null);
+  const liftListener = useRef<((value: number) => void) | null>(null);
+  const wallTile = useRef(0);
+  // Drawing a damage by hand: with a stylus always, with a finger or mouse in "Disegna" mode.
+  const [drawMode, setDrawMode] = useState(false);
+  const [penSeen, setPenSeen] = useState(false);
+  const [draft, setDraft] = useState<number[][][]>([]);
+  const stroke = useRef<{ pointerId: number; box: DOMRect; points: number[][] } | null>(null);
+  const livePath = useRef<SVGPathElement>(null);
   const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string } | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [attaching, setAttaching] = useState<string | null>(null);
@@ -410,11 +440,61 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => () => { if (animation.current) cancelAnimationFrame(animation.current); }, []);
+  useEffect(() => () => {
+    if (animation.current) cancelAnimationFrame(animation.current);
+    if (moveFrame.current) cancelAnimationFrame(moveFrame.current);
+  }, []);
+
+  useEffect(() => { if (!pending) setDraft([]); }, [pending]);
+
+  // iPad / Android: while a stroke is being drawn the page must not scroll under the pen.
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    const block = (event: TouchEvent) => { if (stroke.current) event.preventDefault(); };
+    element.addEventListener("touchstart", block, { passive: false });
+    element.addEventListener("touchmove", block, { passive: false });
+    return () => {
+      element.removeEventListener("touchstart", block);
+      element.removeEventListener("touchmove", block);
+    };
+  }, []);
+
+  const isSettled = (value: number) => Math.abs(value - Math.round(value / STEP) * STEP) < 0.5;
+
+  // Cross-fade, turntable and wall follow the angle without a React render.
+  function writeScene(value: number) {
+    const element = canvas.current;
+    if (!element) return;
+    const fraction = value / STEP - Math.floor(value / STEP);
+    element.style.setProperty("--fade", String(fraction * fraction * (3 - 2 * fraction)));
+    element.style.setProperty("--turn", `${value}deg`);
+    const tile = wallTile.current;
+    if (tile > 0) {
+      const shift = (-value / 360) * element.clientWidth * 1.6;
+      element.style.setProperty("--wall-x", `${(((shift % tile) + tile) % tile) - tile}px`);
+    }
+  }
+
+  function applyAngle(value: number) {
+    angleRef.current = value;
+    liftListener.current?.(value);
+    const base = Math.floor(value / STEP);
+    const settledNow = isSettled(value);
+    if (base !== committed.current.base || settledNow !== committed.current.settled) setAngle(value);
+    else writeScene(value);
+  }
+
+  // After each render the scene gets the live angle (the pictures on screen match it).
+  useLayoutEffect(() => {
+    committed.current = { base: Math.floor(angle / STEP), settled: isSettled(angle) };
+    const live = Math.floor(angleRef.current / STEP) === Math.floor(angle / STEP) ? angleRef.current : angle;
+    writeScene(live);
+  });
 
   function animateTo(target: number, velocity = 0) {
     if (animation.current) cancelAnimationFrame(animation.current);
-    let current = angle;
+    let current = angleRef.current;
     let speed = velocity;
     let last = performance.now();
     const tick = (now: number) => {
@@ -429,12 +509,12 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         const delta = target - current;
         current += delta * Math.min(1, dt * 12);
         if (Math.abs(delta) < 0.4) {
-          setAngle(target);
+          applyAngle(target);
           animation.current = null;
           return;
         }
       }
-      setAngle(current);
+      applyAngle(current);
       animation.current = requestAnimationFrame(tick);
     };
     animation.current = requestAnimationFrame(tick);
@@ -443,46 +523,120 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   function turn(step: number) {
     setRoof(false);
     setPending(null);
-    animateTo(Math.round(angle / STEP) * STEP + step * STEP);
+    animateTo(Math.round(angleRef.current / STEP) * STEP + step * STEP);
+  }
+
+  function framePoint(box: DOMRect, clientX: number, clientY: number) {
+    return [
+      Math.round(Math.min(1, Math.max(0, (clientX - box.left) / box.width)) * 10000) / 10000,
+      Math.round(Math.min(1, Math.max(0, (clientY - box.top) / box.height)) * 10000) / 10000,
+    ];
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (editSpot) return;
+    // Palm rejection: while the pen draws, other touches are ignored.
+    if (stroke.current) return;
+    const pen = event.pointerType === "pen";
+    if (pen && !penSeen) setPenSeen(true);
+    if (onAdd && (pen || drawMode) && (settled || roof)) {
+      const frame = event.currentTarget.querySelector<HTMLElement>(".car-frame");
+      if (frame) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const box = frame.getBoundingClientRect();
+        stroke.current = { pointerId: event.pointerId, box, points: [framePoint(box, event.clientX, event.clientY)] };
+        livePath.current?.setAttribute("d", sketchPath(stroke.current.points));
+        return;
+      }
+    }
     if (animation.current) { cancelAnimationFrame(animation.current); animation.current = null; }
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { x: event.clientX, start: angle, moved: false, lastX: event.clientX, lastT: performance.now(), velocity: 0 };
+    const start = angleRef.current;
+    drag.current = { x: event.clientX, start, moved: false, lastX: event.clientX, lastT: performance.now(), velocity: 0, target: start };
   }
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const current = stroke.current;
+    if (current) {
+      if (event.pointerId !== current.pointerId) return;
+      // Pens report many points between frames: keep them all for a smooth line.
+      const native = event.nativeEvent as globalThis.PointerEvent;
+      const samples = typeof native.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [];
+      for (const sample of samples.length ? samples : [native]) {
+        const point = framePoint(current.box, sample.clientX, sample.clientY);
+        const last = current.points[current.points.length - 1];
+        if (Math.hypot(point[0] - last[0], point[1] - last[1]) >= 0.003 && current.points.length < 600) current.points.push(point);
+      }
+      livePath.current?.setAttribute("d", sketchPath(current.points));
+      return;
+    }
     const state = drag.current;
     if (!state || roof) return;
     const dx = event.clientX - state.x;
-    if (Math.abs(dx) > 4) state.moved = true;
+    if (!state.moved && Math.abs(dx) > 4) {
+      state.moved = true;
+      setPending(null);
+    }
     const now = performance.now();
     const dt = Math.max(1, now - state.lastT);
     state.velocity = (-(event.clientX - state.lastX) * DEGREES_PER_PX) / (dt / 1000);
     state.lastX = event.clientX;
     state.lastT = now;
-    if (state.moved) {
-      setPending(null);
-      setAngle(state.start - dx * DEGREES_PER_PX);
+    if (!state.moved) return;
+    state.target = state.start - dx * DEGREES_PER_PX;
+    // Phones send many more touch moves than frames: draw once per frame.
+    if (moveFrame.current) return;
+    moveFrame.current = requestAnimationFrame(() => {
+      moveFrame.current = null;
+      if (drag.current) applyAngle(drag.current.target);
+    });
+  }
+
+  function finishStroke(event: PointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = stroke.current;
+    if (!current || event.pointerId !== current.pointerId) return false;
+    stroke.current = null;
+    livePath.current?.setAttribute("d", "");
+    const { points } = current;
+    const [minX, maxX] = [Math.min(...points.map((point) => point[0])), Math.max(...points.map((point) => point[0]))];
+    const [minY, maxY] = [Math.min(...points.map((point) => point[1])), Math.max(...points.map((point) => point[1]))];
+    if (cancelled) return true;
+    // A dot is a tap: pins and lenses still open, a new pin is placed as usual.
+    if (points.length < 3 || Math.max(maxX - minX, maxY - minY) < 0.012) {
+      tapAt(event.clientX, event.clientY, current.box);
+      return true;
     }
+    if (pending && draft.length) {
+      // More strokes for the same damage: the pin stays where the drawing started.
+      if (draft.length < 30) setDraft([...draft, points]);
+      return true;
+    }
+    setDraft([points]);
+    setPending({ x: points[0][0], y: points[0][1] });
+    return true;
   }
 
   function onPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (finishStroke(event)) return;
     if (editSpot) { drag.current = null; return; }
     const state = drag.current;
     drag.current = null;
     if (!state) return;
     if (state.moved) {
+      if (moveFrame.current) { cancelAnimationFrame(moveFrame.current); moveFrame.current = null; }
+      angleRef.current = state.target;
       const fresh = performance.now() - state.lastT < 80;
-      animateTo(Math.round(angle / STEP) * STEP, fresh ? state.velocity : 0);
+      animateTo(Math.round(state.target / STEP) * STEP, fresh ? state.velocity : 0);
       return;
     }
     if (!settled && !roof) return;
     const stage = event.currentTarget.querySelector<HTMLElement>(".car-frame");
     if (!stage) return;
-    const box = stage.getBoundingClientRect();
+    tapAt(event.clientX, event.clientY, stage.getBoundingClientRect());
+  }
+
+  function tapAt(clientX: number, clientY: number, box: DOMRect) {
+    const event = { clientX, clientY };
     // A tap on an existing pin opens its photos instead of adding a new pin.
     const hit = markers.find((marker) => marker.view === view
       && Math.hypot(box.left + marker.x * box.width - event.clientX, box.top + marker.y * box.height - event.clientY) < 18);
@@ -501,25 +655,27 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     const x = (event.clientX - box.left) / box.width;
     const y = (event.clientY - box.top) / box.height;
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    setDraft([]);
     setPending({ x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 });
   }
 
   async function choose(operation: MarkerOperation) {
     if (!pending || !onAdd) return;
-    const created = await onAdd({ view, x: pending.x, y: pending.y, operation, area_label: areaLabel(view, pending.x, pending.y) });
+    const sketch = draft.length ? draft : null;
+    const created = await onAdd({ view, x: pending.x, y: pending.y, operation, area_label: areaLabel(view, pending.x, pending.y), ...(sketch ? { sketch } : {}) });
     setPending(null);
+    setDraft([]);
     if (created && onAttachPhoto) setJustAdded(created.id);
   }
 
   // Two neighbouring pictures cross-fade while the turntable moves.
+  // The fade amount (--fade) is written by writeScene, so dragging needs no render.
   const base = Math.floor(angle / STEP);
-  const fraction = angle / STEP - base;
-  const eased = fraction * fraction * (3 - 2 * fraction);
-  const layers: { code: MarkerView; opacity: number }[] = roof
+  const layers: { code: MarkerView; opacity: number | string }[] = roof
     ? [{ code: "top", opacity: 1 }]
     : [
-        { code: ring[((base % ring.length) + ring.length) % ring.length], opacity: 1 - eased },
-        { code: ring[(((base + 1) % ring.length) + ring.length) % ring.length], opacity: eased },
+        { code: ring[((base % ring.length) + ring.length) % ring.length], opacity: "calc(1 - var(--fade, 0))" },
+        { code: ring[(((base + 1) % ring.length) + ring.length) % ring.length], opacity: "var(--fade, 0)" },
       ];
   // Every picture is cropped to the car body, so drawing them all at the same height keeps
   // the car at the same scale while it turns (the side views are just wider).
@@ -531,6 +687,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const stageHeight = Math.min(maxHeight, maxWidth / widest);
   const stageWidth = stageHeight * widest;
   const frameWidth = stageHeight * ratio;
+  // The wall picture covers the wall (like background-size: cover) and repeats while turning.
+  const wallWidth = Math.max(stageSize.width, stageSize.height * 0.62 * WALL_RATIO);
+  wallTile.current = wallWidth;
   const visible = settled || roof ? markers.filter((marker) => marker.view === view) : [];
   const loaded = ring.filter((code) => images[code]).length;
   const showPlate = Boolean(plate && images[view] && (settled || roof));
@@ -553,11 +712,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     if (!zone) return;
     setRoof(false);
     const target = ring.indexOf(bestView[zone]) * STEP;
-    const current = normalizeAngle(angle);
+    const current = normalizeAngle(angleRef.current);
     let delta = target - current;
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
-    animateTo(angle + delta);
+    animateTo(angleRef.current + delta);
   }
   const viewPhotos = photos.filter((photo) => !photo.markerId && viewOfCategory[photo.category] === view);
   const photosOf = (marker: DamageMarker) => photos.filter((photo) => photo.markerId === marker.id);
@@ -582,6 +741,17 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         <button type="button" className={`roof-button${roof ? " active" : ""}`} onClick={() => { setRoof(!roof); setPending(null); }}>
           {roof ? t("Vista laterale") : t("Tetto")}
         </button>
+        {onAdd && !editSpot && (
+          <button
+            type="button"
+            className={`roof-button${drawMode ? " active" : ""}`}
+            aria-pressed={drawMode}
+            title={t("Disegna il danno col dito o col mouse (con la penna funziona sempre)")}
+            onClick={() => setDrawMode(!drawMode)}
+          >
+            ✏️ {t("Disegna")}
+          </button>
+        )}
         {canEditPlate && !editSpot && (
           <button type="button" className="roof-button" title={t("Allinea la targa su questo modello")} onClick={() => { setPending(null); setEditSpot({ ...(plateSpot as PlateSpotValue) }); }}>
             ✎ {t("Targa")}
@@ -595,24 +765,25 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       </div>
       <div
         ref={canvas}
-        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}${lift ? " lift-scene" : ""}`}
+        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}${lift ? " lift-scene" : ""}${onAdd && (drawMode || penSeen) ? " drawing" : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => { drag.current = null; }}
+        onPointerCancel={(event) => { if (!finishStroke(event, true)) drag.current = null; }}
         aria-label={onAdd ? t("Trascina per ruotare il veicolo, tocca per segnare un danno") : t("Trascina per ruotare il veicolo")}
       >
-        <div className="workshop-wall" aria-hidden="true" style={{ backgroundPositionX: `calc(50% + ${(-angle / 360) * stageSize.width * 1.6}px)` }} />
+        <div className="workshop-wall" aria-hidden="true">
+          <div className="workshop-wall-track" style={{ width: stageSize.width + wallWidth * 2, backgroundSize: `${wallWidth}px ${wallWidth / WALL_RATIO}px` }} />
+        </div>
         <div className="workshop-floor" aria-hidden="true" />
-        {lift && <LiftRig angle={angle} sceneWidth={stageSize.width} sceneHeight={stageSize.height} stageHeight={stageHeight} />}
+        {lift && <LiveLift angle={angle} listen={liftListener} sceneWidth={stageSize.width} sceneHeight={stageSize.height} stageHeight={stageHeight} />}
         {!roof && !lift && (
-          <div className="turntable" aria-hidden="true" style={{ transform: `translateX(-50%) perspective(700px) rotateX(74deg) rotateZ(${normalizeAngle(angle)}deg)` }} />
+          <div className="turntable" aria-hidden="true" />
         )}
         <div className="car-stage" style={{ width: stageWidth || undefined, height: stageHeight || undefined }}>
-          {layers.map(({ code, opacity }) => {
+          {layers.map(({ code, opacity }, position) => {
             const url = images[code];
-            if (opacity < 0.01) return null;
-            if (url) return <img key={code} src={url} alt={opacity > 0.5 ? `${make} ${model} · ${t(viewNames[code])}` : ""} draggable={false} style={{ opacity }} />;
+            if (url) return <img key={code} src={url} alt={position === 0 ? `${make} ${model} · ${t(viewNames[code])}` : ""} draggable={false} style={{ opacity }} />;
             if (url === null || disabled || !ready) return <div key={code} className="stage-layer" style={{ opacity }}><Silhouette view={code} /></div>;
             return <div key={code} className="damage-loading stage-layer" style={{ opacity }}>{t("Caricamento…")}</div>;
           })}
@@ -624,6 +795,15 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
               editing={Boolean(editSpot)}
               onMove={(x, y) => setEditSpot((current) => current && { ...current, x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 })}
             />
+          )}
+          {(onAdd || visible.some((marker) => marker.sketch?.length)) && (
+            <svg className="damage-sketch" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+              {visible.flatMap((marker) => (marker.sketch || []).map((line, position) => (
+                <path key={`${marker.id}-${position}`} d={sketchPath(line)} stroke={operationStyle[marker.operation].color} />
+              )))}
+              {draft.map((line, position) => <path key={`draft-${position}`} className="draft" d={sketchPath(line)} />)}
+              <path ref={livePath} className="draft" d="" />
+            </svg>
           )}
           {visible.map((marker) => (
             <span key={marker.id} className={`damage-pin${photosOf(marker).length ? " has-photo" : ""}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
@@ -690,6 +870,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         ))}
       </div>
       {ready && !disabled && loaded < ring.length && <p className="hint">{t("Caricamento vista 360°")} {loaded}/{ring.length}</p>}
+      {onAdd && drawMode && !pending && <p className="hint">{t("Modalità disegno: traccia il danno sul veicolo. Disattiva ✏️ Disegna per ruotarlo.")}</p>}
+      {onAdd && penSeen && !drawMode && !pending && <p className="hint">{t("Con la penna tracci il danno, con il dito ruoti il veicolo.")}</p>}
+      {pending && draft.length > 0 && <p className="hint">{t("Puoi aggiungere altri tratti allo stesso danno, poi scegli l'intervento.")}</p>}
       {pending && (
         <div className="damage-chooser" role="group" aria-label={t("Tipo di intervento")}>
           <span>{areaLabel(view, pending.x, pending.y)}</span>
@@ -716,11 +899,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
                   if (marker.view === "top") { setRoof(true); return; }
                   setRoof(false);
                   const target = ring.indexOf(marker.view) * STEP;
-                  const current = normalizeAngle(angle);
+                  const current = normalizeAngle(angleRef.current);
                   let delta = target - current;
                   if (delta > 180) delta -= 360;
                   if (delta < -180) delta += 360;
-                  animateTo(angle + delta);
+                  animateTo(angleRef.current + delta);
                 }}
               >{position + 1}</button>
               <span>{marker.area_label}</span>

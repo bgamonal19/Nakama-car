@@ -61,6 +61,25 @@ def test_damage_markers_on_a_case(client):
     assert c.get(path).json() == []
 
 
+def test_damage_marker_with_a_hand_drawn_outline(client):
+    c, _, _ = client
+    customer = c.post("/api/v1/customers", json={"first_name": "Lucia"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "GM268TJ", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"]}).json()
+    path = f"/api/v1/cases/{case['id']}/damage-markers"
+    sketch = [[[0.31234, 0.5], [0.35, 0.52], [0.4, 0.55]], [[0.5, 0.5]]]
+    created = c.post(path, json={"view": "side", "x": 0.35, "y": 0.52, "operation": "REPAIR", "area_label": "Lato sinistro", "sketch": sketch})
+    assert created.status_code == 201, created.text
+    # Coordinates rounded, single-point strokes dropped.
+    assert created.json()["sketch"] == [[[0.3123, 0.5], [0.35, 0.52], [0.4, 0.55]]]
+    assert c.get(path).json()[0]["sketch"] == created.json()["sketch"]
+    bad = {"view": "side", "x": 0.3, "y": 0.5, "operation": "REPAIR", "area_label": "x"}
+    assert c.post(path, json={**bad, "sketch": [[[1.5, 0.2], [0.3, 0.3]]]}).status_code == 422
+    assert c.post(path, json={**bad, "sketch": [[[0.1, 0.1], [0.2, 0.2]]] * 31}).status_code == 422
+    plain = c.post(path, json=bad).json()
+    assert plain["sketch"] is None
+
+
 def test_crop_trims_antenna_and_halo_to_the_body():
     from io import BytesIO
 
