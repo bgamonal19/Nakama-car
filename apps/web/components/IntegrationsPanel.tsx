@@ -5,7 +5,7 @@ import { useLanguage } from "./LanguageProvider";
 import { API_URL, apiError, apiFetch } from "../lib/api";
 import { PasswordInput } from "./PasswordInput";
 
-type ApiKey = { id: string; name: string; prefix: string; active: boolean; last_used_at?: string | null; created_at: string; api_key?: string };
+type ApiKey = { id: string; name: string; prefix: string; scopes?: string; active: boolean; last_used_at?: string | null; created_at: string; api_key?: string };
 type Credential = { id: string; provider: string; label: string; base_url?: string | null; secret_hint: string; created_at: string };
 
 const example = `{
@@ -32,6 +32,7 @@ export function IntegrationsPanel() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [keyName, setKeyName] = useState("OneSystec GPS");
+  const [keyUse, setKeyUse] = useState<"telemetry:write" | "assistant:read">("telemetry:write");
   const [issued, setIssued] = useState<ApiKey | null>(null);
   const [credential, setCredential] = useState({ provider: "ONESYSTEC", label: "OneSystec", base_url: "", secret: "" });
   const [message, setMessage] = useState("");
@@ -49,7 +50,7 @@ export function IntegrationsPanel() {
   async function createKey(event: FormEvent) {
     event.preventDefault();
     setMessage("");
-    const response = await apiFetch("/integrations/api-keys", { method: "POST", body: JSON.stringify({ name: keyName.trim() }) });
+    const response = await apiFetch("/integrations/api-keys", { method: "POST", body: JSON.stringify({ name: keyName.trim(), scopes: [keyUse] }) });
     if (!response.ok) { setMessage(await apiError(response, "Impossibile creare la chiave.")); return; }
     setIssued(await response.json());
     load();
@@ -88,7 +89,20 @@ export function IntegrationsPanel() {
         <div className="integration-card">
           <h3>🔑 {t("Crea API key")}</h3>
           <p className="hint">{t("Genera una chiave da dare al sistema esterno: con questa invia i dati dei veicoli a NAKAMA in tempo reale.")}</p>
-          <form className="integration-form" onSubmit={createKey}>
+          <form className="integration-form stacked" onSubmit={createKey}>
+            <select
+              value={keyUse}
+              aria-label={t("Uso della chiave")}
+              onChange={(e) => {
+                const use = e.target.value as "telemetry:write" | "assistant:read";
+                setKeyUse(use);
+                if (use === "assistant:read" && keyName === "OneSystec GPS") setKeyName("MY SECRETARY");
+                if (use === "telemetry:write" && keyName === "MY SECRETARY") setKeyName("OneSystec GPS");
+              }}
+            >
+              <option value="telemetry:write">📡 {t("GPS / telematica: invia dati dei veicoli")}</option>
+              <option value="assistant:read">🤖 {t("Assistente IA: legge tutti i dati (sola lettura)")}</option>
+            </select>
             <input required minLength={2} maxLength={120} value={keyName} onChange={(e) => setKeyName(e.target.value)} aria-label={t("Nome della chiave")} />
             <button className="primary">{t("Genera chiave")}</button>
           </form>
@@ -103,11 +117,16 @@ export function IntegrationsPanel() {
           <ul className="integration-list">
             {keys.map((key) => (
               <li key={key.id} className={key.active ? "" : "revoked"}>
-                <span><strong>{key.name}</strong><small>{key.prefix}… · {t("creata")} {date(key.created_at)} · {t("ultimo invio")} {date(key.last_used_at)}</small></span>
+                <span><strong>{key.name}</strong> <span className="status-chip">{(key.scopes || "").includes("assistant:read") ? `🤖 ${t("Assistente")}` : `📡 ${t("GPS")}`}</span><small>{key.prefix}… · {t("creata")} {date(key.created_at)} · {t("ultimo invio")} {date(key.last_used_at)}</small></span>
                 {key.active ? <button type="button" className="ghost" onClick={() => revoke(key)}>{t("Revoca")}</button> : <span className="status-chip">{t("Revocata")}</span>}
               </li>
             ))}
           </ul>
+          <details>
+            <summary>{t("Istruzioni per l'assistente IA (MY SECRETARY)")}</summary>
+            <p className="hint">{t("Base")} <code>{`${API_URL || ""}/assistant`}</code> · {t("intestazione")} <code>X-API-Key: nk_live_…</code> · {t("sola lettura")}</p>
+            <p className="hint">{t("L'assistente legge l'elenco degli strumenti da")} <code>GET /assistant/tools</code> {t("e può consultare: riepilogo del giorno, ricerca per targa o cliente, pratiche, preventivi, fatture, contratti, veicoli e manutenzioni, telemetria, chat clienti e personale.")}</p>
+          </details>
           <details open={showExample} onToggle={(e) => setShowExample((e.target as HTMLDetailsElement).open)}>
             <summary>{t("Istruzioni per il fornitore GPS")}</summary>
             <p className="hint">POST <code>{endpoint}</code> · {t("intestazione")} <code>X-API-Key: nk_live_…</code> · {t("fino a 500 letture per invio")}</p>
