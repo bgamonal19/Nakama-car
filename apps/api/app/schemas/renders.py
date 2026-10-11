@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 MarkerView = Literal[
     "front", "front-3-4", "side", "rear-3-4", "rear", "rear-3-4-right", "side-right", "front-3-4-right", "top",
@@ -18,6 +18,26 @@ class DamageMarkerCreate(BaseModel):
     operation: MarkerOperation
     area_label: str = Field(min_length=1, max_length=160)
     notes: str | None = None
+    # Hand-drawn outline: up to 30 strokes of up to 600 points [x, y], each between 0 and 1.
+    sketch: list[list[list[float]]] | None = None
+
+    @field_validator("sketch")
+    @classmethod
+    def check_sketch(cls, value: list[list[list[float]]] | None) -> list[list[list[float]]] | None:
+        if value is None:
+            return None
+        if len(value) > 30 or any(len(stroke) > 600 for stroke in value):
+            raise ValueError("Disegno troppo grande")
+        cleaned = []
+        for stroke in value:
+            points = []
+            for point in stroke:
+                if len(point) != 2 or not all(0 <= coordinate <= 1 for coordinate in point):
+                    raise ValueError("Punto del disegno non valido")
+                points.append([round(point[0], 4), round(point[1], 4)])
+            if len(points) >= 2:
+                cleaned.append(points)
+        return cleaned or None
 
 
 class DamageMarkerRead(DamageMarkerCreate):
