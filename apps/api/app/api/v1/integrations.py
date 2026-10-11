@@ -1,6 +1,6 @@
 """Integrations: NAKAMA API keys for external systems, third-party keys, GPS telemetry intake."""
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
@@ -21,6 +21,8 @@ PROVIDERS = ("ONESYSTEC", "GPS", "OTHER")
 
 class ApiKeyCreate(BaseModel):
     name: str = Field(min_length=2, max_length=120)
+    # telemetry:write = GPS boxes send readings; assistant:read = an AI assistant reads all workshop data.
+    scopes: list[Literal["telemetry:write", "assistant:read"]] = Field(default_factory=lambda: ["telemetry:write"], min_length=1)
 
 
 class CredentialCreate(BaseModel):
@@ -60,7 +62,8 @@ def list_api_keys(db: Session = Depends(get_db), auth: AuthContext = Depends(req
 @router.post("/integrations/api-keys", status_code=status.HTTP_201_CREATED)
 def create_api_key(payload: ApiKeyCreate, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("settings.manage"))):
     full, prefix, digest = integrations.new_api_key()
-    key = ApiKey(tenant_id=auth.tenant_id, name=payload.name.strip(), prefix=prefix, key_hash=digest, created_by=auth.user_id)
+    scopes = " ".join(sorted(set(payload.scopes)))
+    key = ApiKey(tenant_id=auth.tenant_id, name=payload.name.strip(), prefix=prefix, key_hash=digest, scopes=scopes, created_by=auth.user_id)
     db.add(key)
     db.commit()
     db.refresh(key)
