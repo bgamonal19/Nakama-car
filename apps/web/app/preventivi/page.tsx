@@ -64,6 +64,12 @@ function linePayload(line: Line) {
   return payload;
 }
 
+
+// Column names, shown above each number on phones (the table header is hidden there).
+const fieldLabels: Partial<Record<string, string>> = {
+  quantity: "Q.tà", unit_price: "Prezzo ricambio", discount_percent: "Sconto %", labor_hours: "Ore",
+  labor_rate: "€/h", paint_hours: "Ore vernice", materials: "Materiali", vat_rate: "IVA %",
+};
 export default function PreventiviPage() {
   const { t } = useLanguage();
   const [signedIn, setSignedIn] = useState(false);
@@ -318,7 +324,10 @@ function EstimateEditor({ id, onClose, onChanged }: { id: string; onClose: () =>
             </select>
             <input aria-label={t("Descrizione")} disabled={locked} value={line.description} maxLength={255} onChange={(e) => update(index, { description: e.target.value })} />
             {(["quantity", "unit_price", "discount_percent", "labor_hours", "labor_rate", "paint_hours", "materials", "vat_rate"] as (keyof Line)[]).map((field) => (
-              <input key={field} aria-label={t(field)} type="number" min="0" step="0.01" disabled={locked} value={line[field] || ""} onChange={(e) => update(index, { [field]: e.target.value } as Partial<Line>)} />
+              <label key={field} className="line-field">
+                <small>{t(fieldLabels[field] || String(field))}</small>
+                <input aria-label={t(fieldLabels[field] || String(field))} type="number" inputMode="decimal" min="0" step="0.01" disabled={locked} value={line[field] || ""} onChange={(e) => update(index, { [field]: e.target.value } as Partial<Line>)} />
+              </label>
             ))}
             <span className="line-total">
               {line.line_total ? formatMoney(line.line_total) : "—"}
