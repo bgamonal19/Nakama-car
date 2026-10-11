@@ -1,7 +1,7 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import Boolean, ForeignKey, Integer, LargeBinary, Numeric, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import JSON, Boolean, ForeignKey, Integer, LargeBinary, Numeric, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -40,6 +40,8 @@ class DamageMarker(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     operation: Mapped[str] = mapped_column(String(20), nullable=False)
     area_label: Mapped[str] = mapped_column(String(160), nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
+    # Hand-drawn outline of the damage (stylus/finger): strokes of [x, y] points (0..1) on the picture.
+    sketch: Mapped[list | None] = mapped_column(JSON)
 
 
 class PlateSpot(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):

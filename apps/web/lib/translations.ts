@@ -970,6 +970,11 @@ Object.assign(spanish, {
   "Ruota a destra": "Girar a la derecha",
   "Vista laterale": "Vista lateral",
   "Trascina per ruotare il veicolo, tocca per segnare un danno": "Arrastra para girar el vehículo, toca para marcar un daño",
+  "Disegna": "Dibujar",
+  "Disegna il danno col dito o col mouse (con la penna funziona sempre)": "Dibuja el daño con el dedo o el ratón (con el lápiz funciona siempre)",
+  "Modalità disegno: traccia il danno sul veicolo. Disattiva ✏️ Disegna per ruotarlo.": "Modo dibujo: traza el daño sobre el vehículo. Desactiva ✏️ Dibujar para girarlo.",
+  "Con la penna tracci il danno, con il dito ruoti il veicolo.": "Con el lápiz trazas el daño, con el dedo giras el vehículo.",
+  "Puoi aggiungere altri tratti allo stesso danno, poi scegli l'intervento.": "Puedes añadir más trazos al mismo daño y luego elegir la intervención.",
   "Caricamento vista 360°": "Cargando vista 360°",
   "Mostra": "Mostrar"
 });

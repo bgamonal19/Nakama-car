@@ -10,7 +10,10 @@ import { PartIcon } from "./PartIcon";
 export type MarkerView =
   | "front" | "front-3-4" | "side" | "rear-3-4" | "rear" | "rear-3-4-right" | "side-right" | "front-3-4-right" | "top";
 export type MarkerOperation = "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
-export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string };
+/** sketch: hand-drawn outline (stylus or finger), strokes of [x, y] points on the picture (0..1). */
+export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string; sketch?: number[][][] | null };
+
+const sketchPath = (stroke: number[][]) => stroke.map(([x, y], index) => `${index ? "L" : "M"}${x} ${y}`).join(" ");
 /** A photo of the case, optionally pinned to a damage marker. */
 export type MapPhoto = { id: string; url: string; markerId?: string | null; partId?: string | null; category: string };
 export type VehicleLook = { make?: string; model?: string; year?: string | number | null; color?: string };
@@ -345,6 +348,12 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const moveFrame = useRef<number | null>(null);
   const liftListener = useRef<((value: number) => void) | null>(null);
   const wallTile = useRef(0);
+  // Drawing a damage by hand: with a stylus always, with a finger or mouse in "Disegna" mode.
+  const [drawMode, setDrawMode] = useState(false);
+  const [penSeen, setPenSeen] = useState(false);
+  const [draft, setDraft] = useState<number[][][]>([]);
+  const stroke = useRef<{ pointerId: number; box: DOMRect; points: number[][] } | null>(null);
+  const livePath = useRef<SVGPathElement>(null);
   const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string } | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [attaching, setAttaching] = useState<string | null>(null);
@@ -436,6 +445,21 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     if (moveFrame.current) cancelAnimationFrame(moveFrame.current);
   }, []);
 
+  useEffect(() => { if (!pending) setDraft([]); }, [pending]);
+
+  // iPad / Android: while a stroke is being drawn the page must not scroll under the pen.
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element) return;
+    const block = (event: TouchEvent) => { if (stroke.current) event.preventDefault(); };
+    element.addEventListener("touchstart", block, { passive: false });
+    element.addEventListener("touchmove", block, { passive: false });
+    return () => {
+      element.removeEventListener("touchstart", block);
+      element.removeEventListener("touchmove", block);
+    };
+  }, []);
+
   const isSettled = (value: number) => Math.abs(value - Math.round(value / STEP) * STEP) < 0.5;
 
   // Cross-fade, turntable and wall follow the angle without a React render.
@@ -502,8 +526,29 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     animateTo(Math.round(angleRef.current / STEP) * STEP + step * STEP);
   }
 
+  function framePoint(box: DOMRect, clientX: number, clientY: number) {
+    return [
+      Math.round(Math.min(1, Math.max(0, (clientX - box.left) / box.width)) * 10000) / 10000,
+      Math.round(Math.min(1, Math.max(0, (clientY - box.top) / box.height)) * 10000) / 10000,
+    ];
+  }
+
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (editSpot) return;
+    // Palm rejection: while the pen draws, other touches are ignored.
+    if (stroke.current) return;
+    const pen = event.pointerType === "pen";
+    if (pen && !penSeen) setPenSeen(true);
+    if (onAdd && (pen || drawMode) && (settled || roof)) {
+      const frame = event.currentTarget.querySelector<HTMLElement>(".car-frame");
+      if (frame) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+        const box = frame.getBoundingClientRect();
+        stroke.current = { pointerId: event.pointerId, box, points: [framePoint(box, event.clientX, event.clientY)] };
+        livePath.current?.setAttribute("d", sketchPath(stroke.current.points));
+        return;
+      }
+    }
     if (animation.current) { cancelAnimationFrame(animation.current); animation.current = null; }
     event.currentTarget.setPointerCapture(event.pointerId);
     const start = angleRef.current;
@@ -511,6 +556,20 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   }
 
   function onPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const current = stroke.current;
+    if (current) {
+      if (event.pointerId !== current.pointerId) return;
+      // Pens report many points between frames: keep them all for a smooth line.
+      const native = event.nativeEvent as globalThis.PointerEvent;
+      const samples = typeof native.getCoalescedEvents === "function" ? native.getCoalescedEvents() : [];
+      for (const sample of samples.length ? samples : [native]) {
+        const point = framePoint(current.box, sample.clientX, sample.clientY);
+        const last = current.points[current.points.length - 1];
+        if (Math.hypot(point[0] - last[0], point[1] - last[1]) >= 0.003 && current.points.length < 600) current.points.push(point);
+      }
+      livePath.current?.setAttribute("d", sketchPath(current.points));
+      return;
+    }
     const state = drag.current;
     if (!state || roof) return;
     const dx = event.clientX - state.x;
@@ -533,7 +592,32 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     });
   }
 
+  function finishStroke(event: PointerEvent<HTMLDivElement>, cancelled = false) {
+    const current = stroke.current;
+    if (!current || event.pointerId !== current.pointerId) return false;
+    stroke.current = null;
+    livePath.current?.setAttribute("d", "");
+    const { points } = current;
+    const [minX, maxX] = [Math.min(...points.map((point) => point[0])), Math.max(...points.map((point) => point[0]))];
+    const [minY, maxY] = [Math.min(...points.map((point) => point[1])), Math.max(...points.map((point) => point[1]))];
+    if (cancelled) return true;
+    // A dot is a tap: pins and lenses still open, a new pin is placed as usual.
+    if (points.length < 3 || Math.max(maxX - minX, maxY - minY) < 0.012) {
+      tapAt(event.clientX, event.clientY, current.box);
+      return true;
+    }
+    if (pending && draft.length) {
+      // More strokes for the same damage: the pin stays where the drawing started.
+      if (draft.length < 30) setDraft([...draft, points]);
+      return true;
+    }
+    setDraft([points]);
+    setPending({ x: points[0][0], y: points[0][1] });
+    return true;
+  }
+
   function onPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (finishStroke(event)) return;
     if (editSpot) { drag.current = null; return; }
     const state = drag.current;
     drag.current = null;
@@ -548,7 +632,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     if (!settled && !roof) return;
     const stage = event.currentTarget.querySelector<HTMLElement>(".car-frame");
     if (!stage) return;
-    const box = stage.getBoundingClientRect();
+    tapAt(event.clientX, event.clientY, stage.getBoundingClientRect());
+  }
+
+  function tapAt(clientX: number, clientY: number, box: DOMRect) {
+    const event = { clientX, clientY };
     // A tap on an existing pin opens its photos instead of adding a new pin.
     const hit = markers.find((marker) => marker.view === view
       && Math.hypot(box.left + marker.x * box.width - event.clientX, box.top + marker.y * box.height - event.clientY) < 18);
@@ -567,13 +655,16 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     const x = (event.clientX - box.left) / box.width;
     const y = (event.clientY - box.top) / box.height;
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    setDraft([]);
     setPending({ x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 });
   }
 
   async function choose(operation: MarkerOperation) {
     if (!pending || !onAdd) return;
-    const created = await onAdd({ view, x: pending.x, y: pending.y, operation, area_label: areaLabel(view, pending.x, pending.y) });
+    const sketch = draft.length ? draft : null;
+    const created = await onAdd({ view, x: pending.x, y: pending.y, operation, area_label: areaLabel(view, pending.x, pending.y), ...(sketch ? { sketch } : {}) });
     setPending(null);
+    setDraft([]);
     if (created && onAttachPhoto) setJustAdded(created.id);
   }
 
@@ -650,6 +741,17 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         <button type="button" className={`roof-button${roof ? " active" : ""}`} onClick={() => { setRoof(!roof); setPending(null); }}>
           {roof ? t("Vista laterale") : t("Tetto")}
         </button>
+        {onAdd && !editSpot && (
+          <button
+            type="button"
+            className={`roof-button${drawMode ? " active" : ""}`}
+            aria-pressed={drawMode}
+            title={t("Disegna il danno col dito o col mouse (con la penna funziona sempre)")}
+            onClick={() => setDrawMode(!drawMode)}
+          >
+            ✏️ {t("Disegna")}
+          </button>
+        )}
         {canEditPlate && !editSpot && (
           <button type="button" className="roof-button" title={t("Allinea la targa su questo modello")} onClick={() => { setPending(null); setEditSpot({ ...(plateSpot as PlateSpotValue) }); }}>
             ✎ {t("Targa")}
@@ -663,11 +765,11 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
       </div>
       <div
         ref={canvas}
-        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}${lift ? " lift-scene" : ""}`}
+        className={`damage-canvas workshop-scene${onAdd ? " editable" : ""}${roof ? " roof" : ""}${lift ? " lift-scene" : ""}${onAdd && (drawMode || penSeen) ? " drawing" : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => { drag.current = null; }}
+        onPointerCancel={(event) => { if (!finishStroke(event, true)) drag.current = null; }}
         aria-label={onAdd ? t("Trascina per ruotare il veicolo, tocca per segnare un danno") : t("Trascina per ruotare il veicolo")}
       >
         <div className="workshop-wall" aria-hidden="true">
@@ -693,6 +795,15 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
               editing={Boolean(editSpot)}
               onMove={(x, y) => setEditSpot((current) => current && { ...current, x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 })}
             />
+          )}
+          {(onAdd || visible.some((marker) => marker.sketch?.length)) && (
+            <svg className="damage-sketch" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+              {visible.flatMap((marker) => (marker.sketch || []).map((line, position) => (
+                <path key={`${marker.id}-${position}`} d={sketchPath(line)} stroke={operationStyle[marker.operation].color} />
+              )))}
+              {draft.map((line, position) => <path key={`draft-${position}`} className="draft" d={sketchPath(line)} />)}
+              <path ref={livePath} className="draft" d="" />
+            </svg>
           )}
           {visible.map((marker) => (
             <span key={marker.id} className={`damage-pin${photosOf(marker).length ? " has-photo" : ""}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
@@ -759,6 +870,9 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
         ))}
       </div>
       {ready && !disabled && loaded < ring.length && <p className="hint">{t("Caricamento vista 360°")} {loaded}/{ring.length}</p>}
+      {onAdd && drawMode && !pending && <p className="hint">{t("Modalità disegno: traccia il danno sul veicolo. Disattiva ✏️ Disegna per ruotarlo.")}</p>}
+      {onAdd && penSeen && !drawMode && !pending && <p className="hint">{t("Con la penna tracci il danno, con il dito ruoti il veicolo.")}</p>}
+      {pending && draft.length > 0 && <p className="hint">{t("Puoi aggiungere altri tratti allo stesso danno, poi scegli l'intervento.")}</p>}
       {pending && (
         <div className="damage-chooser" role="group" aria-label={t("Tipo di intervento")}>
           <span>{areaLabel(view, pending.x, pending.y)}</span>

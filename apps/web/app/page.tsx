@@ -521,7 +521,7 @@ export default function HomePage() {
       for (const marker of workType === "BODY" ? markers : []) {
         const markerResponse = await apiFetch(`/cases/${savedCase.id}/damage-markers`, {
           method: "POST",
-          body: JSON.stringify({ view: marker.view, x: marker.x, y: marker.y, operation: marker.operation, area_label: marker.area_label }),
+          body: JSON.stringify({ view: marker.view, x: marker.x, y: marker.y, operation: marker.operation, area_label: marker.area_label, sketch: marker.sketch || null }),
         });
         if (!markerResponse.ok) throw new Error("Errore salvataggio danni");
       }
