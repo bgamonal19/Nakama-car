@@ -969,6 +969,7 @@ Object.assign(spanish, {
   "Ruota a sinistra": "Girar a la izquierda",
   "Ruota a destra": "Girar a la derecha",
   "Vista laterale": "Vista lateral",
+  "Aggiungi foto": "Añadir foto",
   "Trascina per ruotare il veicolo, tocca per segnare un danno": "Arrastra para girar el vehículo, toca para marcar un daño",
   "Disegna": "Dibujar",
   "Nuova versione disponibile": "Nueva versión disponible",
