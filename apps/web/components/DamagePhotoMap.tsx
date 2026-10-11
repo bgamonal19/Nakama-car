@@ -13,6 +13,34 @@ export type MarkerOperation = "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
 /** sketch: hand-drawn outline (stylus or finger), strokes of [x, y] points on the picture (0..1). */
 export type DamageMarker = { id: string; view: MarkerView; x: number; y: number; operation: MarkerOperation; area_label: string; sketch?: number[][][] | null };
 
+// Box around a hand-drawn damage (0..1 on the picture).
+function sketchBox(sketch: number[][][]) {
+  const points = sketch.flat();
+  const xs = points.map((point) => point[0]);
+  const ys = points.map((point) => point[1]);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
+
+// Distance in pixels from a tap to the drawn line (0 when the tap is inside the drawn area).
+function sketchDistance(sketch: number[][][], box: DOMRect, clientX: number, clientY: number) {
+  const px = clientX - box.left;
+  const py = clientY - box.top;
+  const area = sketchBox(sketch);
+  const margin = 6;
+  if (px >= area.minX * box.width - margin && px <= area.maxX * box.width + margin && py >= area.minY * box.height - margin && py <= area.maxY * box.height + margin) return 0;
+  let best = Infinity;
+  for (const line of sketch) {
+    for (let index = 0; index < line.length - 1; index += 1) {
+      const ax = line[index][0] * box.width; const ay = line[index][1] * box.height;
+      const bx = line[index + 1][0] * box.width; const by = line[index + 1][1] * box.height;
+      const length = (bx - ax) ** 2 + (by - ay) ** 2;
+      const share = length ? Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / length)) : 0;
+      best = Math.min(best, Math.hypot(px - (ax + share * (bx - ax)), py - (ay + share * (by - ay))));
+    }
+  }
+  return best;
+}
+
 const sketchPath = (stroke: number[][]) => stroke.map(([x, y], index) => `${index ? "L" : "M"}${x} ${y}`).join(" ");
 /** A photo of the case, optionally pinned to a damage marker. */
 export type MapPhoto = { id: string; url: string; markerId?: string | null; partId?: string | null; category: string };
@@ -354,7 +382,10 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
   const [draft, setDraft] = useState<number[][][]>([]);
   const stroke = useRef<{ pointerId: number; box: DOMRect; points: number[][] } | null>(null);
   const livePath = useRef<SVGPathElement>(null);
-  const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string } | null>(null);
+  const [lightbox, setLightbox] = useState<{ items: MapPhoto[]; index: number; title: string; marker?: DamageMarker } | null>(null);
+  // Tapping a damage without photos opens the camera for that damage.
+  const photoInput = useRef<HTMLInputElement>(null);
+  const photoTarget = useRef<DamageMarker | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [attaching, setAttaching] = useState<string | null>(null);
   const [editSpot, setEditSpot] = useState<PlateSpotValue | null>(null);
@@ -637,12 +668,18 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
 
   function tapAt(clientX: number, clientY: number, box: DOMRect) {
     const event = { clientX, clientY };
-    // A tap on an existing pin opens its photos instead of adding a new pin.
-    const hit = markers.find((marker) => marker.view === view
-      && Math.hypot(box.left + marker.x * box.width - event.clientX, box.top + marker.y * box.height - event.clientY) < 18);
+    // A tap on an existing damage (its drawing, or its pin) opens its photos, or the camera
+    // when it has none yet, instead of adding a new damage.
+    const distance = (marker: DamageMarker) => (marker.sketch?.length
+      ? sketchDistance(marker.sketch, box, clientX, clientY)
+      : Math.hypot(box.left + marker.x * box.width - clientX, box.top + marker.y * box.height - clientY));
+    const hit = markers
+      .filter((marker) => marker.view === view)
+      .map((marker) => ({ marker, gap: distance(marker) }))
+      .filter((item) => item.gap < (item.marker.sketch?.length ? 22 : 18))
+      .sort((first, second) => first.gap - second.gap)[0]?.marker;
     if (hit) {
-      const items = photos.filter((photo) => photo.markerId === hit.id);
-      if (items.length) setLightbox({ items, index: 0, title: `${markers.indexOf(hit) + 1} · ${hit.area_label}` });
+      openDamage(hit);
       return;
     }
     // A tap on an x-ray lens opens the photos of that part.
@@ -657,6 +694,18 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
     if (x < 0 || x > 1 || y < 0 || y > 1) return;
     setDraft([]);
     setPending({ x: Math.round(x * 10000) / 10000, y: Math.round(y * 10000) / 10000 });
+  }
+
+  function openDamage(marker: DamageMarker) {
+    const items = photos.filter((photo) => photo.markerId === marker.id);
+    if (items.length) {
+      setLightbox({ items, index: 0, title: `${markers.indexOf(marker) + 1} · ${marker.area_label}`, marker });
+      return;
+    }
+    if (onAttachPhoto && photoInput.current && attaching === null) {
+      photoTarget.current = marker;
+      photoInput.current.click();
+    }
   }
 
   async function choose(operation: MarkerOperation) {
@@ -805,11 +854,24 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
               <path ref={livePath} className="draft" d="" />
             </svg>
           )}
-          {visible.map((marker) => (
-            <span key={marker.id} className={`damage-pin${photosOf(marker).length ? " has-photo" : ""}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={`${marker.area_label} · ${t(operationStyle[marker.operation].label)}`}>
-              {markers.indexOf(marker) + 1}
-            </span>
-          ))}
+          {visible.map((marker) => {
+            const title = `${marker.area_label} · ${t(operationStyle[marker.operation].label)}`;
+            const photoClass = photosOf(marker).length ? " has-photo" : "";
+            if (marker.sketch?.length) {
+              // Drawn damage: the drawing itself is the target; a small number sits beside it, never on it.
+              const area = sketchBox(marker.sketch);
+              return (
+                <span key={marker.id} className={`damage-tag${photoClass}`} style={{ left: `${area.maxX * 100}%`, top: `${area.minY * 100}%`, background: operationStyle[marker.operation].color }} title={title}>
+                  {markers.indexOf(marker) + 1}
+                </span>
+              );
+            }
+            return (
+              <span key={marker.id} className={`damage-pin${photoClass}`} style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%`, background: operationStyle[marker.operation].color }} title={title}>
+                {markers.indexOf(marker) + 1}
+              </span>
+            );
+          })}
           {visibleParts.map((part) => (
             // X-ray lens: the body becomes see-through and the part appears in its place.
             <span key={part.key} className="part-lens" style={{ left: `${part.x * 100}%`, top: `${part.y * 100}%` }} title={part.label}>
@@ -818,7 +880,7 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
               <b>{part.letter}</b>
             </span>
           ))}
-          {pending && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
+          {pending && !draft.length && <span className="damage-pin pending" style={{ left: `${pending.x * 100}%`, top: `${pending.y * 100}%` }} />}
           </div>
         </div>
       </div>
@@ -977,10 +1039,31 @@ export function DamagePhotoMap({ vehicle, plate, markers, onAdd, onRemove, loadR
                   <button type="button" aria-label={t("Successiva")} onClick={() => setLightbox({ ...lightbox, index: (lightbox.index + 1) % lightbox.items.length })}>▶</button>
                 </>
               )}
+              {lightbox.marker && onAttachPhoto && (
+                <button type="button" disabled={attaching !== null} onClick={() => { photoTarget.current = lightbox.marker || null; setLightbox(null); photoInput.current?.click(); }}>
+                  📷 {t("Aggiungi foto")}
+                </button>
+              )}
               <button type="button" onClick={() => setLightbox(null)}>{t("Chiudi")}</button>
             </figcaption>
           </figure>
         </div>
+      )}
+      {onAttachPhoto && (
+        <input
+          ref={photoInput}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            const marker = photoTarget.current;
+            photoTarget.current = null;
+            if (marker) attach(marker, file);
+          }}
+        />
       )}
     </div>
   );
