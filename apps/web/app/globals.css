@@ -1602,3 +1602,12 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .update-banner { position: fixed; left: 50%; top: calc(12px + env(safe-area-inset-top)); transform: translateX(-50%); z-index: 1000; display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 16px; border-radius: 14px; background: #0b2a4a; color: #fff; box-shadow: 0 12px 30px rgba(0,0,0,.3); font-size: 14px; max-width: calc(100vw - 24px); }
 .update-banner button { border: 0; border-radius: 10px; padding: 8px 12px; font-weight: 700; background: #fff; color: #0b2a4a; cursor: pointer; white-space: nowrap; }
 .update-banner button.ghost { background: transparent; color: #c5d3e2; padding: 8px; }
+/* Profile illustrations remain paired with text in both languages and themes. */
+.staff-profile-item { display: flex; align-items: flex-start; gap: 12px; }
+.staff-profile-item > div { min-width: 0; }
+.staff-profile-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border: 1px solid #dae5ee; border-radius: 11px; background: #f0f5fa; color: #224d72; }
+.staff-selected-profile, .staff-role { display: flex; align-items: flex-start; gap: 8px; }
+.staff-selected-profile svg, .staff-role svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.staff-role-list { display: grid; gap: 6px; }
+[data-theme="dark"] .staff-profile-icon { background: #203950; border-color: #47617a; color: #b2d9fb; }
+[data-theme="dark"] .staff-selected-profile { color: #adbed1; }
