@@ -182,7 +182,7 @@ def test_migration_upgrade_downgrade_preserves_invoice_lines(monkeypatch):
     from sqlalchemy import create_engine, text, inspect
     from alembic.migration import MigrationContext
     from alembic.operations import Operations
-    file = Path(__file__).parents[1] / 'migrations/versions/0008_datev_foundation.py'
+    file = Path(__file__).parents[1] / 'migrations/versions/0021_datev_foundation.py'
     spec = importlib.util.spec_from_file_location('datev_migration', file)
     migration = importlib.util.module_from_spec(spec); spec.loader.exec_module(migration)
     engine = create_engine('sqlite://')

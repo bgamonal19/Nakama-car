@@ -89,6 +89,7 @@ def list_repair_cases(
             id=case.id,
             case_number=case.case_number,
             status=case.status,
+            work_type=case.work_type or "BODY",
             plate=vehicle.license_plate,
             vehicle_name=" ".join(filter(None, [vehicle.make, vehicle.model, vehicle.version])) or "Veicolo",
             customer_name=customer.company_name or f"{customer.first_name or ''} {customer.last_name or ''}".strip() or "Cliente",

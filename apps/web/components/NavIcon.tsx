@@ -10,6 +10,8 @@ const paths: Record<string, ReactNode> = {
   invoice: <><path d="M5 3h14v18l-3-2-4 2-4-2-3 2V3Z" /><path d="M8 7h8M8 11h8m-8 4h4" /></>,
   people: <><rect x="3" y="4" width="18" height="17" rx="2" /><circle cx="12" cy="10" r="3" /><path d="M7 19v-1a5 5 0 0 1 10 0v1M8 2v4m8-4v4" /></>,
   settings: <><path d="M3 6h18M3 12h18M3 18h18" /><path d="M8 3v6m8 0v6M8 15v6" /></>,
+  contract: <><path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5M10 13h6m-6 4h4" /><path d="M3 8v13h4" /></>,
+  truck: <><path d="M2 6h11v10H2zM13 10h5l3 3v3h-8" /><circle cx="6" cy="18" r="2" /><circle cx="17" cy="18" r="2" /></>,
   audit: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   language: <><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><path d="M3 12h18" /></>,
 };

@@ -1,8 +1,8 @@
 """Isolated DATEV preparation and remote identity links."""
 from alembic import op
 import sqlalchemy as sa
-revision = "0008_datev_foundation"
-down_revision = "0007_user_auth_version"
+revision = "0021_datev_foundation"
+down_revision = "0020_marker_sketch"
 branch_labels = None
 depends_on = None
 

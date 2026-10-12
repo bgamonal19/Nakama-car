@@ -1,0 +1,87 @@
+/** Common mechanical parts and services: [description, estimate line category, labour hours]. */
+export type CatalogItem = [string, string, number];
+
+export const mechanicalCatalog: { group: string; icon: string; items: CatalogItem[] }[] = [
+  { group: "Tagliando e motore", icon: "🛢️", items: [
+    ["Tagliando (olio e filtri)", "MECHANICAL_LABOR", 1.5],
+    ["Olio motore", "PART", 0],
+    ["Filtro olio", "PART", 0.3],
+    ["Filtro aria", "PART", 0.3],
+    ["Filtro abitacolo", "PART", 0.4],
+    ["Filtro carburante", "PART", 0.6],
+    ["Candele di accensione", "PART", 0.8],
+    ["Candelette (diesel)", "PART", 1.2],
+    ["Kit distribuzione", "PART", 4],
+    ["Pompa acqua", "PART", 2],
+    ["Cinghia servizi", "PART", 0.8],
+    ["Guarnizione testata", "PART", 8],
+    ["Valvola EGR", "PART", 2],
+    ["Turbocompressore", "PART", 5],
+    ["Iniettori", "PART", 2.5],
+  ] },
+  { group: "Freni", icon: "🛞", items: [
+    ["Pastiglie freno anteriori", "PART", 1],
+    ["Dischi freno anteriori", "PART", 1.5],
+    ["Pastiglie freno posteriori", "PART", 1],
+    ["Dischi freno posteriori", "PART", 1.5],
+    ["Ganasce freno posteriori", "PART", 1.5],
+    ["Pinza freno", "PART", 1.2],
+    ["Liquido freni", "MECHANICAL_LABOR", 0.6],
+    ["Controllo e regolazione freni", "MECHANICAL_LABOR", 1],
+  ] },
+  { group: "Sospensioni e sterzo", icon: "🔩", items: [
+    ["Ammortizzatori anteriori", "PART", 2],
+    ["Ammortizzatori posteriori", "PART", 1.5],
+    ["Molle sospensione", "PART", 1.5],
+    ["Braccio oscillante", "PART", 1.2],
+    ["Testina sterzo", "PART", 0.8],
+    ["Cuscinetto ruota", "PART", 1.5],
+    ["Semiasse", "PART", 1.8],
+    ["Convergenza", "MECHANICAL_LABOR", 0.8],
+  ] },
+  { group: "Frizione e cambio", icon: "⚙️", items: [
+    ["Kit frizione", "PART", 6],
+    ["Volano bimassa", "PART", 1],
+    ["Olio cambio", "PART", 0.8],
+    ["Supporti motore", "PART", 1.5],
+  ] },
+  { group: "Elettrico e diagnosi", icon: "🔌", items: [
+    ["Diagnosi elettronica", "DIAGNOSTIC", 1],
+    ["Batteria", "PART", 0.4],
+    ["Alternatore", "PART", 2],
+    ["Motorino di avviamento", "PART", 1.8],
+    ["Lampadine / fari", "ELECTRICAL", 0.5],
+    ["Sensore ABS", "PART", 0.8],
+    ["Sonda lambda", "PART", 0.8],
+    ["Impianto elettrico / luci", "ELECTRICAL", 1],
+  ] },
+  { group: "Clima e raffreddamento", icon: "❄️", items: [
+    ["Ricarica climatizzatore", "MECHANICAL_LABOR", 1],
+    ["Compressore clima", "PART", 3],
+    ["Radiatore", "PART", 2],
+    ["Termostato", "PART", 1],
+    ["Liquido refrigerante", "PART", 0.5],
+  ] },
+  { group: "Pneumatici", icon: "🚗", items: [
+    ["Sostituzione pneumatici", "MECHANICAL_LABOR", 1],
+    ["Pneumatico", "PART", 0.25],
+    ["Equilibratura", "MECHANICAL_LABOR", 0.5],
+    ["Riparazione foratura", "MECHANICAL_LABOR", 0.5],
+    ["Cambio stagionale gomme", "MECHANICAL_LABOR", 1],
+  ] },
+  { group: "Scarico", icon: "💨", items: [
+    ["Marmitta / silenziatore", "PART", 1.2],
+    ["Catalizzatore", "PART", 1.5],
+    ["Filtro antiparticolato (DPF)", "PART", 2],
+    ["Pulizia DPF", "MECHANICAL_LABOR", 2],
+  ] },
+  { group: "Servizi", icon: "🧰", items: [
+    ["Preparazione revisione", "MECHANICAL_LABOR", 1.5],
+    ["Tergicristalli", "PART", 0.2],
+    ["Soccorso / traino", "EXTERNAL_SERVICE", 0],
+    ["Auto di cortesia", "EXTERNAL_SERVICE", 0],
+    ["Smaltimento rifiuti speciali", "MATERIAL", 0],
+  ] },
+];
+
+export const catalogItems: CatalogItem[] = mechanicalCatalog.flatMap((group) => group.items);

@@ -6,10 +6,12 @@ import { LanguageSwitcher, useLanguage } from "./LanguageProvider";
 import { ThemeToggle } from "./ThemeProvider";
 import { NakamaLogo } from "./NakamaLogo";
 import { NavIcon } from "./NavIcon";
+import { ChatBubble } from "./ChatBubble";
 
 const navigation = [
   ["/", "▦ Dashboard", "dashboard"],
   ["/clienti", "◎ Clienti", "clients"],
+  ["/contratti", "▣ Contratti flotta", "contract"],
   ["/veicoli", "◇ Veicoli", "car"],
   ["/pratiche", "▤ Pratiche", "folder"],
   ["/preventivi", "€ Preventivi", "estimate"],
@@ -88,10 +90,12 @@ export function AppSidebar() {
       onClick={event => { if ((event.target as HTMLElement).closest("a, button")) setOpen(false); }}>
     <a className="brand brand-link nakama-sidebar-brand" href="/" aria-label="NAKAMA CAR"><NakamaLogo /></a>
     <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{navigation.map(link)}</nav>
+
     <div className="sidebar-bottom">
       <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.map(link)}</nav>
       <div className="sidebar-preferences"><LanguageSwitcher /><ThemeToggle /></div>
       <div className="nakama-location"><strong>NAKAMA CAR</strong><span>Bussnago · Lombardia</span><i><b></b><b></b><b></b></i></div>
     </div>
-  </aside></>;
+  </aside>
+  <ChatBubble /></>;
 }

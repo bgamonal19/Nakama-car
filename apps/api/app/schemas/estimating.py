@@ -20,6 +20,9 @@ class LaborRateRead(LaborRateUpsert):
 class EstimateCreate(BaseModel):
     repair_case_id: UUID
     notes: str | None = None
+    # None = use the customer's active service contract when there is one.
+    # False = public price list even for a contract customer.
+    apply_contract: bool | None = None
 
 
 class EstimateStatusUpdate(BaseModel):
@@ -46,6 +49,8 @@ class EstimateLineCreate(BaseModel):
 class EstimateLineRead(EstimateLineCreate):
     id: UUID
     estimate_id: UUID
+    parts_amount: Decimal = Decimal("0")
+    labor_amount: Decimal = Decimal("0")
     line_subtotal: Decimal
     line_vat: Decimal
     line_total: Decimal
@@ -63,4 +68,15 @@ class EstimateRead(BaseModel):
     vat_total: Decimal
     total: Decimal
     notes: str | None = None
+    contract_id: UUID | None = None
+    labor_included: bool = False
+    labor_discount_percent: Decimal = Decimal("0")
+    parts_markup_percent: Decimal = Decimal("0")
     model_config = ConfigDict(from_attributes=True)
+
+
+class EstimateListItem(EstimateRead):
+    case_number: str = ""
+    plate: str = ""
+    customer_name: str = ""
+    contract_name: str | None = None

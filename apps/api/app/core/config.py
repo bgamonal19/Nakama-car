@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     s3_secret_access_key: str | None = None
     s3_signed_url_ttl_seconds: int = 900
 
+    # Plate lookup (targa.co.it / RegCheck). Leave the username empty to disable it.
+    targa_api_username: str | None = None
+    targa_api_url: str = "https://www.regcheck.org.uk/api/reg.asmx/CheckItaly"
+    targa_api_timeout_seconds: float = 15
+    plate_lookup_monthly_limit: int = 300
+    plate_lookup_cache_days: int = 365
+
+    # Realistic vehicle renders (carimage.dev). Empty key = generic diagram only.
+    car_image_api_key: str | None = None
+    car_image_api_url: str = "https://carimage.dev/api/v1/images/car"
+    car_image_timeout_seconds: float = 30
+    car_image_monthly_limit: int = 500
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

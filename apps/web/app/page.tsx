@@ -1,11 +1,15 @@
 "use client";
 
 import { AppSidebar } from "../components/AppSidebar";
+import { DamageMarker, DamagePhotoMap, operationStyle } from "../components/DamagePhotoMap";
 
 import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch, getAccessToken, clearSession } from "../lib/api";
+import { apiFetch, getAccessToken, clearSession, customerLabel, uploadCasePhoto } from "../lib/api";
+import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
+import { NewEstimateChooser } from "../components/NewEstimateChooser";
+import { catalogItems, mechanicalCatalog } from "../lib/mechanicalCatalog";
 
 
 type DamageStatus = "NO_DAMAGE" | "CHECK" | "REPAIR" | "REPLACE" | "PAINT";
@@ -70,6 +74,19 @@ type DashboardData = {
   recent_practices: {code:string;plate:string;car:string;client:string;status:string}[];
 };
 
+type ActiveContract = {
+  id: string;
+  name: string;
+  labor_included: boolean;
+  labor_discount_percent: string;
+  parts_markup_percent: string;
+};
+
+type CustomerOption = { id: string; company_name?: string | null; first_name?: string | null; last_name?: string | null; phone?: string | null; email?: string | null; vat_number?: string | null };
+
+const vehicleCategories = ["CAR", "VAN", "TRUCK", "TRACTOR", "TRAILER", "BUS", "MOTORCYCLE", "OTHER"];
+
+// Frequent mechanical jobs for cars and industrial vehicles (hours are editable afterwards).
 type WorkOrderSummary = {
   id: string;
   work_order_number: string;
@@ -90,7 +107,10 @@ export default function HomePage() {
   const [userName,setUserName] = useState("");
   const [search,setSearch] = useState("");
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
   const [step, setStep] = useState(0);
+  // BODY = carrozzeria (foto + mappa danni), MECHANICAL = meccanica (senza foto e danni).
+  const [workType, setWorkType] = useState<"BODY" | "MECHANICAL">("BODY");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -101,16 +121,26 @@ export default function HomePage() {
   const [existingCustomerId, setExistingCustomerId] = useState<string | null>(null);
   const [plateLookupMessage, setPlateLookupMessage] = useState("");
   const [customer, setCustomer] = useState({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
-  const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
+  const [vehicle, setVehicle] = useState({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "", fuelType: "", engineSize: "", powerKw: "" });
+  const [plateSpots, setPlateSpots] = useState<PlateSpots>({});
+  useEffect(() => {
+    const timer = window.setTimeout(() => { loadPlateSpots(vehicle.make.trim(), vehicle.model.trim()).then(setPlateSpots); }, 600);
+    return () => window.clearTimeout(timer);
+  }, [vehicle.make, vehicle.model]);
+  const [customerRequest, setCustomerRequest] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
+  const [customerResults, setCustomerResults] = useState<CustomerOption[]>([]);
+  const [contract, setContract] = useState<ActiveContract | null>(null);
   const [photos, setPhotos] = useState<Record<string, File>>({});
   const [damages, setDamages] = useState<Record<string, DamageStatus>>({});
+  const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [rates, setRates] = useState({ body: 45, mechanical: 50, paint: 48, electrical: 55, diagnostic: 60 });
   const [lines, setLines] = useState<EstimateLine[]>([]);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("new") === "practice") {
-      setWizardOpen(true);
-    }
+    const requested = new URLSearchParams(window.location.search).get("new");
+    if (requested === "practice") setWizardOpen(true);
+    if (requested === "estimate") setChooserOpen(true);
     setAuthenticated(Boolean(getAccessToken()));
     try {const user=JSON.parse(localStorage.getItem("nakama_user")||"{}");setUserName([user.first_name,user.last_name].filter(Boolean).join(" "));}catch{}
     const api = process.env.NEXT_PUBLIC_API_URL;
@@ -133,33 +163,68 @@ export default function HomePage() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    apiFetch("/settings/labor-rates").then(async (response) => {
+      if (!response.ok) return;
+      const data: { labor_type: string; hourly_rate: string }[] = await response.json();
+      const byType = Object.fromEntries(data.map((rate) => [rate.labor_type, Number(rate.hourly_rate)]));
+      setRates((current) => ({
+        body: byType.BODY ?? current.body,
+        mechanical: byType.MECHANICAL ?? current.mechanical,
+        paint: byType.PAINT ?? current.paint,
+        electrical: byType.ELECTRICAL ?? current.electrical,
+        diagnostic: byType.DIAGNOSTIC ?? current.diagnostic,
+      }));
+    }).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setContract(null);
+    if (!existingCustomerId || !getAccessToken()) return;
+    apiFetch(`/contracts/active?customer_id=${existingCustomerId}`)
+      .then(async (response) => { if (response.ok) setContract(await response.json()); })
+      .catch(() => undefined);
+  }, [existingCustomerId]);
+
   const totals = useMemo(() => {
     let subtotal = 0;
     let vat = 0;
     for (const line of lines) {
-      const base =
-        line.quantity * line.unitPrice +
-        line.laborHours * line.laborRate +
-        line.paintHours * line.paintRate +
-        line.materials;
+      const markup = contract ? 1 + Number(contract.parts_markup_percent) / 100 : 1;
+      const labor = line.laborHours * line.laborRate + line.paintHours * line.paintRate;
+      const laborCharged = contract?.labor_included ? 0 : labor * (1 - Number(contract?.labor_discount_percent || 0) / 100);
+      const base = (line.quantity * line.unitPrice + line.materials) * markup + laborCharged;
       subtotal += base;
       vat += base * (line.vatRate / 100);
     }
     return { subtotal, vat, total: subtotal + vat };
-  }, [lines]);
+  }, [lines, contract]);
 
-  const selectedDamageCount = Object.values(damages).filter((v) => v !== "NO_DAMAGE").length;
+  // Mechanical jobs skip the bodywork steps (Foto, Danni).
+  const activeSteps = workType === "MECHANICAL" ? [0, 1, 2, 5, 6, 7] : steps.map((_, index) => index);
+  const stepPosition = Math.max(0, activeSteps.indexOf(step));
+  const goNext = () => setStep(activeSteps[Math.min(activeSteps.length - 1, stepPosition + 1)]);
+  const goBack = () => setStep(activeSteps[Math.max(0, stepPosition - 1)]);
+
+  const selectedDamageCount = Object.values(damages).filter((v) => v !== "NO_DAMAGE").length + markers.length;
 
   function resetWizard() {
     setStep(0);
+    setWorkType("BODY");
     setPlate("");
     setExistingVehicleId(null);
     setExistingCustomerId(null);
     setPlateLookupMessage("");
     setCustomer({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" });
-    setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50" });
+    setVehicle({ make: "", model: "", version: "", vin: "", year: "", mileage: "", color: "", paintCode: "", fuel: "50", category: "CAR", fleetNumber: "", fuelType: "", engineSize: "", powerKw: "" });
+    setCustomerRequest("");
+    setCustomerQuery("");
+    setCustomerResults([]);
+    setContract(null);
     setPhotos({});
     setDamages({});
+    setMarkers([]);
     setLines([]);
   }
 
@@ -173,7 +238,7 @@ export default function HomePage() {
         quantity: 1,
         unitPrice: 0,
         laborHours: 0,
-        laborRate: rates.body,
+        laborRate: rates.mechanical,
         paintHours: 0,
         paintRate: rates.paint,
         materials: 0,
@@ -184,6 +249,45 @@ export default function HomePage() {
 
   function updateLine(id: string, patch: Partial<EstimateLine>) {
     setLines((prev) => prev.map((line) => (line.id === id ? { ...line, ...patch } : line)));
+  }
+
+  // Plate not in our registry: ask the external provider (targa.co.it) for make/model.
+  async function lookupExternalPlate(normalized: string) {
+    setPlateLookupMessage("Targa nuova: cerco marca e modello…");
+    try {
+      const r = await apiFetch(`/vehicles/plate-data/${encodeURIComponent(normalized)}`);
+      if (r.status === 503) {
+        setPlateLookupMessage("Targa non presente: verrà creato un nuovo veicolo.");
+        return;
+      }
+      if (r.status === 404) {
+        setPlateLookupMessage("Targa non trovata nella banca dati: inserisci i dati del veicolo a mano.");
+        return;
+      }
+      if (r.status === 429) {
+        setPlateLookupMessage("Limite mensile di ricerche targa raggiunto: inserisci i dati a mano.");
+        return;
+      }
+      if (!r.ok) {
+        setPlateLookupMessage("Servizio targhe non disponibile: inserisci i dati a mano.");
+        return;
+      }
+      const data = await r.json();
+      setVehicle((current) => ({
+        ...current,
+        make: data.make || current.make,
+        model: data.model || current.model,
+        version: data.version || current.version,
+        vin: data.vin || current.vin,
+        year: data.year ? String(data.year) : current.year,
+        fuelType: data.fuel_type || current.fuelType,
+        engineSize: data.engine_size || current.engineSize,
+        powerKw: data.power_kw ? String(data.power_kw) : current.powerKw,
+      }));
+      setPlateLookupMessage("Veicolo identificato dalla targa: controlla i dati nel passo Veicolo.");
+    } catch {
+      setPlateLookupMessage("Servizio targhe non disponibile: inserisci i dati a mano.");
+    }
   }
 
   async function lookupPlate() {
@@ -198,7 +302,7 @@ export default function HomePage() {
     try {
       const r = await apiFetch(`/vehicles/by-plate/${encodeURIComponent(normalized)}`);
       if (r.status === 404) {
-        setPlateLookupMessage("Targa non presente: verrà creato un nuovo veicolo.");
+        await lookupExternalPlate(normalized);
         return;
       }
       if (!r.ok) {
@@ -217,6 +321,11 @@ export default function HomePage() {
         color: found.color_name || "",
         paintCode: found.paint_code || "",
         fuel: "50",
+        category: found.vehicle_category || "CAR",
+        fleetNumber: found.fleet_number || "",
+        fuelType: found.fuel_type || "",
+        engineSize: found.engine_size || "",
+        powerKw: found.power_kw ? String(found.power_kw) : "",
       });
 
       if (found.customer_id) {
@@ -240,6 +349,48 @@ export default function HomePage() {
     }
   }
 
+  async function searchCustomers() {
+    if (!getAccessToken()) return;
+    const response = await apiFetch(`/customers?q=${encodeURIComponent(customerQuery.trim())}&limit=10`);
+    if (response.ok) setCustomerResults(await response.json());
+  }
+
+  function pickCustomer(found: CustomerOption) {
+    setExistingCustomerId(found.id);
+    setCustomer({
+      firstName: found.first_name || "",
+      lastName: found.last_name || "",
+      company: found.company_name || "",
+      phone: found.phone || "",
+      email: found.email || "",
+      vat: found.vat_number || "",
+    });
+    setCustomerResults([]);
+    setCustomerQuery("");
+  }
+
+  const [catalogGroup, setCatalogGroup] = useState(0);
+  const [customItem, setCustomItem] = useState({ kind: "PART", description: "", code: "", quantity: 1, price: 0, hours: 0 });
+
+  function addCustomItem() {
+    const description = [customItem.code.trim(), customItem.description.trim()].filter(Boolean).join(" · ");
+    if (!customItem.description.trim()) return;
+    const rate = customItem.kind === "DIAGNOSTIC" ? rates.diagnostic : customItem.kind === "ELECTRICAL" ? rates.electrical : rates.mechanical;
+    setLines((prev) => [...prev, {
+      id: crypto.randomUUID(), description, category: customItem.kind, quantity: customItem.quantity || 1, unitPrice: customItem.price || 0,
+      laborHours: customItem.hours || 0, laborRate: rate, paintHours: 0, paintRate: rates.paint, materials: 0, vatRate: 22,
+    }]);
+    setCustomItem({ kind: customItem.kind, description: "", code: "", quantity: 1, price: 0, hours: 0 });
+  }
+
+  function addOperation(description: string, category: string, hours: number) {
+    const rate = category === "DIAGNOSTIC" ? rates.diagnostic : category === "ELECTRICAL" ? rates.electrical : rates.mechanical;
+    setLines((prev) => [...prev, {
+      id: crypto.randomUUID(), description, category, quantity: 1, unitPrice: 0, laborHours: hours,
+      laborRate: rate, paintHours: 0, paintRate: rates.paint, materials: 0, vatRate: 22,
+    }]);
+  }
+
   async function savePractice() {
     if (!getAccessToken()) {
       alert(words("Accedi per salvare la pratica nel database.","Inicia sesión para guardar el expediente en la base de datos."));
@@ -251,7 +402,32 @@ export default function HomePage() {
       let savedCustomer: { id: string };
       let savedVehicle: { id: string };
 
-      if (existingVehicleId && existingCustomerId) {
+      const vehicleFields = {
+        vin: vehicle.vin || null,
+        make: vehicle.make || null,
+        model: vehicle.model || null,
+        version: vehicle.version || null,
+        year: vehicle.year ? Number(vehicle.year) : null,
+        mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
+        color_name: vehicle.color || null,
+        paint_code: vehicle.paintCode || null,
+        vehicle_category: vehicle.category || "CAR",
+        fleet_number: vehicle.fleetNumber.trim() || null,
+        fuel_type: vehicle.fuelType.trim() || null,
+        engine_size: vehicle.engineSize.trim() || null,
+        power_kw: vehicle.powerKw ? Number(vehicle.powerKw) : null,
+      };
+
+      if (existingCustomerId && !existingVehicleId) {
+        // Known customer (e.g. a fleet company) bringing a vehicle not yet registered.
+        const vehicleResponse = await apiFetch("/vehicles", {
+          method: "POST",
+          body: JSON.stringify({ customer_id: existingCustomerId, license_plate: plate, ...vehicleFields }),
+        });
+        if (!vehicleResponse.ok) throw new Error(vehicleResponse.status === 409 ? "Esiste già un veicolo con questa targa." : (await vehicleResponse.json()).detail || "Errore veicolo");
+        savedCustomer = { id: existingCustomerId };
+        savedVehicle = await vehicleResponse.json();
+      } else if (existingVehicleId && existingCustomerId) {
         const [customerUpdateResponse, vehicleUpdateResponse] = await Promise.all([
           apiFetch(`/customers/${existingCustomerId}`, {
             method: "PATCH",
@@ -266,16 +442,7 @@ export default function HomePage() {
           }),
           apiFetch(`/vehicles/${existingVehicleId}`, {
             method: "PATCH",
-            body: JSON.stringify({
-              vin: vehicle.vin || null,
-              make: vehicle.make || null,
-              model: vehicle.model || null,
-              version: vehicle.version || null,
-              year: vehicle.year ? Number(vehicle.year) : null,
-              mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
-              color_name: vehicle.color || null,
-              paint_code: vehicle.paintCode || null,
-            }),
+            body: JSON.stringify({ ...vehicleFields, customer_id: existingCustomerId }),
           }),
         ]);
         if (!customerUpdateResponse.ok) throw new Error("Errore aggiornamento cliente");
@@ -299,21 +466,20 @@ export default function HomePage() {
         if (!customerResponse.ok) throw new Error((await customerResponse.json()).detail || "Errore cliente");
         savedCustomer = await customerResponse.json();
 
-        const vehicleResponse = await apiFetch("/vehicles", {
-          method: "POST",
-          body: JSON.stringify({
-            customer_id: savedCustomer.id,
-            license_plate: plate,
-            vin: vehicle.vin || null,
-            make: vehicle.make || null,
-            model: vehicle.model || null,
-            version: vehicle.version || null,
-            year: vehicle.year ? Number(vehicle.year) : null,
-            mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
-            color_name: vehicle.color || null,
-            paint_code: vehicle.paintCode || null,
-          }),
-        });
+        // A plate already registered without an owner is linked to the new customer.
+        const vehicleResponse = existingVehicleId
+          ? await apiFetch(`/vehicles/${existingVehicleId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ ...vehicleFields, customer_id: savedCustomer.id }),
+          })
+          : await apiFetch("/vehicles", {
+            method: "POST",
+            body: JSON.stringify({
+              customer_id: savedCustomer.id,
+              license_plate: plate,
+              ...vehicleFields,
+            }),
+          });
         if (!vehicleResponse.ok) throw new Error((await vehicleResponse.json()).detail || "Errore veicolo");
         savedVehicle = await vehicleResponse.json();
       }
@@ -323,9 +489,10 @@ export default function HomePage() {
         body: JSON.stringify({
           customer_id: savedCustomer.id,
           vehicle_id: savedVehicle.id,
+          work_type: workType,
           mileage: vehicle.mileage ? Number(vehicle.mileage) : null,
           fuel_level_percent: Number(vehicle.fuel),
-          customer_notes: null,
+          customer_notes: customerRequest.trim() || null,
           internal_notes: Object.keys(photos).length ? `Foto raccolte nel pilot UI: ${Object.keys(photos).join(", ")}` : null,
         }),
       });
@@ -333,55 +500,30 @@ export default function HomePage() {
       const savedCase = await caseResponse.json();
 
       let mediaWarning = "";
-      for (const [category, file] of Object.entries(photos)) {
+      for (const [category, file] of workType === "BODY" ? Object.entries(photos) : []) {
         try {
-          const targetResponse = await apiFetch(`/cases/${savedCase.id}/media/upload-target`, {
-            method: "POST",
-            body: JSON.stringify({
-              filename: file.name,
-              mime_type: file.type || "image/jpeg",
-              category,
-              media_type: "PHOTO",
-            }),
-          });
-          if (!targetResponse.ok) {
-            mediaWarning = "Foto non caricate: storage S3 non ancora configurato.";
-            break;
-          }
-          const target = await targetResponse.json();
-          const uploadResponse = await fetch(target.upload_url, {
-            method: "PUT",
-            headers: { "Content-Type": file.type || "image/jpeg" },
-            body: file,
-          });
-          if (!uploadResponse.ok) {
-            mediaWarning = "Alcune foto non sono state caricate.";
-            continue;
-          }
-          const registerResponse = await apiFetch(`/cases/${savedCase.id}/media`, {
-            method: "POST",
-            body: JSON.stringify({
-              storage_key: target.storage_key,
-              original_filename: file.name,
-              mime_type: file.type || "image/jpeg",
-              size_bytes: file.size,
-              category,
-              media_type: "PHOTO",
-            }),
-          });
-          if (!registerResponse.ok) mediaWarning = "Alcune foto non sono state registrate.";
+          const saved = await uploadCasePhoto(savedCase.id, file, category);
+          if (!saved.ok) mediaWarning = "Alcune foto non sono state caricate.";
         } catch {
-          mediaWarning = "Foto non caricate: verifica lo storage.";
+          mediaWarning = "Alcune foto non sono state caricate.";
         }
       }
 
-      for (const [code, operation] of Object.entries(damages)) {
+      for (const [code, operation] of workType === "BODY" ? Object.entries(damages) : []) {
         if (operation === "NO_DAMAGE") continue;
         const damageResponse = await apiFetch(`/cases/${savedCase.id}/damages/${code}`, {
           method: "PUT",
           body: JSON.stringify({ vehicle_area_code: code, operation }),
         });
         if (!damageResponse.ok) throw new Error("Errore salvataggio danni");
+      }
+
+      for (const marker of workType === "BODY" ? markers : []) {
+        const markerResponse = await apiFetch(`/cases/${savedCase.id}/damage-markers`, {
+          method: "POST",
+          body: JSON.stringify({ view: marker.view, x: marker.x, y: marker.y, operation: marker.operation, area_label: marker.area_label, sketch: marker.sketch || null }),
+        });
+        if (!markerResponse.ok) throw new Error("Errore salvataggio danni");
       }
 
       const estimateResponse = await apiFetch("/estimates", {
@@ -445,15 +587,15 @@ export default function HomePage() {
           <div className="photo-hero-content">
             <p className="eyebrow">{t("BENVENUTO IN")}</p>
             <h1>NAKAMA <span>CAR</span></h1>
-            <p>{t("Carrozzeria e servizi auto · Qualità in ogni dettaglio")}</p>
+            <p>{t("Officina meccanica e carrozzeria · Auto e veicoli industriali")}</p>
             <div className="hero-values"><span>{t("Esperienza")}</span><span>{t("Tecnologia")}</span><span>{t("Qualità")}</span><span>{t("Affidabilità")}</span></div>
           </div>
           <div className="hero-signature">{t("Più di una carrozzeria, un partner per la tua auto")}</div>
         </section>
 
         <div className="nakama-actions">
-          <button className="nakama-action blue" onClick={() => setWizardOpen(true)}><b>▤</b><span><strong>{t("Nuova Pratica")}</strong><small>{t("Apri una nuova pratica")}</small></span></button>
-          <button className="nakama-action green" onClick={() => setWizardOpen(true)}><b>▦</b><span><strong>{t("Nuovo Preventivo")}</strong><small>{t("Crea un preventivo")}</small></span></button>
+          <button className="nakama-action blue" onClick={() => { setWorkType("BODY"); setWizardOpen(true); }}><b>▤</b><span><strong>{t("Nuova Pratica")}</strong><small>{t("Apri una nuova pratica")}</small></span></button>
+          <button className="nakama-action green" onClick={() => setChooserOpen(true)}><b>▦</b><span><strong>{t("Nuovo Preventivo")}</strong><small>{t("Crea un preventivo")}</small></span></button>
           <a className="nakama-action red" href="/lavori"><b>⌁</b><span><strong>{t("Ordine di Lavoro")}</strong><small>{t("Invia in officina")}</small></span></a>
           <a className="nakama-action white" href="/clienti"><b>◎</b><span><strong>{t("Nuovo Cliente")}</strong><small>{t("Gestisci anagrafica")}</small></span></a>
           <a className="nakama-action white" href="/veicoli"><b>◇</b><span><strong>{t("Nuovo Veicolo")}</strong><small>{t("Consulta veicoli")}</small></span></a>
@@ -463,7 +605,7 @@ export default function HomePage() {
         <div className="kpi-grid nakama-kpis">
           <div className="kpi-card"><span>{t("Pratiche aperte")}</span><strong>{dashboard?.open_cases ?? "—"}</strong><small>{authenticated ? t("Dati live NAKAMA CAR") : words("Accesso richiesto","Acceso requerido")}</small></div>
           <div className="kpi-card"><span>{t("In attesa approvazione")}</span><strong>{dashboard?.waiting_approval ?? "—"}</strong><small>{t("Preventivi da seguire")}</small></div>
-          <div className="kpi-card"><span>{t("Lavori in corso")}</span><strong>{dashboard?.in_progress ?? "—"}</strong><small>{t("Carrozzeria / verniciatura")}</small></div>
+          <div className="kpi-card"><span>{t("Lavori in corso")}</span><strong>{dashboard?.in_progress ?? "—"}</strong><small>{t("Officina e carrozzeria")}</small></div>
           <div className="kpi-card"><span>{t("Pronte consegna")}</span><strong>{dashboard?.ready ?? "—"}</strong><small>{t("Da contattare")}</small></div>
         </div>
 
@@ -510,21 +652,25 @@ export default function HomePage() {
         </div>
       </section>
 
+      {chooserOpen && (
+        <NewEstimateChooser onClose={() => setChooserOpen(false)} onNewVehicle={(type) => { setChooserOpen(false); setWorkType(type); setWizardOpen(true); }} />
+      )}
       {wizardOpen && (
         <div className="modal-backdrop">
-          <div className="wizard" role="dialog" aria-modal="true" aria-labelledby="intake-title">
+          <div className={`wizard work-${workType.toLowerCase()}`} role="dialog" aria-modal="true" aria-labelledby="intake-title">
             <div className="wizard-head">
               <div>
                 <p className="eyebrow">{t("NUOVA PRATICA")}</p>
+                <span className={`work-badge big ${workType === "MECHANICAL" ? "mechanical" : "body"}`}>{workType === "MECHANICAL" ? `🔧 ${t("Meccanica")}` : `🚗 ${t("Carrozzeria")}`}</span>
                 <h2 id="intake-title">{t(steps[step])}</h2>
               </div>
               <button className="close" aria-label={t("Chiudi nuova pratica")} onClick={() => setWizardOpen(false)}>×</button>
             </div>
 
             <div className="stepper">
-              {steps.map((label, index) => (
-                <button key={label} className={index === step ? "current" : index < step ? "done" : ""} onClick={() => setStep(index)}>
-                  <span>{index < step ? "✓" : index + 1}</span><small>{t(label)}</small>
+              {activeSteps.map((index, position) => (
+                <button key={steps[index]} className={index === step ? "current" : position < stepPosition ? "done" : ""} onClick={() => setStep(index)}>
+                  <span>{position < stepPosition ? "✓" : position + 1}</span><small>{t(steps[index])}</small>
                 </button>
               ))}
             </div>
@@ -532,6 +678,14 @@ export default function HomePage() {
             <div className="wizard-body">
               {step === 0 && (
                 <div className="hero-step">
+                  <div className="work-type-switch" role="radiogroup" aria-label={t("Tipo di lavoro")}>
+                    <button type="button" role="radio" aria-checked={workType === "BODY"} className={workType === "BODY" ? "active body" : "body"} onClick={() => setWorkType("BODY")}>
+                      <b aria-hidden="true">🚗</b><span><strong>{t("Carrozzeria")}</strong><small>{t("Foto, mappa danni, verniciatura")}</small></span>
+                    </button>
+                    <button type="button" role="radio" aria-checked={workType === "MECHANICAL"} className={workType === "MECHANICAL" ? "active mechanical" : "mechanical"} onClick={() => setWorkType("MECHANICAL")}>
+                      <b aria-hidden="true">🔧</b><span><strong>{t("Meccanica")}</strong><small>{t("Tagliando, freni, diagnosi… senza foto")}</small></span>
+                    </button>
+                  </div>
                   <label>{t("Targa del veicolo")}</label>
                   <input className="plate-input" placeholder="AB123CD" value={plate} onChange={(e) => { setPlate(e.target.value.toUpperCase()); setExistingVehicleId(null); setExistingCustomerId(null); setPlateLookupMessage(""); }} autoFocus />
                   {authenticated && <button className="secondary plate-search" type="button" onClick={lookupPlate}>{t("Cerca nella tua anagrafica")}</button>}
@@ -541,6 +695,31 @@ export default function HomePage() {
               )}
 
               {step === 1 && (
+                <>
+                {authenticated && (
+                  <div className="customer-picker wizard-picker">
+                    {existingCustomerId ? (
+                      <p>{t("Cliente esistente selezionato")}: <strong>{customer.company || `${customer.firstName} ${customer.lastName}`.trim()}</strong>{" "}
+                        {!existingVehicleId && <button type="button" className="ghost" onClick={() => { setExistingCustomerId(null); setCustomer({ firstName: "", lastName: "", company: "", phone: "", email: "", vat: "" }); }}>{t("Nuovo cliente")}</button>}
+                      </p>
+                    ) : (
+                      <div className="inline-search">
+                        <input aria-label={t("Cerca cliente esistente")} placeholder={t("Cerca cliente esistente (es. Univex, Gamonal)")} value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchCustomers(); } }} />
+                        <button type="button" className="secondary" onClick={searchCustomers}>{t("Cerca")}</button>
+                      </div>
+                    )}
+                    {customerResults.length > 0 && (
+                      <div className="picker-results">
+                        {customerResults.map((option) => (
+                          <button type="button" key={option.id} className="picker-option" onClick={() => pickCustomer(option)}>
+                            <strong>{customerLabel(option)}</strong><small>{[option.vat_number, option.phone].filter(Boolean).join(" · ")}</small>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {contract && <ContractBanner contract={contract} />}
+                  </div>
+                )}
                 <div className="form-grid">
                   <Field label={t("Nome")} value={customer.firstName} onChange={(v) => setCustomer({ ...customer, firstName: v })} />
                   <Field label={t("Cognome")} value={customer.lastName} onChange={(v) => setCustomer({ ...customer, lastName: v })} />
@@ -549,18 +728,29 @@ export default function HomePage() {
                   <Field label={t("Telefono")} value={customer.phone} onChange={(v) => setCustomer({ ...customer, phone: v })} />
                   <Field label={t("Email")} value={customer.email} onChange={(v) => setCustomer({ ...customer, email: v })} />
                 </div>
+                </>
               )}
 
               {step === 2 && (
                 <div className="form-grid">
+                  <div className="field"><label>{t("Tipo veicolo")}</label>
+                    <select value={vehicle.category} onChange={(e) => setVehicle({ ...vehicle, category: e.target.value })}>
+                      {vehicleCategories.map((code) => <option key={code} value={code}>{t(code)}</option>)}
+                    </select>
+                  </div>
+                  <Field label={t("N. flotta / interno")} value={vehicle.fleetNumber} onChange={(v) => setVehicle({ ...vehicle, fleetNumber: v })} />
                   <Field label={t("Marca")} value={vehicle.make} onChange={(v) => setVehicle({ ...vehicle, make: v })} />
                   <Field label={t("Modello")} value={vehicle.model} onChange={(v) => setVehicle({ ...vehicle, model: v })} />
                   <Field label={t("Versione")} value={vehicle.version} onChange={(v) => setVehicle({ ...vehicle, version: v })} />
                   <Field label="VIN" value={vehicle.vin} onChange={(v) => setVehicle({ ...vehicle, vin: v.toUpperCase() })} />
                   <Field label={t("Anno")} value={vehicle.year} onChange={(v) => setVehicle({ ...vehicle, year: v })} />
                   <Field label={t("Chilometri")} value={vehicle.mileage} onChange={(v) => setVehicle({ ...vehicle, mileage: v })} />
+                  <Field label={t("Alimentazione")} value={vehicle.fuelType} onChange={(v) => setVehicle({ ...vehicle, fuelType: v })} />
+                  <Field label={t("Cilindrata (cc)")} value={vehicle.engineSize} onChange={(v) => setVehicle({ ...vehicle, engineSize: v })} />
+                  <Field label={t("Potenza (kW)")} value={vehicle.powerKw} onChange={(v) => setVehicle({ ...vehicle, powerKw: v.replace(/[^0-9]/g, "") })} />
                   <Field label={t("Colore")} value={vehicle.color} onChange={(v) => setVehicle({ ...vehicle, color: v })} />
                   <Field label={t("Codice vernice")} value={vehicle.paintCode} onChange={(v) => setVehicle({ ...vehicle, paintCode: v })} />
+                  <div className="field full"><label>{t("Richiesta del cliente / sintomi")}</label><textarea rows={3} value={customerRequest} placeholder={t("Es. rumore ai freni, spia motore accesa, tagliando…")} onChange={(e) => setCustomerRequest(e.target.value)} /></div>
                   <div className="field full"><label>{t("Carburante:")} {vehicle.fuel}%</label><input type="range" min="0" max="100" value={vehicle.fuel} onChange={(e) => setVehicle({ ...vehicle, fuel: e.target.value })} /></div>
                 </div>
               )}
@@ -582,6 +772,20 @@ export default function HomePage() {
               {step === 4 && (
                 <div>
                   <div className="summary-strip"><span>{t("Elementi con intervento")}</span><strong>{selectedDamageCount}</strong></div>
+                  <p className="hint">{t("Per interventi solo meccanici puoi saltare questo passaggio.")}</p>
+                  <DamagePhotoMap
+                    vehicle={{ make: vehicle.make, model: vehicle.model, year: vehicle.year, color: vehicle.color }}
+                    plate={plate.trim()}
+                    markers={markers}
+                    onAdd={(marker) => setMarkers((current) => [...current, { ...marker, id: crypto.randomUUID() }])}
+                    onRemove={(marker) => setMarkers((current) => current.filter((item) => item.id !== marker.id))}
+                    onColorChange={(color) => setVehicle((current) => ({ ...current, color }))}
+                    plateSpots={plateSpots}
+                    onPlateSpotSave={vehicle.make && vehicle.model ? async (view, spot) => {
+                      try { setPlateSpots(await savePlateSpot(vehicle.make, vehicle.model, view, spot)); } catch { /* keep the default position */ }
+                    } : undefined}
+                  />
+                  <details className="damage-grid-details"><summary>{t("Elenco zone (alternativa)")}</summary>
                   <div className="damage-grid">
                     {vehicleAreas.map(([code, label]) => (
                       <div className="damage-card" key={code}>
@@ -592,6 +796,7 @@ export default function HomePage() {
                       </div>
                     ))}
                   </div>
+                  </details>
                 </div>
               )}
 
@@ -600,14 +805,80 @@ export default function HomePage() {
                   <div className="rates">
                     <h3>{t("Tariffe NAKAMA CAR")}</h3>
                     <div className="rate-grid">
-                      <NumberField label={t("Carrozzeria €/h")} value={rates.body} onChange={(v) => setRates({ ...rates, body: v })} />
+                      {workType === "BODY" && <NumberField label={t("Carrozzeria €/h")} value={rates.body} onChange={(v) => setRates({ ...rates, body: v })} />}
                       <NumberField label={t("Meccanica €/h")} value={rates.mechanical} onChange={(v) => setRates({ ...rates, mechanical: v })} />
-                      <NumberField label={t("Verniciatura €/h")} value={rates.paint} onChange={(v) => setRates({ ...rates, paint: v })} />
+                      {workType === "BODY" && <NumberField label={t("Verniciatura €/h")} value={rates.paint} onChange={(v) => setRates({ ...rates, paint: v })} />}
                       <NumberField label={t("Elettrico €/h")} value={rates.electrical} onChange={(v) => setRates({ ...rates, electrical: v })} />
                       <NumberField label={t("Diagnosi €/h")} value={rates.diagnostic} onChange={(v) => setRates({ ...rates, diagnostic: v })} />
                     </div>
                   </div>
+                  {workType === "MECHANICAL" && vehicle.make && vehicle.model && (
+                    <div className="mechanical-map">
+                      <DamagePhotoMap
+                        vehicle={{ make: vehicle.make, model: vehicle.model, year: vehicle.year, color: vehicle.color }}
+                        plate={plate.trim()}
+                        markers={[]}
+                        plateSpots={plateSpots}
+                        parts={lines.filter((line) => line.description.trim() && !["BODY_LABOR", "PAINT", "MATERIAL"].includes(line.category)).map((line) => ({ id: line.id, label: line.description }))}
+                        scene="lift"
+                        onColorChange={(color) => setVehicle((current) => ({ ...current, color }))}
+                      />
+                    </div>
+                  )}
+                  <div className="custom-item">
+                    <h3>{t("Aggiungi ricambio o servizio")}</h3>
+                    <div className="custom-item-grid">
+                      <label>{t("Tipo")}
+                        <select value={customItem.kind} onChange={(e) => setCustomItem({ ...customItem, kind: e.target.value })}>
+                          <option value="PART">{t("Ricambio")}</option>
+                          <option value="MECHANICAL_LABOR">{t("Servizio / manodopera")}</option>
+                          <option value="DIAGNOSTIC">{t("DIAGNOSTIC")}</option>
+                          <option value="ELECTRICAL">{t("ELECTRICAL")}</option>
+                          <option value="EXTERNAL_SERVICE">{t("EXTERNAL_SERVICE")}</option>
+                          <option value="MATERIAL">{t("MATERIAL")}</option>
+                        </select>
+                      </label>
+                      <label className="wide">{t("Descrizione")}
+                        <input list="mechanical-catalog" value={customItem.description} placeholder={t("Es. Pastiglie freno anteriori")}
+                          onChange={(e) => {
+                            const match = catalogItems.find(([name]) => name.toLowerCase() === e.target.value.trim().toLowerCase());
+                            setCustomItem(match ? { ...customItem, description: e.target.value, kind: match[1], hours: customItem.hours || match[2] } : { ...customItem, description: e.target.value });
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomItem(); } }} />
+                        <datalist id="mechanical-catalog">{catalogItems.map(([name]) => <option key={name} value={t(name)} />)}</datalist>
+                      </label>
+                      <label>{t("Codice ricambio")}<input value={customItem.code} placeholder="OEM / fornitore" onChange={(e) => setCustomItem({ ...customItem, code: e.target.value })} /></label>
+                      <label>{t("Q.tà")}<input type="number" min="0" step="1" value={customItem.quantity} onChange={(e) => setCustomItem({ ...customItem, quantity: Number(e.target.value) })} /></label>
+                      <label>{t("Prezzo €")}<input type="number" min="0" step="0.01" value={customItem.price} onChange={(e) => setCustomItem({ ...customItem, price: Number(e.target.value) })} /></label>
+                      <label>{t("Ore")}<input type="number" min="0" step="0.1" value={customItem.hours} onChange={(e) => setCustomItem({ ...customItem, hours: Number(e.target.value) })} /></label>
+                    </div>
+                    <button type="button" className="primary" disabled={!customItem.description.trim()} onClick={addCustomItem}>+ {t("Aggiungi al preventivo")}</button>
+                  </div>
+                  <h3 className="operations-title">{t("Catalogo interventi meccanici")}</h3>
+                  <div className="catalog-tabs" role="tablist">
+                    {mechanicalCatalog.map((group, index) => (
+                      <button key={group.group} type="button" role="tab" aria-selected={catalogGroup === index} className={catalogGroup === index ? "active" : ""} onClick={() => setCatalogGroup(index)}>
+                        <span aria-hidden="true">{group.icon}</span> {t(group.group)}
+                      </button>
+                    ))}
+                  </div>
                   <div className="operation-suggestions">
+                    {mechanicalCatalog[catalogGroup].items.map(([description, category, hours]) => (
+                      <button key={description} onClick={() => addOperation(t(description), category, hours)}>+ {t(description)}</button>
+                    ))}
+                  </div>
+                  {lines.length > 0 && <p className="hint">{lines.length} {t("righe nel preventivo: prezzi e quantità si completano al passo Preventivo.")}</p>}
+                  {workType === "BODY" && selectedDamageCount > 0 && <h3 className="operations-title">{t("Da mappa danni carrozzeria")}</h3>}
+                  <div className="operation-suggestions">
+                    {markers.map((marker) => (
+                      <button key={marker.id} onClick={() => setLines((prev) => [...prev, {
+                        id: crypto.randomUUID(),
+                        description: `${operationStyle[marker.operation].label} · ${marker.area_label}`,
+                        category: marker.operation === "PAINT" ? "PAINT" : marker.operation === "REPLACE" ? "PART" : "BODY_LABOR",
+                        quantity: 1, unitPrice: 0, laborHours: 1, laborRate: rates.body,
+                        paintHours: marker.operation === "PAINT" ? 1 : 0, paintRate: rates.paint, materials: 0, vatRate: 22,
+                      }])}>+ {marker.area_label} · {t(operationStyle[marker.operation].label)}</button>
+                    ))}
                     {Object.entries(damages).filter(([, s]) => s !== "NO_DAMAGE").map(([code, status]) => (
                       <button key={code} onClick={() => setLines((prev) => [...prev, {
                         id: crypto.randomUUID(),
@@ -626,13 +897,14 @@ export default function HomePage() {
                     <div><h3>{t("Righe preventivo")}</h3><p>{t("Nessun dato OEM inventato: codici, prezzi e tempi vanno inseriti manualmente finché non è collegato un provider licenziato.")}</p></div>
                     <button className="secondary" onClick={addLine}>{t("+ Riga")}</button>
                   </div>
+                  {contract && <ContractBanner contract={contract} />}
                   <div className="estimate-lines">
                     {lines.map((line, index) => (
                       <div className="estimate-line" key={line.id}>
                         <div className="line-no">{index + 1}</div>
-                        <input className="line-description" placeholder="Descrizione operazione / ricambio" value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} />
+                        <input className="line-description" placeholder={t("Descrizione operazione / ricambio")} value={line.description} onChange={(e) => updateLine(line.id, { description: e.target.value })} />
                         <select value={line.category} onChange={(e) => updateLine(line.id, { category: e.target.value })}>
-                          <option value="PART">{t("PART")}</option><option value="BODY_LABOR">{t("BODY_LABOR")}</option><option value="MECHANICAL_LABOR">{t("MECHANICAL_LABOR")}</option><option value="PAINT">{t("PAINT")}</option><option value="MATERIAL">{t("MATERIAL")}</option><option value="EXTERNAL_SERVICE">{t("EXTERNAL_SERVICE")}</option>
+                          <option value="PART">{t("PART")}</option><option value="MECHANICAL_LABOR">{t("MECHANICAL_LABOR")}</option><option value="DIAGNOSTIC">{t("DIAGNOSTIC")}</option><option value="ELECTRICAL">{t("ELECTRICAL")}</option><option value="BODY_LABOR">{t("BODY_LABOR")}</option><option value="PAINT">{t("PAINT")}</option><option value="MATERIAL">{t("MATERIAL")}</option><option value="EXTERNAL_SERVICE">{t("EXTERNAL_SERVICE")}</option>
                         </select>
                         <NumberField compact label={t("Q.tà")} value={line.quantity} onChange={(v) => updateLine(line.id, { quantity: v })} />
                         <NumberField compact label={t("Prezzo")} value={line.unitPrice} onChange={(v) => updateLine(line.id, { unitPrice: v })} />
@@ -657,20 +929,28 @@ export default function HomePage() {
                     <div><small>{t("TARGA")}</small><strong>{plate || "—"}</strong></div>
                     <div><small>{t("CLIENTE")}</small><strong>{customer.company || `${customer.firstName} ${customer.lastName}`.trim() || "—"}</strong></div>
                     <div><small>{t("VEICOLO")}</small><strong>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || "—"}</strong></div>
-                    <div><small>{t("FOTO")}</small><strong>{Object.keys(photos).length}</strong></div>
-                    <div><small>{t("DANNI")}</small><strong>{selectedDamageCount}</strong></div>
+                    <div><small>{t("TIPO")}</small><strong>{workType === "MECHANICAL" ? t("Meccanica") : t("Carrozzeria")}</strong></div>
+                    {workType === "BODY" ? (
+                      <>
+                        <div><small>{t("FOTO")}</small><strong>{Object.keys(photos).length}</strong></div>
+                        <div><small>{t("DANNI")}</small><strong>{selectedDamageCount}</strong></div>
+                      </>
+                    ) : (
+                      <div><small>{t("RICHIESTA")}</small><strong>{customerRequest.trim() || "—"}</strong></div>
+                    )}
                     <div><small>{t("PREVENTIVO")}</small><strong>{money(totals.total)}</strong></div>
                   </div>
+                  {contract && <ContractBanner contract={contract} />}
                   <div className="pilot-note">{authenticated ? t("Sessione autenticata: cliente, veicolo, pratica, danni e preventivo saranno salvati nel database multi-tenant.") : words("Accedi prima di salvare la pratica.","Inicia sesión antes de guardar el expediente.")}</div>
                 </div>
               )}
             </div>
 
             <div className="wizard-footer">
-              <button className="ghost" disabled={step === 0} onClick={() => setStep((s) => Math.max(0, s - 1))}>{t("← Indietro")}</button>
+              <button className="ghost" disabled={stepPosition === 0} onClick={goBack}>{t("← Indietro")}</button>
               <div>
-                {step < steps.length - 1 ? (
-                  <button className="primary" onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}>{t("Continua →")}</button>
+                {stepPosition < activeSteps.length - 1 ? (
+                  <button className="primary" onClick={goNext}>{t("Continua →")}</button>
                 ) : (
                   <button className="primary" onClick={savePractice} disabled={saving}>{saving ? t("Salvataggio…") : t("Salva pratica")}</button>
                 )}
@@ -691,4 +971,17 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
 function NumberField({ label, value, onChange, compact = false }: { label: string; value: number; onChange: (value: number) => void; compact?: boolean }) {
   const { t } = useLanguage();
   return <div className={compact ? "number-field compact" : "number-field"}><label>{t(label)}</label><input type="number" step="0.1" value={value} onChange={(e) => onChange(Number(e.target.value))} /></div>;
+}
+
+function ContractBanner({ contract }: { contract: ActiveContract }) {
+  const { t } = useLanguage();
+  return (
+    <div className="pricing-banner contract">
+      <span>
+        <strong>{t("Cliente con contratto flotta")}: {contract.name}</strong>{" · "}
+        {contract.labor_included ? t("manodopera inclusa") : `${t("sconto manodopera")} ${Number(contract.labor_discount_percent)}%`}
+        {" · "}{t("ricambi")} +{Number(contract.parts_markup_percent)}%
+      </span>
+    </div>
+  );
 }

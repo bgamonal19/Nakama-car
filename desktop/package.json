@@ -1,0 +1,42 @@
+{
+  "name": "nakama-car-desktop",
+  "productName": "NAKAMA CAR",
+  "version": "1.0.0",
+  "description": "NAKAMA CAR ESTIMATE como app nativa para Mac",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac --universal --publish never"
+  },
+  "devDependencies": {
+    "electron": "^38.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.nakamacar.estimate.mac",
+    "productName": "NAKAMA CAR",
+    "artifactName": "NAKAMA-CAR-mac.${ext}",
+    "files": ["main.js", "offline.html"],
+    "icon": "build/icon.png",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "mac": {
+      "category": "public.app-category.business",
+      "target": ["dmg"],
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSCameraUsageDescription": "NAKAMA CAR usa la cámara para hacer fotos de los daños y de los vehículos.",
+        "NSMicrophoneUsageDescription": "NAKAMA CAR puede usar el micrófono si grabas un vídeo del vehículo."
+      }
+    },
+    "dmg": {
+      "title": "NAKAMA CAR"
+    },
+    "afterSign": "build/adhoc-sign.js"
+  }
+}
