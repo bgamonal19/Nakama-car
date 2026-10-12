@@ -13,5 +13,6 @@ class DashboardSummary(BaseModel):
     open_cases: int
     waiting_approval: int
     in_progress: int
+    waiting_parts: int = 0
     ready: int
     recent_practices: list[DashboardPractice]

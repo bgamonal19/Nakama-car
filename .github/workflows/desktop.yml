@@ -1,0 +1,50 @@
+# Construye NAKAMA CAR para Mac (.dmg) y lo publica en Releases.
+# Se lanza sola al cambiar la carpeta desktop/ o a mano desde Actions.
+name: App para Mac
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Comprobar la firma y los permisos de cámara
+        run: |
+          MNT=$(hdiutil attach -nobrowse -readonly dist/NAKAMA-CAR-mac.dmg | tail -1 | cut -f3-)
+          APP="$MNT/NAKAMA CAR.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          /usr/libexec/PlistBuddy -c "Print :NSCameraUsageDescription" "$APP/Contents/Info.plist"
+          lipo -archs "$APP/Contents/MacOS/NAKAMA CAR"
+          hdiutil detach "$MNT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NAKAMA-CAR-mac
+          path: desktop/dist/NAKAMA-CAR-mac.dmg
+      - name: Publicar en Releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="mac-v$(node -p "require('./package.json').version")"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "NAKAMA CAR para Mac $TAG" --notes "App nativa para Mac (Intel y Apple Silicon). Se actualiza sola con cada versión de NAKAMA CAR."
+          gh release upload "$TAG" dist/NAKAMA-CAR-mac.dmg --clobber

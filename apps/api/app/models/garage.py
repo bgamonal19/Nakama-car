@@ -1,8 +1,8 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Date, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -68,8 +68,20 @@ class Vehicle(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     mileage: Mapped[int | None] = mapped_column(Integer)
     color_name: Mapped[str | None] = mapped_column(String(120))
     paint_code: Mapped[str | None] = mapped_column(String(64))
+    vehicle_category: Mapped[str] = mapped_column(String(20), nullable=False, default="CAR", server_default="CAR")
+    fleet_number: Mapped[str | None] = mapped_column(String(40))
+    fuel_type: Mapped[str | None] = mapped_column(String(40))
+    engine_size: Mapped[str | None] = mapped_column(String(20))
+    power_kw: Mapped[int | None] = mapped_column(Integer)
     external_vehicle_id: Mapped[str | None] = mapped_column(String(255))
     vehicle_data_provider: Mapped[str | None] = mapped_column(String(64))
+    # Maintenance plan: next service by date and/or km (explicit, or last service + interval).
+    service_interval_km: Mapped[int | None] = mapped_column(Integer)
+    service_interval_months: Mapped[int | None] = mapped_column(Integer)
+    last_service_date: Mapped[date | None] = mapped_column(Date)
+    last_service_km: Mapped[int | None] = mapped_column(Integer)
+    next_service_date: Mapped[date | None] = mapped_column(Date)
+    next_service_km: Mapped[int | None] = mapped_column(Integer)
 
 
 class RepairCase(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
@@ -91,6 +103,8 @@ class RepairCase(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
         default=RepairCaseStatus.NEW,
         index=True,
     )
+    # BODY = carrozzeria (photos + damage map), MECHANICAL = officina meccanica.
+    work_type: Mapped[str] = mapped_column(String(12), nullable=False, default="BODY", server_default="BODY")
     mileage: Mapped[int | None] = mapped_column(Integer)
     fuel_level_percent: Mapped[int | None] = mapped_column(Integer)
     customer_notes: Mapped[str | None] = mapped_column(Text)

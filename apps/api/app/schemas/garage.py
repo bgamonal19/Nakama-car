@@ -1,10 +1,14 @@
+from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 from app.models.garage import CustomerType, RepairCaseStatus
 
+VehicleCategory = Literal["CAR", "VAN", "TRUCK", "TRACTOR", "TRAILER", "BUS", "MOTORCYCLE", "OTHER"]
+
 
 class CustomerCreate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     customer_type: CustomerType = CustomerType.PRIVATE
     first_name: str | None = None
     last_name: str | None = None
@@ -15,7 +19,7 @@ class CustomerCreate(BaseModel):
     city: str | None = None
     province: str | None = None
     postal_code: str | None = None
-    country: str = "IT"
+    country: str = Field(default="IT", min_length=2, max_length=2)
     phone: str | None = None
     email: EmailStr | None = None
     pec: EmailStr | None = None
@@ -47,6 +51,11 @@ class VehicleCreate(BaseModel):
     mileage: int | None = Field(default=None, ge=0)
     color_name: str | None = None
     paint_code: str | None = None
+    vehicle_category: VehicleCategory = "CAR"
+    fleet_number: str | None = Field(default=None, max_length=40)
+    fuel_type: str | None = Field(default=None, max_length=40)
+    engine_size: str | None = Field(default=None, max_length=20)
+    power_kw: int | None = Field(default=None, ge=0, le=2000)
 
 
 class VehicleRead(VehicleCreate):
@@ -59,6 +68,7 @@ class VehicleRead(VehicleCreate):
 class RepairCaseCreate(BaseModel):
     customer_id: UUID
     vehicle_id: UUID
+    work_type: Literal["BODY", "MECHANICAL"] = "BODY"
     mileage: int | None = Field(default=None, ge=0)
     fuel_level_percent: int | None = Field(default=None, ge=0, le=100)
     customer_notes: str | None = None
@@ -76,6 +86,7 @@ class RepairCaseListItem(BaseModel):
     id: UUID
     case_number: str
     status: RepairCaseStatus
+    work_type: str = "BODY"
     plate: str
     vehicle_name: str
     customer_name: str
@@ -83,6 +94,7 @@ class RepairCaseListItem(BaseModel):
 
 
 class CustomerUpdate(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
     first_name: str | None = None
     last_name: str | None = None
     company_name: str | None = None
@@ -110,3 +122,38 @@ class VehicleUpdate(BaseModel):
     mileage: int | None = Field(default=None, ge=0)
     color_name: str | None = None
     paint_code: str | None = None
+    vehicle_category: VehicleCategory | None = None
+    fleet_number: str | None = Field(default=None, max_length=40)
+    fuel_type: str | None = Field(default=None, max_length=40)
+    engine_size: str | None = Field(default=None, max_length=20)
+    power_kw: int | None = Field(default=None, ge=0, le=2000)
+
+
+class RepairCaseUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    mileage: int | None = Field(default=None, ge=0)
+    fuel_level_percent: int | None = Field(default=None, ge=0, le=100)
+    customer_notes: str | None = None
+    internal_notes: str | None = None
+
+
+class PlateLookupResult(BaseModel):
+    license_plate: str
+    make: str | None = None
+    model: str | None = None
+    version: str | None = None
+    year: int | None = None
+    vin: str | None = None
+    fuel_type: str | None = None
+    engine_size: str | None = None
+    power_kw: int | None = None
+    doors: int | None = None
+    source: str
+    cached: bool = False
+
+
+class PlateLookupUsage(BaseModel):
+    configured: bool
+    provider: str | None = None
+    used_this_month: int
+    monthly_limit: int

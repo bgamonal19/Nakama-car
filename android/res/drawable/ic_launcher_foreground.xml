@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Keep the full brand artwork within the adaptive icon safe area.
+     Fractional insets scale with the launcher's icon size (21 / 108 per edge). -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/nakama_logo"
+    android:insetLeft="19.444444%"
+    android:insetTop="19.444444%"
+    android:insetRight="19.444444%"
+    android:insetBottom="19.444444%" />
