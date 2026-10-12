@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { DatevInvoice } from "../../components/DatevInvoice";
 import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, formatMoney, getAccessToken, hasPermission, openProtectedFile } from "../../lib/api";
@@ -219,6 +220,7 @@ function InvoiceEditor({ id, onClose, onChanged }: { id: string; onClose: () => 
               </button>
             ))}
           </div>
+          <DatevInvoice invoiceId={invoice.id} localStatus={invoice.status} />
           <div className="line-editor readonly">
             <div className="line-row invoice head"><span>{t("Descrizione")}</span><span>{t("Q.tà")}</span><span>{t("Prezzo unit.")}</span><span>{t("IVA %")}</span><span>{t("Imponibile")}</span></div>
             {invoice.lines.map((line) => (

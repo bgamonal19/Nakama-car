@@ -165,6 +165,7 @@ def create_invoice_from_estimate(
             InvoiceLine(
                 tenant_id=auth.tenant_id,
                 invoice_id=invoice.id,
+                source_category=line.category.value,
                 description=description[:255],
                 quantity=quantity,
                 unit_price=unit_price,
