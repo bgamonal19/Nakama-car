@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from app.api.v1 import datev
 
-from app.api.v1 import approvals, assistant, audit, auth, billing, cases, company, contracts, customers, damages, dashboard, estimates, integrations, media, portal, renders, tracking, users, vehicles, workshop
+from app.api.v1 import approvals, assistant, audit, staff, auth, billing, cases, company, contracts, customers, damages, dashboard, estimates, integrations, media, portal, renders, tracking, users, vehicles, workshop
 
 api_router = APIRouter()
 api_router.include_router(datev.router)
@@ -26,6 +26,7 @@ api_router.include_router(tracking.router)
 api_router.include_router(portal.router)
 api_router.include_router(integrations.router)
 api_router.include_router(assistant.router)
+api_router.include_router(staff.router)
 
 
 @api_router.get("/health", tags=["system"])

@@ -81,6 +81,8 @@ export default function PreventiviPage() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [canCreate, setCanCreate] = useState(false);
+  useEffect(() => setCanCreate(hasPermission("estimate.create")), []);
 
   async function load() {
     setBusy(true);
@@ -148,7 +150,7 @@ export default function PreventiviPage() {
   }
 
   return (
-    <SectionShell title={t("Preventivi")} eyebrow={t("ESTIMATING ENGINE")} actions={<a className="primary link-button" href="/?new=estimate">{t("+ Nuovo preventivo")}</a>}>
+    <SectionShell title={t("Preventivi")} eyebrow={t("ESTIMATING ENGINE")} actions={canCreate && <a className="primary link-button" href="/?new=estimate">{t("+ Nuovo preventivo")}</a>}>
       {!signedIn ? (
         <div className="empty-state">{t("Accedi per visualizzare i preventivi.")} <a href="/login">{t("Accedi")}</a></div>
       ) : (

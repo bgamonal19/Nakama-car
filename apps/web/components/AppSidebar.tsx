@@ -7,19 +7,28 @@ import { ThemeToggle } from "./ThemeProvider";
 import { NakamaLogo } from "./NakamaLogo";
 import { NavIcon } from "./NavIcon";
 import { ChatBubble } from "./ChatBubble";
+import { apiFetch, refreshSession, sessionUser, SessionUser } from "../lib/api";
 
+// [href, label, icon, permission needed] — each user only sees what they can use.
 const navigation = [
-  ["/", "▦ Dashboard", "dashboard"],
-  ["/clienti", "◎ Clienti", "clients"],
-  ["/contratti", "▣ Contratti flotta", "contract"],
-  ["/veicoli", "◇ Veicoli", "car"],
-  ["/pratiche", "▤ Pratiche", "folder"],
-  ["/preventivi", "€ Preventivi", "estimate"],
-  ["/lavori", "⌁ Lavori in officina", "work"],
-  ["/fatture", "◫ Fatture", "invoice"],
-  ["/personale", "♙ Personale", "people"],
+  ["/", "▦ Dashboard", "dashboard", "case.create"],
+  ["/officina", "⚒ Il mio lavoro", "wrench", "work_order.update_status"],
+  ["/diagnosi", "✚ Diagnosi", "diagnosis", "work_order.read"],
+  ["/clienti", "◎ Clienti", "clients", "customer.read"],
+  ["/contratti", "▣ Contratti flotta", "contract", "customer.read"],
+  ["/veicoli", "◇ Veicoli", "car", "vehicle.read"],
+  ["/pratiche", "▤ Pratiche", "folder", "case.read"],
+  ["/preventivi", "€ Preventivi", "estimate", "estimate.read"],
+  ["/lavori", "⌁ Lavori in officina", "work", "work_order.read"],
+  ["/fatture", "◫ Fatture", "invoice", "invoice.read"],
+  ["/personale", "♙ Personale", "people", "users.manage"],
 ];
-const settings = [["/configurazione", "⚙ Impostazioni", "settings"], ["/audit", "◷ Audit log", "audit"]];
+const settings = [
+  ["/profilo", "☺ Il mio profilo", "profile", ""],
+  ["/configurazione", "⚙ Impostazioni", "settings", "settings.manage"],
+  ["/audit", "◷ Audit log", "audit", "audit.read"],
+];
+const areaNames: Record<string, string> = { MECHANICAL: "Meccanica", BODY: "Carrozzeria" };
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -27,6 +36,27 @@ export function AppSidebar() {
   const [open, setOpen] = useState(false);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [pendingDiagnoses, setPendingDiagnoses] = useState(0);
+  useEffect(() => {
+    setUser(sessionUser());
+    const sync = () => setUser(sessionUser());
+    window.addEventListener("nakama-session", sync);
+    void refreshSession();
+    return () => window.removeEventListener("nakama-session", sync);
+  }, []);
+  // The office sees how many diagnoses are waiting for an estimate.
+  const manager = Boolean(user?.permissions.includes("estimate.create"));
+  useEffect(() => {
+    if (!manager) return;
+    const load = () => apiFetch("/diagnoses?status=SENT&limit=300").then(async (response) => {
+      if (response.ok) setPendingDiagnoses((await response.json()).length);
+    }).catch(() => undefined);
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    return () => window.clearInterval(timer);
+  }, [manager]);
+  const allowed = ([, , , permission]: string[]) => !permission || !user || user.permissions.includes(permission);
 
   useEffect(() => { setOpen(false); }, [pathname]);
   useEffect(() => {
@@ -67,11 +97,13 @@ export function AppSidebar() {
   }, [open]);
 
   function link([href, key, icon]: string[]) {
+    const badge = href === "/diagnosi" && manager && pendingDiagnoses > 0 ? pendingDiagnoses : 0;
     // Keep existing translation keys while rendering the symbol as a consistent SVG.
     const label = t(key).replace(/^\S+\s+/, "");
     const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
     return <a key={href} href={href} className={`nav-item${active ? " active" : ""}`} aria-current={active ? "page" : undefined} aria-label={label} title={label}>
       <NavIcon name={icon} /><span className="nav-label">{label}</span>
+      {badge > 0 && <b className="nav-badge" aria-label={`${badge}`}>{badge}</b>}
     </a>;
   }
   return <>
@@ -89,10 +121,11 @@ export function AppSidebar() {
     <aside ref={sidebarRef} id="nakama-navigation" className={`sidebar minimal-sidebar${open ? " is-open" : ""}`}
       onClick={event => { if ((event.target as HTMLElement).closest("a, button")) setOpen(false); }}>
     <a className="brand brand-link nakama-sidebar-brand" href="/" aria-label="NAKAMA CAR"><NakamaLogo /></a>
-    <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{navigation.map(link)}</nav>
+    <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{navigation.filter(allowed).map(link)}</nav>
 
     <div className="sidebar-bottom">
-      <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.map(link)}</nav>
+      <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.filter(allowed).map(link)}</nav>
+      {user?.work_area && <p className="sidebar-area">{t("Area")}: <strong>{t(areaNames[user.work_area])}</strong></p>}
       <div className="sidebar-preferences"><LanguageSwitcher /><ThemeToggle /></div>
       <div className="nakama-location"><strong>NAKAMA CAR</strong><span>Bussnago · Lombardia</span><i><b></b><b></b><b></b></i></div>
     </div>

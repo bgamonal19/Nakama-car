@@ -16,6 +16,9 @@ class LoginResponse(BaseModel):
     first_name: str
     last_name: str
     permissions: list[str]
+    roles: list[str] = []
+    # BODY (carrozzeria), MECHANICAL (meccanica) or None (sees everything).
+    work_area: str | None = None
 
 
 class BootstrapRequest(BaseModel):

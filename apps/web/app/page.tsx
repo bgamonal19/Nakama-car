@@ -6,7 +6,7 @@ import { DamageMarker, DamagePhotoMap, operationStyle } from "../components/Dama
 import { useLanguage } from "../components/LanguageProvider";
 
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch, getAccessToken, clearSession, customerLabel, uploadCasePhoto } from "../lib/api";
+import { apiFetch, getAccessToken, clearSession, customerLabel, homeFor, sessionUser, uploadCasePhoto } from "../lib/api";
 import { loadPlateSpots, PlateSpots, savePlateSpot } from "../lib/plateSpots";
 import { NewEstimateChooser } from "../components/NewEstimateChooser";
 import { catalogItems, mechanicalCatalog } from "../lib/mechanicalCatalog";
@@ -138,6 +138,12 @@ export default function HomePage() {
   const [lines, setLines] = useState<EstimateLine[]>([]);
 
   useEffect(() => {
+    // Workers (mechanic, bodyshop, accounting…) start from their own page, not the office dashboard.
+    const current = sessionUser();
+    if (getAccessToken() && current && !current.permissions.includes("case.create")) {
+      window.location.replace(homeFor(current));
+      return;
+    }
     const requested = new URLSearchParams(window.location.search).get("new");
     if (requested === "practice") setWizardOpen(true);
     if (requested === "estimate") setChooserOpen(true);

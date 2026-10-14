@@ -27,12 +27,25 @@ function handleExpiredSession() {
   window.location.assign(`/login?expired=1&next=${encodeURIComponent(next)}`);
 }
 
+export type WorkArea = "BODY" | "MECHANICAL" | null;
+export type SessionUser = {
+  first_name: string;
+  last_name: string;
+  tenant_id?: string;
+  permissions: string[];
+  roles?: string[];
+  /** BODY (carrozzeria), MECHANICAL (meccanica) or null (sees everything). */
+  work_area?: WorkArea;
+};
+
 export function saveSession(payload: {
   access_token: string;
   first_name: string;
   last_name: string;
   tenant_id: string;
   permissions: string[];
+  roles?: string[];
+  work_area?: WorkArea;
 }) {
   localStorage.setItem("nakama_access_token", payload.access_token);
   localStorage.setItem("nakama_user", JSON.stringify({
@@ -40,7 +53,46 @@ export function saveSession(payload: {
     last_name: payload.last_name,
     tenant_id: payload.tenant_id,
     permissions: payload.permissions,
+    roles: payload.roles || [],
+    work_area: payload.work_area ?? null,
   }));
+}
+
+export function sessionUser(): SessionUser | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("nakama_user");
+    return raw ? (JSON.parse(raw) as SessionUser) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Reloads name, roles, area and permissions from the server (a role change shows at once). */
+export async function refreshSession(): Promise<SessionUser | null> {
+  if (!getAccessToken()) return null;
+  try {
+    const response = await apiFetch("/me");
+    if (!response.ok) return sessionUser();
+    const me: SessionUser = await response.json();
+    const current = sessionUser();
+    const next: SessionUser = { ...current, first_name: me.first_name, last_name: me.last_name, permissions: me.permissions, roles: me.roles, work_area: me.work_area ?? null };
+    localStorage.setItem("nakama_user", JSON.stringify(next));
+    window.dispatchEvent(new Event("nakama-session"));
+    return next;
+  } catch {
+    return sessionUser();
+  }
+}
+
+/** First page this user can use: the office goes to the dashboard, workers to their jobs. */
+export function homeFor(user: SessionUser | null): string {
+  const can = (permission: string) => Boolean(user?.permissions.includes(permission));
+  if (can("case.create")) return "/";
+  if (can("work_order.update_status")) return "/officina";
+  if (can("invoice.read")) return "/fatture";
+  if (can("customer.read")) return "/clienti";
+  return "/profilo";
 }
 
 export function clearSession() {
