@@ -3,12 +3,14 @@ package com.nakamacar.estimate;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Base64;
 import android.view.View;
 import android.view.WindowInsets;
@@ -43,11 +45,13 @@ import java.util.ArrayList;
 
 /** Embedded, origin-restricted app surface. No browser toolbar or JavaScript bridge. */
 public final class MainActivity extends Activity {
-    private static final int PICK_FILES = 10, SAVE_PDF = 11, CHUNK = 131072, MAX_PDF = 16 * 1024 * 1024;
+    private static final int PICK_FILES = 10, SAVE_PDF = 11, TAKE_PHOTO = 12, CHUNK = 131072, MAX_PDF = 16 * 1024 * 1024;
     private WebView web;
     private ProgressBar progress;
     private LinearLayout errorPanel;
     private ValueCallback<Uri[]> fileCallback;
+    /** Where the camera app writes the photo being taken (null when no camera shot is pending). */
+    private Uri cameraUri;
     private byte[] pendingPdf;
     private boolean readingPdf;
     private String nativeScript = "";
@@ -134,8 +138,27 @@ public final class MainActivity extends Activity {
                 if (!NavigationPolicy.isInternal(view.getUrl())) return false;
                 if (fileCallback!=null) fileCallback.onReceiveValue(null);
                 fileCallback=callback;
-                try { startActivityForResult(params.createIntent(),PICK_FILES); }
-                catch (ActivityNotFoundException unavailable) { fileCallback.onReceiveValue(null);fileCallback=null;toast(text("Selettore file non disponibile","Selector de archivos no disponible")); }
+                discardCameraShot();
+                boolean images=acceptsImages(params);
+                try {
+                    // <input capture>: open the camera straight away (check-in photos of a vehicle).
+                    if (images&&params.isCaptureEnabled()) {
+                        Intent camera=cameraIntent();
+                        if (camera!=null) { startActivityForResult(camera,TAKE_PHOTO);return true; }
+                    }
+                    Intent picker=params.createIntent();
+                    if (images) {
+                        // Otherwise offer both: take a photo now or pick one from the gallery/files.
+                        Intent camera=cameraIntent();
+                        if (camera!=null) {
+                            Intent chooser=Intent.createChooser(picker,text("Scatta una foto o scegli un file","Toma una foto o elige un archivo"));
+                            chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS,new Intent[]{camera});
+                            picker=chooser;
+                        }
+                    }
+                    startActivityForResult(picker,PICK_FILES);
+                }
+                catch (ActivityNotFoundException unavailable) { discardCameraShot();fileCallback.onReceiveValue(null);fileCallback=null;toast(text("Selettore file non disponibile","Selector de archivos no disponible")); }
                 return true;
             }
             @Override public boolean onJsAlert(WebView view,String url,String message,final JsResult result) {
@@ -200,9 +223,19 @@ public final class MainActivity extends Activity {
     private void pdfFailed(){readingPdf=false;pendingPdf=null;clearPdfScript();toast(text("Impossibile salvare il PDF. Riprova.","No se pudo guardar el PDF. Inténtalo de nuevo."));}
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
+        if(request==TAKE_PHOTO&&fileCallback!=null){
+            Uri shot=cameraUri;cameraUri=null;
+            if(result==RESULT_OK&&shot!=null&&hasContent(shot))fileCallback.onReceiveValue(new Uri[]{shot});
+            else{deleteShot(shot);fileCallback.onReceiveValue(null);}
+            fileCallback=null;
+        }
         if(request==PICK_FILES&&fileCallback!=null){
             Uri[] chosen=WebChromeClient.FileChooserParams.parseResult(result,data);ArrayList<Uri> safe=new ArrayList<>();
             if(chosen!=null)for(Uri uri:chosen)if(uri!=null&&"content".equals(uri.getScheme())&&safe.size()<30)safe.add(uri);
+            Uri shot=cameraUri;cameraUri=null;
+            // The camera was chosen from the chooser: it returns no data, the photo is in our MediaStore entry.
+            if(safe.isEmpty()&&result==RESULT_OK&&shot!=null&&hasContent(shot))safe.add(shot);
+            else deleteShot(shot);
             fileCallback.onReceiveValue(safe.isEmpty()?null:safe.toArray(new Uri[0]));fileCallback=null;
         }
         if(request==SAVE_PDF){
@@ -218,6 +251,35 @@ public final class MainActivity extends Activity {
             }}).start();
         }
     }
+    private static boolean acceptsImages(WebChromeClient.FileChooserParams params){
+        String[] types=params.getAcceptTypes();
+        if(types==null||types.length==0)return true;
+        for(String type:types){if(type==null||type.trim().isEmpty()||type.trim().startsWith("image/")||type.trim().equals("*/*"))return true;}
+        return false;
+    }
+    /** Camera intent writing to a new photo in Pictures/NAKAMA CAR (Android 10+, no storage or camera permission needed). */
+    private Intent cameraIntent(){
+        if(Build.VERSION.SDK_INT<29)return null;
+        Intent camera=new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        if(camera.resolveActivity(getPackageManager())==null)return null;
+        try{
+            discardCameraShot();
+            ContentValues values=new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME,"NAKAMA_"+System.currentTimeMillis()+".jpg");
+            values.put(MediaStore.Images.Media.MIME_TYPE,"image/jpeg");
+            values.put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/NAKAMA CAR");
+            cameraUri=getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values);
+            if(cameraUri==null)return null;
+            camera.putExtra(MediaStore.EXTRA_OUTPUT,cameraUri);
+            camera.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION|Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            return camera;
+        }catch(Exception error){cameraUri=null;return null;}
+    }
+    private boolean hasContent(Uri uri){
+        try(InputStream input=getContentResolver().openInputStream(uri)){return input!=null&&input.read()!=-1;}catch(Exception error){return false;}
+    }
+    private void deleteShot(Uri uri){if(uri==null)return;try{getContentResolver().delete(uri,null,null);}catch(Exception ignored){}}
+    private void discardCameraShot(){Uri shot=cameraUri;cameraUri=null;deleteShot(shot);}
     private void external(String url){try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(ActivityNotFoundException ignored){toast(text("Nessuna app disponibile","No hay una aplicación disponible"));}}
     private void showError(){progress.setVisibility(View.GONE);errorPanel.setVisibility(View.VISIBLE);}
     private void toast(String value){Toast.makeText(this,value,Toast.LENGTH_LONG).show();}
@@ -225,5 +287,5 @@ public final class MainActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle state){web.saveState(state);super.onSaveInstanceState(state);}
     @Override protected void onPause(){CookieManager.getInstance().flush();web.onPause();super.onPause();}
     @Override protected void onResume(){super.onResume();if(web!=null)web.onResume();}
-    @Override protected void onDestroy(){if(fileCallback!=null){fileCallback.onReceiveValue(null);fileCallback=null;}pendingPdf=null;web.destroy();super.onDestroy();}
+    @Override protected void onDestroy(){if(fileCallback!=null){fileCallback.onReceiveValue(null);fileCallback=null;}discardCameraShot();pendingPdf=null;web.destroy();super.onDestroy();}
 }
