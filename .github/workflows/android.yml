@@ -1,7 +1,7 @@
 # Compila la app Android de NAKAMA CAR (APK) cuando cambia la carpeta android/.
 # Sin claves: deja el APK sin firmar como artefacto (sirve para comprobar que compila).
-# Con los secretos ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS y
-# ANDROID_KEY_PASSWORD (los pone el propietario en Settings → Secrets), en main lo firma y
+# Con los secretos ANDROID_KEYSTORE_BASE64 y ANDROID_KEYSTORE_PASSWORD (los pone el propietario
+# en Settings → Secrets; alias "nakama" y misma contraseña por defecto), en main lo firma y
 # lo publica en Releases. La clave nunca se guarda en el repositorio.
 name: App Android
 
@@ -47,6 +47,9 @@ jobs:
           VERSION=$(sed -n 's/.*android:versionName="\([^"]*\)".*/\1/p' android/AndroidManifest.xml)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           if [ -z "$KEYSTORE" ]; then echo "Sin clave: APK sin firmar."; exit 0; fi
+          KEY_ALIAS="${KEY_ALIAS:-nakama}"
+          KEY_PASS="${KEY_PASS:-$STORE_PASS}"
+          export KEY_PASS
           echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:STORE_PASS \
             --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASS \
