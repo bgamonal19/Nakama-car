@@ -15,7 +15,7 @@ from app.db.deps import get_db
 from app.models.estimating import Estimate, EstimateLine, EstimateLineCategory, EstimateStatus, LaborRate, LaborType
 from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
 from app.models.identity import User
-from app.models.staff import Diagnosis, DiagnosisLine, DiagnosisStatus, UserProfile
+from app.models.staff import Diagnosis, DiagnosisLine, DiagnosisStatus, QuickItem, UserProfile
 from app.models.workshop import WorkOrder, WorkOrderStatus, WorkOrderTask, WorkTaskStatus
 from app.schemas.estimating import EstimateLineCreate
 from app.security.context import AuthContext, get_auth_context, require_permission
@@ -133,6 +133,61 @@ def set_user_area(user_id: UUID, payload: StaffAreaUpdate, db: Session = Depends
     profile.work_area = payload.work_area
     db.commit()
     return user_profile(user_id, db, auth)
+
+
+# ---------- quick-add list (workshop's own items) ----------
+
+class QuickItemIn(BaseModel):
+    name: str = Field(min_length=2, max_length=160)
+    kind: Literal["PART", "MATERIAL", "SERVICE"] = "PART"
+    labor_hours: Decimal = Field(default=Decimal("0"), ge=0, le=200)
+    work_area: Literal["BODY", "MECHANICAL", "ALL"] | None = None
+
+
+def quick_item_dict(item: QuickItem) -> dict:
+    return {"id": str(item.id), "name": item.name, "kind": item.kind, "labor_hours": float(item.labor_hours),
+            "work_area": item.work_area, "created_by": str(item.created_by) if item.created_by else None}
+
+
+@router.get("/quick-items")
+def list_quick_items(db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """Items the workshop added itself; a worker only gets those of their area (or for both)."""
+    area = staff.user_area(db, auth.user_id, auth.tenant_id)
+    query = select(QuickItem).where(QuickItem.tenant_id == auth.tenant_id)
+    if area:
+        query = query.where((QuickItem.work_area == area) | QuickItem.work_area.is_(None))
+    return [quick_item_dict(item) for item in db.scalars(query.order_by(QuickItem.name)).all()]
+
+
+@router.post("/quick-items", status_code=status.HTTP_201_CREATED)
+def create_quick_item(payload: QuickItemIn, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """Save a new quick-add item for everybody in the workshop (same name + kind is reused)."""
+    name = " ".join(payload.name.split())
+    existing = db.scalar(select(QuickItem).where(
+        QuickItem.tenant_id == auth.tenant_id, QuickItem.kind == payload.kind, func.lower(QuickItem.name) == name.lower(),
+    ))
+    if existing is not None:
+        return quick_item_dict(existing)
+    area = None if payload.work_area == "ALL" else payload.work_area or staff.user_area(db, auth.user_id, auth.tenant_id)
+    item = QuickItem(tenant_id=auth.tenant_id, name=name, kind=payload.kind, labor_hours=payload.labor_hours, work_area=area, created_by=auth.user_id)
+    db.add(item)
+    db.flush()
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="quick_item", entity_id=item.id, action="created", new_value={"name": name, "kind": payload.kind})
+    db.commit()
+    db.refresh(item)
+    return quick_item_dict(item)
+
+
+@router.delete("/quick-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_quick_item(item_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """Remove an item: whoever added it, or the office."""
+    item = db.scalar(select(QuickItem).where(QuickItem.id == item_id, QuickItem.tenant_id == auth.tenant_id))
+    if item is None:
+        raise HTTPException(status_code=404, detail="Elemento non trovato")
+    if item.created_by != auth.user_id and "estimate.create" not in auth.permissions:
+        raise HTTPException(status_code=403, detail="Solo chi l'ha aggiunto o l'ufficio può eliminarlo")
+    db.delete(item)
+    db.commit()
 
 
 # ---------- quick diagnosis ----------

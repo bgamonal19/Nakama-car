@@ -29,6 +29,7 @@ function handleExpiredSession() {
 
 export type WorkArea = "BODY" | "MECHANICAL" | null;
 export type SessionUser = {
+  id?: string;
   first_name: string;
   last_name: string;
   tenant_id?: string;
@@ -76,7 +77,7 @@ export async function refreshSession(): Promise<SessionUser | null> {
     if (!response.ok) return sessionUser();
     const me: SessionUser = await response.json();
     const current = sessionUser();
-    const next: SessionUser = { ...current, first_name: me.first_name, last_name: me.last_name, permissions: me.permissions, roles: me.roles, work_area: me.work_area ?? null };
+    const next: SessionUser = { ...current, id: me.id, first_name: me.first_name, last_name: me.last_name, permissions: me.permissions, roles: me.roles, work_area: me.work_area ?? null };
     localStorage.setItem("nakama_user", JSON.stringify(next));
     window.dispatchEvent(new Event("nakama-session"));
     return next;

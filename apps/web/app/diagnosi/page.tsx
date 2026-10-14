@@ -5,6 +5,7 @@ import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, getAccessToken, sessionUser, SessionUser } from "../../lib/api";
 import { mechanicalCatalog } from "../../lib/mechanicalCatalog";
+import { QuickKind, QuickPick, QuickPicker } from "../../components/QuickPicker";
 
 type Kind = "PART" | "MATERIAL" | "SERVICE";
 type Line = { kind: Kind; description: string; oem_code: string; quantity: string; unit_price: string };
@@ -54,6 +55,7 @@ export default function DiagnosiPage() {
   const [picking, setPicking] = useState<Diagnosis | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [custom, setCustom] = useState<{ id: string; name: string; kind: QuickKind; labor_hours: number; created_by: string | null }[]>([]);
   const manager = Boolean(user?.permissions.includes("estimate.create"));
   const area = user?.work_area ?? null;
   const workType = area || form.work_type;
@@ -68,12 +70,47 @@ export default function DiagnosiPage() {
     setUser(sessionUser());
     const plate = new URLSearchParams(window.location.search).get("targa");
     if (plate) setForm((current) => ({ ...current, license_plate: plate.toUpperCase() }));
+    const sync = () => setUser(sessionUser());
+    window.addEventListener("nakama-session", sync);
+    return () => window.removeEventListener("nakama-session", sync);
   }, []);
   useEffect(() => { if (getAccessToken()) void load(); }, [load]);
 
-  const quickParts = useMemo(() => (workType === "BODY"
-    ? [{ group: "Carrozzeria", icon: "🚗", items: bodyQuick.map(([name, hours]) => [name, "PART", hours] as [string, string, number]) }]
-    : mechanicalCatalog), [workType]);
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    apiFetch("/quick-items").then(async (response) => { if (response.ok) setCustom(await response.json()); }).catch(() => undefined);
+  }, []);
+
+  // One searchable list: the workshop's own items first, then the built-in catalog and materials.
+  const quickItems = useMemo<QuickPick[]>(() => {
+    const catalog = workType === "BODY"
+      ? [{ group: "Carrozzeria", icon: "🚗", items: bodyQuick.map(([name, hours]) => [name, "PART", hours] as [string, string, number]) }]
+      : mechanicalCatalog;
+    const own: QuickPick[] = custom.map((item) => ({
+      key: `own-${item.id}`, id: item.id, name: item.name, kind: item.kind, hours: item.labor_hours, group: "Aggiunti dall'officina", icon: "⭐",
+      deletable: manager || item.created_by === user?.id,
+    }));
+    const builtIn: QuickPick[] = catalog.flatMap((group) => group.items.map(([name, category, itemHours]) => ({
+      key: `${group.group}-${name}`, name, kind: (category === "PART" ? "PART" : "SERVICE") as QuickKind, hours: itemHours, group: group.group, icon: group.icon,
+    })));
+    const materials: QuickPick[] = materialQuick.map((name) => ({ key: `mat-${name}`, name, kind: "MATERIAL", hours: 0, group: "Materiali", icon: "🧴" }));
+    return [...own, ...builtIn, ...materials];
+  }, [workType, custom, manager, user]);
+
+  async function createQuick(name: string, kind: QuickKind, itemHours: number): Promise<QuickPick | null> {
+    const response = await apiFetch("/quick-items", { method: "POST", body: JSON.stringify({ name, kind, labor_hours: itemHours }) });
+    if (!response.ok) { setMessage(await apiError(response, "Impossibile salvare l'elemento.")); return null; }
+    const item = await response.json();
+    setCustom((current) => [...current.filter((x) => x.id !== item.id), item].sort((a, b) => a.name.localeCompare(b.name)));
+    return { key: `own-${item.id}`, id: item.id, name: item.name, kind: item.kind, hours: item.labor_hours, group: "Aggiunti dall'officina", icon: "⭐" };
+  }
+
+  async function deleteQuick(item: QuickPick) {
+    if (!item.id || !window.confirm(t("Togliere «{name}» dalla lista?").replace("{name}", item.name))) return;
+    const response = await apiFetch(`/quick-items/${item.id}`, { method: "DELETE" });
+    if (response.ok || response.status === 404) setCustom((current) => current.filter((x) => x.id !== item.id));
+    else setMessage(await apiError(response, "Impossibile eliminare."));
+  }
 
   function addLine(kind: Kind, description = "", hours = 0) {
     setLines((current) => [...current, { kind, description, oem_code: "", quantity: "1", unit_price: "" }]);
@@ -201,23 +238,10 @@ export default function DiagnosiPage() {
           {form.labor_hours > 0 && <button type="button" className="ghost" onClick={() => setForm({ ...form, labor_hours: 0 })}>{t("Azzera")}</button>}
         </div>
 
-        <details className="quick-parts" open>
-          <summary>{t("Aggiunta rapida")} · {t("tocca per aggiungere (somma anche le ore)")}</summary>
-          {quickParts.map((group) => (
-            <div key={group.group} className="quick-group">
-              <strong>{group.icon} {t(group.group)}</strong>
-              <div className="choice-chips">
-                {group.items.map(([name, category, itemHours]) => (
-                  <button type="button" key={name} onClick={() => addLine(category === "PART" ? "PART" : "SERVICE", name, itemHours)}>{t(name)}{itemHours ? ` · ${itemHours}h` : ""}</button>
-                ))}
-              </div>
-            </div>
-          ))}
-          <div className="quick-group">
-            <strong>🧴 {t("Materiali")}</strong>
-            <div className="choice-chips">{materialQuick.map((name) => <button type="button" key={name} onClick={() => addLine("MATERIAL", name)}>{t(name)}</button>)}</div>
-          </div>
-        </details>
+        <div className="quick-parts">
+          <p className="quick-parts-title"><strong>{t("Aggiunta rapida")}</strong> · {t("cerca e tocca per aggiungere (somma anche le ore)")}</p>
+          <QuickPicker items={quickItems} onPick={(item) => addLine(item.kind, item.name, item.hours)} onCreate={createQuick} onDelete={deleteQuick} />
+        </div>
 
         <div className="diagnosis-lines">
           {lines.map((line, index) => (

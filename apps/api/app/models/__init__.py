@@ -13,7 +13,7 @@ from app.models.integrations import ApiKey, ExternalCredential, VehicleTelemetry
 from app.models.portal import PortalAccount
 from app.models.tracking import CaseMessage, CaseTrackingLink
 from app.models.workshop import WorkOrder, WorkOrderTask
-from app.models.staff import Diagnosis, DiagnosisLine, UserProfile
+from app.models.staff import Diagnosis, DiagnosisLine, QuickItem, UserProfile
 
 __all__ = [
     "AuditLog", "Permission", "Role", "RolePermission", "Tenant", "TenantSettings",
@@ -21,5 +21,5 @@ __all__ = [
     "VehicleArea", "Damage", "LaborRate", "Estimate", "EstimateLine", "EstimateApproval",
     "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine", "ServiceContract", "VehicleLookup", "VehicleRender", "DamageMarker",
     "CaseTrackingLink", "CaseMessage", "PortalAccount", "PlateSpot", "ApiKey", "ExternalCredential", "VehicleTelemetry",
-    "Diagnosis", "DiagnosisLine", "UserProfile",
+    "Diagnosis", "DiagnosisLine", "QuickItem", "UserProfile",
 ]

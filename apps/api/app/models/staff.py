@@ -71,3 +71,15 @@ class DiagnosisLine(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin)
     quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False, default=1)
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+
+
+class QuickItem(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
+    """Part, material or job added by the workshop to the quick-add list (beyond the built-in catalog)."""
+
+    __tablename__ = "quick_items"
+
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)  # PART | MATERIAL | SERVICE
+    work_area: Mapped[str | None] = mapped_column(String(12))  # BODY | MECHANICAL | None = both
+    labor_hours: Mapped[Decimal] = mapped_column(Numeric(6, 2), nullable=False, default=0)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
