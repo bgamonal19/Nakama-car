@@ -99,7 +99,7 @@ export default function PublicEstimatePage() {
         </div>
 
         {result ? (
-          <div className="decision-result"><span>✓</span><div><strong>{t(result)}</strong><small>{t("La carrozzeria riceverà lo stato aggiornato.")}</small></div></div>
+          <div className="decision-result"><span>✓</span><div><strong>{t(result)}</strong><small>{t(result === "Preventivo accettato" ? "Grazie! L'officina inizia i lavori e la terrà aggiornata." : "L'officina riceverà la sua risposta.")}</small></div></div>
         ) : (
           <div className="decision-box">
             <h2>{t("Conferma del cliente")}</h2>

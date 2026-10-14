@@ -1702,3 +1702,22 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
   .task-buttons, .job-grid { grid-template-columns: 1fr; }
   .job-grid { padding: 14px; }
 }
+
+/* ── Flow office → customer → workshop ─────────────────────────────────── */
+.share-panel { padding: 18px 20px; margin-bottom: 18px; display: grid; gap: 12px; border: 2px solid #1fa855; }
+.share-panel header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.share-panel h2 { margin: 0; font-size: 17px; }
+.share-panel header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.share-text { margin: 0; padding: 12px; border-radius: 10px; background: var(--soft, #f4f6f8); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.share-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.share-actions > * { min-height: 44px; }
+.new-jobs-banner { display: grid; gap: 4px; padding: 14px 18px; margin-bottom: 16px; border-radius: 14px; background: #e6f6ec; border: 1px solid #1e9e5a; color: #145c37; }
+[data-theme="dark"] .new-jobs-banner { background: #123a26; color: #c9f0d9; }
+.job-card.fresh { border: 2px solid #1e9e5a; }
+.new-tag { justify-self: start; padding: 3px 8px; border-radius: 999px; background: #1e9e5a; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .03em; }
+.job-card.pending { cursor: default; min-height: 0; }
+.stage-line, .customer-stage { font-size: 12px; font-weight: 700; }
+.job-card.stage-customer, .customer-stage.stage-sent { border-left: 4px solid #e0a100; }
+.job-card.stage-rejected, .customer-stage.stage-rejected { border-left: 4px solid #d93025; }
+.customer-stage { margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--soft, #f4f6f8); border-left: 4px solid var(--line); }
+.customer-stage.stage-approved { border-left-color: #1e9e5a; }

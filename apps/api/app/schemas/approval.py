@@ -5,6 +5,13 @@ from pydantic import BaseModel, Field
 class EstimateShareResponse(BaseModel):
     public_token: str
     public_path: str
+    estimate_number: str | None = None
+    total: Decimal | None = None
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    license_plate: str | None = None
+    answered: bool = False
 
 
 class PublicEstimateLine(BaseModel):

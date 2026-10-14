@@ -56,6 +56,18 @@ export function AppSidebar() {
     const timer = window.setInterval(load, 60_000);
     return () => window.clearInterval(timer);
   }, [manager]);
+  // Workers: how many jobs the customer approved that nobody has started yet.
+  const [newJobs, setNewJobs] = useState(0);
+  const worker = !manager && Boolean(user?.permissions.includes("work_order.update_status"));
+  useEffect(() => {
+    if (!worker) return;
+    const load = () => apiFetch("/my-work").then(async (response) => {
+      if (response.ok) setNewJobs((await response.json()).new_jobs || 0);
+    }).catch(() => undefined);
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    return () => window.clearInterval(timer);
+  }, [worker]);
   const allowed = ([, , , permission]: string[]) => !permission || !user || user.permissions.includes(permission);
 
   useEffect(() => { setOpen(false); }, [pathname]);
@@ -97,7 +109,7 @@ export function AppSidebar() {
   }, [open]);
 
   function link([href, key, icon]: string[]) {
-    const badge = href === "/diagnosi" && manager && pendingDiagnoses > 0 ? pendingDiagnoses : 0;
+    const badge = href === "/diagnosi" && manager && pendingDiagnoses > 0 ? pendingDiagnoses : href === "/officina" && worker && newJobs > 0 ? newJobs : 0;
     // Keep existing translation keys while rendering the symbol as a consistent SVG.
     const label = t(key).replace(/^\S+\s+/, "");
     const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, formatMoney, getAccessToken, hasPermission, openProtectedFile } from "../../lib/api";
+import { whatsappNumber } from "../../components/CaseTracking";
 
 type Estimate = {
   id: string;
@@ -70,6 +71,11 @@ const fieldLabels: Partial<Record<string, string>> = {
   quantity: "Q.tà", unit_price: "Prezzo ricambio", discount_percent: "Sconto %", labor_hours: "Ore",
   labor_rate: "€/h", paint_hours: "Ore vernice", materials: "Materiali", vat_rate: "IVA %",
 };
+type Shared = {
+  url: string; estimate_number: string | null; total: string | null; customer_name: string | null;
+  customer_phone: string | null; customer_email: string | null; license_plate: string | null; answered: boolean;
+};
+
 export default function PreventiviPage() {
   const { t } = useLanguage();
   const [signedIn, setSignedIn] = useState(false);
@@ -82,6 +88,8 @@ export default function PreventiviPage() {
   const [notice, setNotice] = useState("");
   const [openId, setOpenId] = useState<string | null>(null);
   const [canCreate, setCanCreate] = useState(false);
+  const [shared, setShared] = useState<Shared | null>(null);
+  const [copied, setCopied] = useState(false);
   useEffect(() => setCanCreate(hasPermission("estimate.create")), []);
 
   async function load() {
@@ -129,9 +137,8 @@ export default function PreventiviPage() {
   async function share(id: string) {
     const data = await act(`/estimates/${id}/share`, { method: "POST" }, "Impossibile creare il link");
     if (!data) return;
-    const url = `${window.location.origin}${data.public_path}`;
-    await navigator.clipboard.writeText(url).catch(() => undefined);
-    prompt(t("Link cliente (copiato se consentito dal browser):"), url);
+    setCopied(false);
+    setShared({ ...data, url: `${window.location.origin}${data.public_path}` });
     load();
   }
 
@@ -166,6 +173,7 @@ export default function PreventiviPage() {
           </form>
           {error && <div className="record-error" role="alert">{t(error)}</div>}
           {notice && <p className="staff-success" role="status">{notice}</p>}
+          {shared && <SharePanel shared={shared} copied={copied} onCopy={() => navigator.clipboard.writeText(shared.url).then(() => setCopied(true), () => undefined)} onClose={() => setShared(null)} />}
           {openId && <EstimateEditor key={openId} id={openId} onClose={() => { setOpenId(null); window.history.replaceState(null, "", "/preventivi"); load(); }} onChanged={load} />}
           <div className="panel list-panel" aria-busy={busy}>
             <div className="data-table estimates head">
@@ -343,6 +351,45 @@ function EstimateEditor({ id, onClose, onChanged }: { id: string; onClose: () =>
         ))}
       </div>
       {!locked && <button className="secondary add-line" onClick={() => setLines((previous) => [...previous, blankLine(rates)])}>{t("+ Riga")}</button>}
+    </section>
+  );
+}
+
+/** Send the estimate link to the customer: WhatsApp, e-mail or copy. The customer approves or refuses from the link. */
+function SharePanel({ shared, copied, onCopy, onClose }: { shared: Shared; copied: boolean; onCopy: () => void; onClose: () => void }) {
+  const { t } = useLanguage();
+  const phone = whatsappNumber(shared.customer_phone);
+  const total = shared.total ? formatMoney(shared.total) : "";
+  const text = t("Gentile {name}, ecco il preventivo {number} per il veicolo {plate}{total}. Può consultarlo e approvarlo o rifiutarlo da questo link: {url}")
+    .replace("{name}", shared.customer_name || t("cliente"))
+    .replace("{number}", shared.estimate_number || "")
+    .replace("{plate}", shared.license_plate || "")
+    .replace("{total}", total ? ` (${t("totale")} ${total})` : "")
+    .replace("{url}", shared.url);
+  const subject = `${t("Preventivo")} ${shared.estimate_number || ""} · NAKAMA CAR`;
+  return (
+    <section className="panel share-panel" role="dialog" aria-label={t("Invia il preventivo al cliente")}>
+      <header>
+        <div>
+          <h2>{t("Invia il preventivo al cliente")}</h2>
+          <p>{shared.estimate_number} · {shared.customer_name}{shared.license_plate ? ` · ${shared.license_plate}` : ""}</p>
+        </div>
+        <button type="button" className="ghost" onClick={onClose} aria-label={t("Chiudi")}>✕</button>
+      </header>
+      {shared.answered && <p className="hint">{t("Il cliente ha già risposto a questo preventivo.")}</p>}
+      <p className="share-text">{text}</p>
+      <div className="share-actions">
+        {phone
+          ? <a className="button-link whatsapp" href={`https://wa.me/${phone}?text=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+          : <a className="button-link whatsapp" href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer">WhatsApp ({t("scegli contatto")})</a>}
+        {shared.customer_email
+          ? <a className="button-link secondary" href={`mailto:${shared.customer_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`}>Email</a>
+          : <a className="button-link secondary" href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`}>Email</a>}
+        <button type="button" className="secondary" onClick={onCopy}>{copied ? t("Link copiato") : t("Copia link")}</button>
+        <a className="button-link secondary" href={shared.url} target="_blank" rel="noopener noreferrer">{t("Anteprima")}</a>
+      </div>
+      {!phone && !shared.customer_email && <p className="hint">{t("Il cliente non ha telefono né email: aggiungili in Clienti per inviare direttamente.")}</p>}
+      <p className="hint">{t("Quando il cliente approva, il lavoro compare subito al meccanico in «Il mio lavoro».")}</p>
     </section>
   );
 }

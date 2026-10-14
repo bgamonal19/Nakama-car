@@ -107,3 +107,65 @@ def test_my_work_shows_my_area_and_tasks_toggle(client):
     assert undone["status"] == "PENDING" and undone["completed_by"] is None
     assert other.post(f"/api/v1/my-work/tasks/{task['id']}", json={"done": True}).status_code == 403
     assert [w["case_number"] for w in other.get("/api/v1/cases").json()] == []
+
+
+def test_flow_mechanic_office_customer_back_to_mechanic(client):
+    """Diagnosis -> office estimate -> link to the customer -> approval -> job appears to the mechanic."""
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec3@example.com", "MECHANIC")
+    customer = c.post("/api/v1/customers", json={"first_name": "Marco", "phone": "345 000 1111", "email": "marco@example.com"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "FL123OW", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"}).json()
+
+    # 1. Vehicle arrived: the mechanic must diagnose it.
+    work = mechanic.get("/api/v1/my-work").json()
+    assert [w["plate"] for w in work["waiting"]] == ["FL123OW"] and work["pending"] == [] and work["new_jobs"] == 0
+
+    sent = mechanic.post("/api/v1/diagnoses", json={"license_plate": "FL123OW", "labor_hours": "1", "lines": [{"kind": "PART", "description": "Filtro olio", "unit_price": "15"}]}).json()
+    assert sent["repair_case_id"] == case["id"]
+
+    # 2. The office turns it into an estimate: the vehicle is now "at the office".
+    converted = c.post(f"/api/v1/diagnoses/{sent['id']}/estimate", json={}).json()
+    work = mechanic.get("/api/v1/my-work").json()
+    assert work["waiting"] == [] and [(p["plate"], p["stage"]) for p in work["pending"]] == [("FL123OW", "OFFICE")]
+
+    # 3. Link sent to the customer (contacts for WhatsApp / e-mail come back too).
+    share = c.post(f"/api/v1/estimates/{converted['estimate_id']}/share").json()
+    assert share["customer_phone"] == "345 000 1111" and share["customer_email"] == "marco@example.com"
+    assert share["estimate_number"] == converted["estimate_number"] and share["answered"] is False
+    assert mechanic.get("/api/v1/my-work").json()["pending"][0]["stage"] == "CUSTOMER"
+    assert mechanic.get(f"/api/v1/diagnoses/{sent['id']}").json()["estimate_status"] == "SENT"
+
+    # 4. The customer approves from the link: the job lands in the mechanic's list, marked new.
+    token = share["public_token"]
+    assert c.post(f"/api/v1/public/estimate/{token}/decision", json={"accepted": True, "signature_name": "Marco Rossi"}).status_code == 200
+    work = mechanic.get("/api/v1/my-work").json()
+    assert work["pending"] == [] and work["new_jobs"] == 1
+    job = work["jobs"][0]
+    assert job["plate"] == "FL123OW" and job["is_new"] is True and job["tasks"]
+    assert c.get(f"/api/v1/cases/{case['id']}").json()["status"] == "APPROVED"
+    assert c.post(f"/api/v1/work-orders/from-estimate/{converted['estimate_id']}").json()["id"] == job["work_order_id"]  # no duplicate
+
+    # 5. First task ticked: no longer new.
+    mechanic.post(f"/api/v1/my-work/tasks/{job['tasks'][0]['id']}", json={"done": True})
+    assert mechanic.get("/api/v1/my-work").json()["new_jobs"] == 0
+
+
+def test_customer_rejection_is_shown_and_office_approval_opens_job(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec4@example.com", "MECHANIC")
+    customer = c.post("/api/v1/customers", json={"first_name": "Sara"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "RJ000AA", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"}).json()
+    estimate = c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json()
+    token = c.post(f"/api/v1/estimates/{estimate['id']}/share").json()["public_token"]
+    assert c.post(f"/api/v1/public/estimate/{token}/decision", json={"accepted": False, "signature_name": "Sara Bianchi"}).status_code == 200
+    work = mechanic.get("/api/v1/my-work").json()
+    assert work["waiting"] == [] and work["pending"][0]["stage"] == "REJECTED" and work["jobs"] == []
+
+    # Office approval (customer said yes by phone) also opens the job.
+    other = c.post("/api/v1/vehicles", json={"license_plate": "PH111BB", "customer_id": customer["id"]}).json()
+    case2 = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": other["id"], "work_type": "MECHANICAL"}).json()
+    estimate2 = c.post("/api/v1/estimates", json={"repair_case_id": case2["id"]}).json()
+    assert c.patch(f"/api/v1/estimates/{estimate2['id']}/status", json={"status": "APPROVED"}).status_code == 200
+    assert [job["plate"] for job in mechanic.get("/api/v1/my-work").json()["jobs"]] == ["PH111BB"]

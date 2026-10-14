@@ -9,10 +9,17 @@ type Task = { id: string; task_type: string; description: string; status: string
 type Job = {
   work_order_id: string; work_order_number: string; status: string; priority: string; case_number: string; work_type: string;
   plate: string; vehicle: string | null; color: string | null; customer_name: string; request: string | null;
-  tasks: Task[]; done: number; total: number;
+  tasks: Task[]; done: number; total: number; is_new: boolean; approved_at: string;
 };
 type Waiting = { repair_case_id: string; case_number: string; plate: string; vehicle: string | null; request: string | null; work_type: string; mileage: number | null };
-type MyWork = { work_area: string | null; jobs: Job[]; waiting: Waiting[] };
+type Pending = Waiting & { stage: "OFFICE" | "CUSTOMER" | "REJECTED"; estimate_number: string };
+type MyWork = { work_area: string | null; jobs: Job[]; waiting: Waiting[]; pending: Pending[]; new_jobs: number };
+
+const stageNames: Record<Pending["stage"], [string, string]> = {
+  OFFICE: ["🗂", "L'ufficio sta preparando il preventivo"],
+  CUSTOMER: ["⏳", "Preventivo inviato, in attesa del cliente"],
+  REJECTED: ["✖", "Il cliente ha rifiutato il preventivo"],
+};
 
 const taskIcons: Record<string, string> = {
   ACCEPTANCE: "📋", DIAGNOSTIC: "🔎", PARTS: "📦", MECHANICAL_REPAIR: "🔧", ROAD_TEST: "🛣️",
@@ -118,12 +125,19 @@ export default function OfficinaPage() {
         </section>
       ) : (
         <>
+          {data.new_jobs > 0 && (
+            <div className="new-jobs-banner" role="status">
+              <strong>🔔 {data.new_jobs === 1 ? t("1 lavoro nuovo approvato dal cliente") : t("{n} lavori nuovi approvati dal cliente").replace("{n}", String(data.new_jobs))}</strong>
+              <span>{t("Puoi iniziare: aprilo e tocca ogni lavoro quando lo finisci.")}</span>
+            </div>
+          )}
           <section className="panel">
-            <div className="panel-head"><div><h2>{t("Veicoli in lavorazione")} · {data.jobs.length}</h2><p>{t("Apri un veicolo per vedere i lavori da fare.")}</p></div></div>
+            <div className="panel-head"><div><h2>{t("Lavori da fare")} · {data.jobs.length}</h2><p>{t("Veicoli approvati dal cliente. Apri un veicolo per vedere i lavori da fare.")}</p></div></div>
             {data.jobs.length === 0 ? <div className="empty-state">{t("Nessun veicolo in lavorazione nella tua area.")}</div> : (
               <div className="job-grid">
                 {data.jobs.map((item) => (
-                  <button key={item.work_order_id} type="button" className={`job-card${item.priority === "HIGH" ? " urgent" : ""}`} onClick={() => setOpenId(item.work_order_id)}>
+                  <button key={item.work_order_id} type="button" className={`job-card${item.priority === "HIGH" ? " urgent" : ""}${item.is_new ? " fresh" : ""}`} onClick={() => setOpenId(item.work_order_id)}>
+                    {item.is_new && <span className="new-tag">{t("NUOVO · da iniziare")}</span>}
                     <strong className="plate-badge">{item.plate}</strong>
                     <span className="job-vehicle">{item.vehicle || t("Veicolo")}</span>
                     <small>{item.customer_name} · {t(areaNames[item.work_type] || item.work_type)}</small>
@@ -151,6 +165,21 @@ export default function OfficinaPage() {
               </div>
             )}
           </section>
+          {data.pending.length > 0 && (
+            <section className="panel">
+              <div className="panel-head"><div><h2>{t("In ufficio o dal cliente")} · {data.pending.length}</h2><p>{t("Diagnosi già inviate: appena il cliente approva, il veicolo passa in «Lavori da fare».")}</p></div></div>
+              <div className="job-grid">
+                {data.pending.map((item) => (
+                  <div key={item.repair_case_id} className={`job-card pending stage-${item.stage.toLowerCase()}`}>
+                    <strong className="plate-badge">{item.plate}</strong>
+                    <span className="job-vehicle">{item.vehicle || t("Veicolo")}</span>
+                    <small>{item.case_number} · {item.estimate_number}</small>
+                    <span className="stage-line">{stageNames[item.stage][0]} {t(stageNames[item.stage][1])}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </SectionShell>
