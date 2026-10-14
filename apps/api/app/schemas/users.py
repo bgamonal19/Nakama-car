@@ -25,6 +25,8 @@ class UserRead(BaseModel):
     last_name: str
     status: UserStatus
     role_codes: list[str]
+    # BODY / MECHANICAL / None (both): what the worker sees in the workshop.
+    work_area: str | None = None
 
 
 class UserUpdate(BaseModel):

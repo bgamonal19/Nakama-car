@@ -52,6 +52,13 @@ ROLE_PERMISSION_CODES = {
 }
 
 
+def session_extras(db: Session, user_id, tenant_id) -> dict:
+    """Roles and work area, so the app shows each worker only what is theirs."""
+    from app.services import staff
+
+    return {"roles": staff.user_roles(db, user_id, tenant_id), "work_area": staff.user_area(db, user_id, tenant_id)}
+
+
 def effective_permissions(db: Session, user_id, tenant_id) -> list[str]:
     rows = db.execute(
         select(Permission.code)
@@ -96,6 +103,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         first_name=user.first_name,
         last_name=user.last_name,
         permissions=permissions,
+        **session_extras(db, user.id, membership.tenant_id),
     )
 
 

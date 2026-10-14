@@ -1611,3 +1611,94 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .staff-role-list { display: grid; gap: 6px; }
 [data-theme="dark"] .staff-profile-icon { background: #203950; border-color: #47617a; color: #b2d9fb; }
 [data-theme="dark"] .staff-selected-profile { color: #adbed1; }
+
+/* ── Officina: profile, quick diagnosis, my work ───────────────────────── */
+.nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #d93025; color: #fff; font-size: 11px; display: inline-grid; place-items: center; }
+.sidebar-area { margin: 8px 14px; font-size: 12px; color: var(--muted); }
+.plate-badge { display: inline-block; padding: 4px 10px; border: 2px solid #1d3f8f; border-left-width: 10px; border-radius: 6px; background: #fff; color: #111; font: 800 14px/1.2 ui-monospace, monospace; letter-spacing: .06em; }
+.plate-badge.big { font-size: 22px; padding: 8px 14px; }
+.choice-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice-chips button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.choice-chips button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+[data-theme="dark"] .choice-chips button.active { color: #0b1725; }
+.choice-chips button.urgency-high.active { background: #d93025; border-color: #d93025; color: #fff; }
+.diagnosis-form, .list-panel { padding: 20px; display: grid; gap: 18px; margin-bottom: 20px; }
+.list-panel { padding: 0 0 12px; gap: 0; }
+.diagnosis-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+.diagnosis-grid label, .chip-field { display: grid; gap: 8px; font-size: 13px; align-content: start; }
+.diagnosis-grid .span-all { grid-column: 1 / -1; }
+.diagnosis-form input, .diagnosis-form select, .diagnosis-form textarea, .customer-pick input { width: 100%; border: 1px solid var(--line); padding: 10px; border-radius: 8px; background: var(--panel); color: inherit; font: inherit; }
+.plate-field input { font: 800 22px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .08em; }
+.hours-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border-radius: 12px; background: var(--soft, #f4f6f8); }
+.hours-stepper > span { font-weight: 700; margin-right: 6px; }
+.hours-stepper > button:not(.ghost) { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: inherit; font-size: 22px; cursor: pointer; }
+.hours-stepper strong { min-width: 70px; text-align: center; font-size: 22px; }
+.quick-parts summary { cursor: pointer; font-weight: 700; padding: 6px 0; }
+.quick-group { display: grid; gap: 8px; margin-top: 12px; }
+.quick-group strong { font-size: 13px; }
+.diagnosis-lines { display: grid; gap: 10px; }
+.diagnosis-line { display: grid; grid-template-columns: 130px minmax(0, 1fr) 70px 120px 90px 40px; gap: 8px; align-items: center; }
+.big-action { height: 52px; font-size: 16px; flex: 1; }
+.diagnosis-card { padding: 16px 20px; border-top: 1px solid var(--line); border-left: 4px solid transparent; display: grid; gap: 6px; }
+.diagnosis-card.urgency-high { border-left-color: #d93025; }
+.diagnosis-card.status-converted { opacity: .8; }
+.diagnosis-card.status-rejected { opacity: .6; }
+.diagnosis-card header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.diagnosis-card p { margin: 0; font-size: 13px; }
+.diagnosis-meta { color: var(--muted); font-size: 12px !important; }
+.diagnosis-items { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.customer-pick { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--soft, #f4f6f8); }
+.list-panel .panel-head { flex-wrap: wrap; gap: 12px; }
+
+.job-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; padding: 18px 20px; }
+.job-card { display: grid; gap: 6px; text-align: left; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: inherit; font: inherit; cursor: pointer; text-decoration: none; min-height: 140px; }
+.job-card:hover { border-color: var(--accent); }
+.job-card.urgent { border-left: 5px solid #d93025; }
+.job-card.waiting { border-style: dashed; }
+.job-card small { color: var(--muted); }
+.job-vehicle { font-weight: 700; }
+.job-req { font-style: italic; }
+.job-progress { display: block; height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.job-progress > span { display: block; height: 100%; background: #1e9e5a; transition: width .25s; }
+.job-detail { padding: 20px; display: grid; gap: 14px; }
+.job-head { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.job-head h2 { margin: 0; font-size: 18px; }
+.job-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.job-request { margin: 0; padding: 12px; border-radius: 10px; background: var(--soft, #f4f6f8); }
+.back-button { justify-self: start; }
+.link-like { color: var(--accent); font-weight: 700; }
+.task-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.task-button { display: flex; align-items: center; gap: 12px; min-height: 84px; padding: 14px; border-radius: 16px; border: 2px solid var(--line); background: var(--panel); color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+.task-button:active { transform: scale(.98); }
+.task-button.done { background: #e6f6ec; border-color: #1e9e5a; }
+[data-theme="dark"] .task-button.done { background: #123a26; }
+.task-button:disabled { opacity: .6; }
+.task-icon { font-size: 28px; width: 40px; text-align: center; }
+.task-button.done .task-icon { color: #1e9e5a; }
+.task-text { display: grid; gap: 4px; }
+.task-text small { color: var(--muted); font-size: 12px; }
+
+.profile-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; align-items: start; }
+.profile-card { padding: 24px; display: grid; gap: 10px; justify-items: center; text-align: center; }
+.profile-card h2, .profile-card p { margin: 0; }
+.profile-card p { color: var(--muted); font-size: 13px; }
+.profile-avatar { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-size: 30px; font-weight: 800; text-transform: uppercase; }
+.profile-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.profile-form { padding: 20px; }
+.profile-form h2 { margin: 6px 0 0; font-size: 15px; }
+.status-chip.area-mechanical { background: #e3eefc; color: #1257a0; }
+.status-chip.area-body { background: #fdeee0; color: #a2530c; }
+.staff-area { display: grid; gap: 4px; font-size: 12px; }
+.staff-area select { border: 1px solid var(--line); border-radius: 8px; padding: 6px; background: var(--panel); color: inherit; }
+.staff-sheet { grid-column: 1 / -1; padding: 12px; border-radius: 10px; background: var(--soft, #f4f6f8); }
+.staff-sheet dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.staff-sheet dt { font-size: 11px; color: var(--muted); }
+.staff-sheet dd { margin: 2px 0 0; font-size: 13px; }
+
+@media (max-width: 720px) {
+  .profile-layout { grid-template-columns: 1fr; }
+  .diagnosis-line { grid-template-columns: 1fr 1fr; padding-bottom: 10px; border-bottom: 1px dashed var(--line); }
+  .diagnosis-line > input:not(.qty):not(.code):not(.price) { grid-column: 1 / -1; }
+  .task-buttons, .job-grid { grid-template-columns: 1fr; }
+  .job-grid { padding: 14px; }
+}

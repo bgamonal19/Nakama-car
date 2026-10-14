@@ -1,7 +1,8 @@
 import enum
 import uuid
+from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -61,3 +62,6 @@ class WorkOrderTask(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin)
     )
     assigned_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True, index=True)
     sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    # Who ticked the task as done in the workshop, and when.
+    completed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

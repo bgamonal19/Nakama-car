@@ -8,6 +8,7 @@ from app.db.deps import get_db
 from app.models.identity import Role, User, UserRole, UserStatus, UserTenant, Tenant
 from app.schemas.users import UserCreate, UserRead, UserUpdate
 from app.security.context import AuthContext, require_permission
+from app.services.staff import user_area
 from app.security.passwords import hash_password
 from app.services.audit import record_audit
 
@@ -31,6 +32,7 @@ def user_to_read(db: Session, user: User, tenant_id) -> UserRead:
         last_name=user.last_name,
         status=user.status,
         role_codes=sorted(roles),
+        work_area=user_area(db, user.id, tenant_id),
     )
 
 

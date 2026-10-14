@@ -10,6 +10,12 @@ from app.schemas.garage import RepairCaseCreate, RepairCaseListItem, RepairCaseR
 from app.services.audit import record_audit
 from app.security.context import AuthContext, require_permission
 
+
+def staff_area(db: Session, auth: AuthContext) -> str | None:
+    from app.services.staff import user_area
+
+    return user_area(db, auth.user_id, auth.tenant_id)
+
 router = APIRouter(prefix="/cases", tags=["repair-cases"])
 
 
@@ -78,6 +84,8 @@ def list_repair_cases(
             Customer.tenant_id == auth.tenant_id,
             RepairCase.customer_id == customer_id if customer_id else True,
             RepairCase.vehicle_id == vehicle_id if vehicle_id else True,
+            # Mechanics see mechanical jobs, bodyshop the body ones.
+            RepairCase.work_type == area if (area := staff_area(db, auth)) else True,
             or_(RepairCase.case_number.icontains(q, autoescape=True), Vehicle.license_plate.icontains(q, autoescape=True), Customer.first_name.icontains(q, autoescape=True), Customer.last_name.icontains(q, autoescape=True), Customer.company_name.icontains(q, autoescape=True)),
         )
         .order_by(RepairCase.created_at.desc(), RepairCase.id.desc())

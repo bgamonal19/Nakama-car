@@ -13,6 +13,7 @@ from app.schemas.workshop import WorkOrderCreate, WorkOrderListItem, WorkOrderRe
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
 from app.services.contracts import customer_display_name
+from app.services.staff import user_area
 
 router = APIRouter(prefix="/work-orders", tags=["work-orders"])
 
@@ -192,6 +193,9 @@ def list_work_orders(
     )
     if status_filter is not None:
         query = query.where(WorkOrder.status == status_filter)
+    area = user_area(db, auth.user_id, auth.tenant_id)
+    if area:
+        query = query.where(RepairCase.work_type == area)
     if open_only:
         query = query.where(WorkOrder.status.notin_([WorkOrderStatus.DELIVERED, WorkOrderStatus.INVOICED]))
     if q.strip():
@@ -323,6 +327,9 @@ def update_work_task_status(
     if task is None:
         raise HTTPException(status_code=404, detail="Work task not found")
     task.status = payload.status
+    done = payload.status.value == "DONE"
+    task.completed_by = auth.user_id if done else None
+    task.completed_at = datetime.now(timezone.utc) if done else None
     db.commit()
     db.refresh(task)
     return task
