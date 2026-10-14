@@ -169,3 +169,24 @@ def test_customer_rejection_is_shown_and_office_approval_opens_job(client):
     estimate2 = c.post("/api/v1/estimates", json={"repair_case_id": case2["id"]}).json()
     assert c.patch(f"/api/v1/estimates/{estimate2['id']}/status", json={"status": "APPROVED"}).status_code == 200
     assert [job["plate"] for job in mechanic.get("/api/v1/my-work").json()["jobs"]] == ["PH111BB"]
+
+
+def test_quick_items_are_saved_for_the_workshop(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec5@example.com", "MECHANIC")
+    body, _, _ = worker(c, "carr5@example.com", "BODYSHOP")
+    saved = mechanic.post("/api/v1/quick-items", json={"name": "  Sensore  ABS posteriore ", "kind": "PART", "labor_hours": "1.5"})
+    assert saved.status_code == 201, saved.text
+    item = saved.json()
+    assert item["name"] == "Sensore ABS posteriore" and item["work_area"] == "MECHANICAL" and item["labor_hours"] == 1.5
+    # Same name again: reused, not duplicated.
+    assert mechanic.post("/api/v1/quick-items", json={"name": "sensore abs posteriore", "kind": "PART"}).json()["id"] == item["id"]
+    both = body.post("/api/v1/quick-items", json={"name": "Nastro carta", "kind": "MATERIAL", "work_area": "ALL"}).json()
+    assert both["work_area"] is None
+    assert [i["name"] for i in mechanic.get("/api/v1/quick-items").json()] == ["Nastro carta", "Sensore ABS posteriore"]
+    assert [i["name"] for i in body.get("/api/v1/quick-items").json()] == ["Nastro carta"]
+    assert len(c.get("/api/v1/quick-items").json()) == 2  # the office sees all
+    assert body.delete(f"/api/v1/quick-items/{item['id']}").status_code == 403
+    assert mechanic.delete(f"/api/v1/quick-items/{item['id']}").status_code == 204
+    assert c.delete(f"/api/v1/quick-items/{both['id']}").status_code == 204
+    assert c.get("/api/v1/quick-items").json() == []
