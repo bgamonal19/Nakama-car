@@ -111,7 +111,9 @@ export function AppSidebar() {
   function link([href, key, icon]: string[]) {
     const badge = href === "/diagnosi" && manager && pendingDiagnoses > 0 ? pendingDiagnoses : href === "/officina" && worker && newJobs > 0 ? newJobs : 0;
     // Keep existing translation keys while rendering the symbol as a consistent SVG.
-    const label = t(key).replace(/^\S+\s+/, "");
+    // The main account (no area) sees every job of the workshop, not "my" work.
+    const name = href === "/officina" && user && !user.work_area ? "⚒ Lavori in corso" : key;
+    const label = t(name).replace(/^\S+\s+/, "");
     const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
     return <a key={href} href={href} className={`nav-item${active ? " active" : ""}`} aria-current={active ? "page" : undefined} aria-label={label} title={label}>
       <NavIcon name={icon} /><span className="nav-label">{label}</span>

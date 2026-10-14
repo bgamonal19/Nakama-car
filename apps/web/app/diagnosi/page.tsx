@@ -281,7 +281,7 @@ export default function DiagnosiPage() {
         {list.length === 0 ? <div className="empty-state">{t("Nessuna diagnosi.")}</div> : list.map((item) => (
           <article key={item.id} className={`diagnosis-card status-${item.status.toLowerCase()} urgency-${item.urgency.toLowerCase()}`}>
             <header>
-              <strong className="plate-badge">{item.license_plate}</strong>
+              <strong className="reg-plate">{item.license_plate}</strong>
               <span>{[item.vehicle?.make, item.vehicle?.model].filter(Boolean).join(" ")}{item.customer_name ? ` · ${item.customer_name}` : ""}</span>
               <span className="status-chip">{t(statusNames[item.status])}</span>
             </header>

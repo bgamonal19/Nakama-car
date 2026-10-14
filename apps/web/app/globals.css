@@ -1615,8 +1615,8 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 /* ── Officina: profile, quick diagnosis, my work ───────────────────────── */
 .nav-badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #d93025; color: #fff; font-size: 11px; display: inline-grid; place-items: center; }
 .sidebar-area { margin: 8px 14px; font-size: 12px; color: var(--muted); }
-.plate-badge { display: inline-block; padding: 4px 10px; border: 2px solid #1d3f8f; border-left-width: 10px; border-radius: 6px; background: #fff; color: #111; font: 800 14px/1.2 ui-monospace, monospace; letter-spacing: .06em; }
-.plate-badge.big { font-size: 22px; padding: 8px 14px; }
+.reg-plate { display: inline-block; padding: 4px 10px; border: 2px solid #1d3f8f; border-left-width: 10px; border-radius: 6px; background: #fff; color: #111; font: 800 14px/1.2 ui-monospace, monospace; letter-spacing: .06em; }
+.reg-plate.big { font-size: 22px; padding: 8px 14px; }
 .choice-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .choice-chips button { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
 .choice-chips button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -1750,3 +1750,21 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .quick-hours { font-size: 12px; color: var(--muted); min-width: 40px; text-align: right; }
 .quick-plus { font-size: 18px; color: #1e9e5a; font-weight: 800; }
 .quick-delete { height: auto; padding: 0 12px; border-radius: 0; }
+
+/* ── Job detail: whole vehicle, specs, task buttons with notes ─────────── */
+.job-vehicle-view { display: grid; grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); gap: 18px; align-items: start; }
+.job-specs { margin: 0; display: grid; gap: 10px; padding: 14px; border-radius: 12px; background: var(--soft, #f4f6f8); }
+.job-specs div { display: grid; gap: 2px; }
+.job-specs dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.job-specs dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.task-group-title { margin: 6px 0 0; font-size: 15px; }
+.task-card { display: grid; gap: 6px; }
+.task-note { justify-self: stretch; text-align: left; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: #fffbe8; color: #5c4a00; font: inherit; font-size: 13px; cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
+.task-note.empty { background: transparent; color: var(--muted); border-style: dashed; }
+[data-theme="dark"] .task-note:not(.empty) { background: #3a3312; color: #f3e6a6; }
+.task-note-edit { display: grid; gap: 8px; }
+.task-note-edit textarea { width: 100%; border: 2px solid var(--accent); border-radius: 10px; padding: 8px; font: inherit; font-size: 14px; background: var(--panel); color: inherit; resize: vertical; }
+.task-note-edit > div { display: flex; justify-content: flex-end; gap: 8px; }
+.job-card.finished { border-color: #1e9e5a; }
+.done-tag { background: #145c37; }
+@media (max-width: 900px) { .job-vehicle-view { grid-template-columns: 1fr; } }
