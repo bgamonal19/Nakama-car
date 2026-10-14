@@ -1,6 +1,8 @@
 (function () {
   if (window.__nakamaNativeInstalled || location.origin !== 'https://nakama-car-web-production.up.railway.app') return;
   window.__nakamaNativeInstalled = true;
+  // This app version opens the camera for <input capture> (the web page checks it).
+  window.__nakamaCamera = true;
   window.__nakamaReadBlob = function (url) {
     if (!String(url).startsWith('blob:' + location.origin + '/')) return;
     if (window.__nakamaPdfBusy) return;

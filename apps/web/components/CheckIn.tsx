@@ -66,7 +66,7 @@ export function DiagnosisPhoto({ diagnosisId, photo, onRemove }: { diagnosisId: 
   return (
     <figure className="checkin-photo">
       {url ? <a href={url} target="_blank" rel="noopener noreferrer"><img src={url} alt={t(categoryName[photo.category] || "Foto")} /></a> : <span className="checkin-photo-loading" />}
-      <figcaption>{t(categoryName[photo.category] || "Foto")}</figcaption>
+      <figcaption>{t(photo.category === "OTHER" ? "Foto all'arrivo" : categoryName[photo.category] || "Foto")}</figcaption>
       {onRemove && <button type="button" className="checkin-remove" onClick={onRemove} aria-label={t("Elimina")}>✕</button>}
     </figure>
   );
@@ -87,33 +87,30 @@ export function CheckInPhotos({ pending, onAdd, onRemovePending, saved = [], dia
   const { t } = useLanguage();
   const camera = useRef<HTMLInputElement>(null);
   const gallery = useRef<HTMLInputElement>(null);
-  const [category, setCategory] = useState("FRONT");
+  // Old Android app versions (WebView without the native camera bridge) cannot open the camera.
+  const [oldApp, setOldApp] = useState(false);
+  useEffect(() => {
+    const w = window as unknown as { __nakamaCamera?: boolean };
+    setOldApp(/; wv\)/.test(navigator.userAgent) && !w.__nakamaCamera);
+  }, []);
 
   function picked(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith("image/") || file.type === "");
     event.target.value = "";
     if (files.length === 0) return;
-    const current = category;
-    onAdd(files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, file, url: URL.createObjectURL(file), category: current })));
-    // Walk around the car: after a side is photographed, the next one is selected.
-    const order = photoCategories.map(([code]) => code);
-    const next = order.indexOf(current) + 1;
-    if (next > 0 && next < 4) setCategory(order[next]);
+    // The mechanic just shoots: the office can say later which side each photo shows.
+    onAdd(files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, file, url: URL.createObjectURL(file), category: "OTHER" })));
   }
 
   const total = pending.length + saved.length;
   return (
     <div className="checkin-photos">
       <p className="checkin-title"><strong>📸 {t("Foto all'arrivo")}</strong> · {t("come è entrato il veicolo in officina")}{total ? ` · ${total}` : ""}</p>
-      <div className="choice-chips" role="radiogroup" aria-label={t("Che cosa fotografi?")}>
-        {photoCategories.map(([code, name, icon]) => (
-          <button type="button" key={code} role="radio" aria-checked={category === code} className={category === code ? "active" : ""} onClick={() => setCategory(code)}>{icon} {t(name)}</button>
-        ))}
-      </div>
-      <div className="checkin-actions">
-        <button type="button" className="primary" onClick={() => camera.current?.click()}>📷 {t("Scatta foto")}</button>
-        <button type="button" className="secondary" onClick={() => gallery.current?.click()}>🖼 {t("Dalla galleria")}</button>
-      </div>
+      <button type="button" className="primary checkin-shoot" onClick={() => camera.current?.click()}>
+        📷 {total ? t("Scatta un'altra foto") : t("Scatta foto")}
+      </button>
+      <button type="button" className="link-like checkin-gallery" onClick={() => gallery.current?.click()}>🖼 {t("oppure scegli dalla galleria")}</button>
+      {oldApp && <p className="hint checkin-old-app">{t("Questa versione dell'app non apre la fotocamera: aggiorna l'app NAKAMA CAR, oppure scatta con la fotocamera del telefono e scegli le foto dalla galleria.")}</p>}
       {/* capture without "multiple": phones open the camera directly instead of the photo picker. */}
       <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={picked} />
       <input ref={gallery} type="file" accept="image/*" multiple hidden onChange={picked} />
@@ -125,7 +122,7 @@ export function CheckInPhotos({ pending, onAdd, onRemovePending, saved = [], dia
           {pending.map((photo) => (
             <figure key={photo.key} className="checkin-photo new">
               <img src={photo.url} alt={t(categoryName[photo.category] || "Foto")} />
-              <figcaption>{t(categoryName[photo.category] || "Foto")} · {t("da inviare")}</figcaption>
+              <figcaption>{t("da inviare")}</figcaption>
               <button type="button" className="checkin-remove" onClick={() => onRemovePending(photo.key)} aria-label={t("Elimina")}>✕</button>
             </figure>
           ))}
