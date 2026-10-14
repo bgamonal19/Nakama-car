@@ -12,7 +12,7 @@ type Diagnosis = {
   id: string; diagnosis_number: string; status: "SENT" | "CONVERTED" | "REJECTED"; license_plate: string; work_type: string;
   mileage: number | null; complaint: string | null; findings: string | null; urgency: string; labor_hours: string; created_at: string;
   author_name: string; review_note: string | null; customer_name: string | null; case_number: string | null;
-  estimate_number: string | null; estimate_id: string | null; vehicle: { make: string | null; model: string | null } | null;
+  estimate_number: string | null; estimate_id: string | null; estimate_status: string | null; vehicle: { make: string | null; model: string | null } | null;
   lines: { kind: Kind; description: string; oem_code: string | null; quantity: string; unit_price: string | null }[];
 };
 type Customer = { id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null };
@@ -20,6 +20,13 @@ type Customer = { id: string; first_name?: string | null; last_name?: string | n
 const emptyForm = { license_plate: "", work_type: "MECHANICAL", mileage: "", complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
 const urgencies = [["LOW", "Bassa"], ["NORMAL", "Normale"], ["HIGH", "Urgente"]] as const;
 const statusNames: Record<string, string> = { SENT: "Inviata all'ufficio", CONVERTED: "Preventivo creato", REJECTED: "Respinta" };
+// Where the estimate made from my diagnosis stands with the customer.
+const customerStage: Record<string, string> = {
+  DRAFT: "🗂 L'ufficio sta preparando il preventivo",
+  SENT: "⏳ Inviato al cliente, in attesa di risposta",
+  APPROVED: "✅ Approvato: il lavoro è in «Il mio lavoro»",
+  REJECTED: "✖ Il cliente ha rifiutato",
+};
 const kindNames: Record<Kind, string> = { PART: "Ricambio", MATERIAL: "Materiale", SERVICE: "Lavoro esterno" };
 // Body shop quick picks: [part, hours].
 const bodyQuick: [string, number][] = [
@@ -262,6 +269,7 @@ export default function DiagnosiPage() {
               {item.lines.map((line, index) => <li key={index}>{line.kind === "PART" ? "⚙️" : line.kind === "MATERIAL" ? "🧴" : "🔧"} {Number(line.quantity)} × {line.description}{line.oem_code ? ` (${line.oem_code})` : ""}{line.unit_price ? ` · ${money(line.unit_price)}` : ""}</li>)}
             </ul>
             {item.review_note && <p className="hint">{t("Nota dell'ufficio")}: {item.review_note}</p>}
+            {item.estimate_status && customerStage[item.estimate_status] && <p className={`customer-stage stage-${item.estimate_status.toLowerCase()}`}>{t(customerStage[item.estimate_status])}</p>}
             {item.estimate_number && <p className="hint">{t("Preventivo")} {item.estimate_number}{item.case_number ? ` · ${t("Pratica")} ${item.case_number}` : ""}</p>}
             <div className="table-actions">
               {item.status === "SENT" && (manager ? (

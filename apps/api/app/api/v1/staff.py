@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.cases import next_case_number
 from app.api.v1.estimates import apply_terms, calculate_line, recalculate, terms_of
 from app.db.deps import get_db
-from app.models.estimating import Estimate, EstimateLine, EstimateLineCategory, LaborRate, LaborType
+from app.models.estimating import Estimate, EstimateLine, EstimateLineCategory, EstimateStatus, LaborRate, LaborType
 from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
 from app.models.identity import User
 from app.models.staff import Diagnosis, DiagnosisLine, DiagnosisStatus, UserProfile
@@ -26,8 +26,14 @@ from app.services.contracts import customer_display_name, find_active_contract
 router = APIRouter(tags=["staff"])
 
 CLOSED_ORDERS = (WorkOrderStatus.DELIVERED, WorkOrderStatus.INVOICED)
-# Repair cases still waiting for a diagnosis or an estimate.
+# Repair cases that have not reached the workshop yet (diagnosis, estimate, customer answer).
 WAITING_CASES = (RepairCaseStatus.NEW, RepairCaseStatus.WAITING_APPROVAL)
+# Where an estimate is in the flow office -> customer, as shown to the worker.
+ESTIMATE_STAGE = {
+    EstimateStatus.DRAFT: "OFFICE",      # the office is preparing the estimate
+    EstimateStatus.SENT: "CUSTOMER",     # link sent, waiting for the customer
+    EstimateStatus.REJECTED: "REJECTED",  # the customer said no
+}
 
 
 # ---------- my profile ----------
@@ -203,6 +209,7 @@ def diagnosis_dict(db: Session, diagnosis: Diagnosis, names: dict | None = None)
         "customer_name": customer_display_name(customer) if customer else None,
         "case_number": case.case_number if case else None, "repair_case_id": str(case.id) if case else None,
         "estimate_number": estimate.estimate_number if estimate else None, "estimate_id": str(estimate.id) if estimate else None,
+        "estimate_status": estimate.status.value if estimate else None,
         "lines": [{
             "id": str(line.id), "kind": line.kind, "description": line.description, "oem_code": line.oem_code,
             "quantity": str(line.quantity), "unit_price": None if line.unit_price is None else str(line.unit_price),
@@ -450,7 +457,9 @@ def my_work(db: Session = Depends(get_db), auth: AuthContext = Depends(require_p
             "plate": vehicle.license_plate, "vehicle": " ".join(filter(None, [vehicle.make, vehicle.model])) or None,
             "color": vehicle.color_name, "customer_name": customer_display_name(customer), "request": case.customer_notes,
             "tasks": [task_dict(task, names) for task in tasks],
-            "done": sum(1 for task in tasks if task.status == WorkTaskStatus.DONE), "total": len(tasks),
+            "done": (done := sum(1 for task in tasks if task.status == WorkTaskStatus.DONE)), "total": len(tasks),
+            # Approved by the customer and nobody has started yet.
+            "is_new": done == 0 and order.status == WorkOrderStatus.APPROVED, "approved_at": order.created_at,
         })
     waiting_query = (
         select(RepairCase, Vehicle)
@@ -459,13 +468,28 @@ def my_work(db: Session = Depends(get_db), auth: AuthContext = Depends(require_p
     )
     if area:
         waiting_query = waiting_query.where(RepairCase.work_type == area)
-    with_order = {order.repair_case_id for order in orders}
-    waiting = [{
-        "repair_case_id": str(case.id), "case_number": case.case_number, "plate": vehicle.license_plate,
-        "vehicle": " ".join(filter(None, [vehicle.make, vehicle.model])) or None, "request": case.customer_notes,
-        "work_type": case.work_type, "mileage": case.mileage,
-    } for case, vehicle in db.execute(waiting_query.order_by(RepairCase.created_at)).all() if case.id not in with_order]
-    return {"work_area": area, "jobs": jobs, "waiting": waiting}
+    with_order = set(db.scalars(select(WorkOrder.repair_case_id).where(WorkOrder.tenant_id == auth.tenant_id)).all())
+    cases = [(case, vehicle) for case, vehicle in db.execute(waiting_query.order_by(RepairCase.created_at)).all() if case.id not in with_order]
+    latest: dict = {}
+    if cases:
+        for estimate in db.scalars(select(Estimate).where(
+            Estimate.tenant_id == auth.tenant_id, Estimate.repair_case_id.in_([case.id for case, _ in cases]),
+        ).order_by(Estimate.created_at)).all():
+            latest[estimate.repair_case_id] = estimate
+    waiting, pending = [], []
+    for case, vehicle in cases:
+        item = {
+            "repair_case_id": str(case.id), "case_number": case.case_number, "plate": vehicle.license_plate,
+            "vehicle": " ".join(filter(None, [vehicle.make, vehicle.model])) or None, "request": case.customer_notes,
+            "work_type": case.work_type, "mileage": case.mileage,
+        }
+        estimate = latest.get(case.id)
+        if estimate is None:
+            waiting.append(item)  # needs a diagnosis
+        elif estimate.status in ESTIMATE_STAGE:
+            pending.append(item | {"stage": ESTIMATE_STAGE[estimate.status], "estimate_number": estimate.estimate_number})
+    jobs.sort(key=lambda job: (not job["is_new"],))
+    return {"work_area": area, "jobs": jobs, "waiting": waiting, "pending": pending, "new_jobs": sum(1 for job in jobs if job["is_new"])}
 
 
 class TaskToggle(BaseModel):

@@ -17,6 +17,8 @@ from app.schemas.approval import (
     PublicEstimateRead,
 )
 from app.security.context import AuthContext, require_permission
+from app.services.contracts import customer_display_name
+from app.services.workshop import open_work_order
 
 router = APIRouter(tags=["estimate-approval"])
 
@@ -59,9 +61,19 @@ def create_estimate_share(
         db.commit()
         db.refresh(approval)
 
+    case = db.get(RepairCase, estimate.repair_case_id)
+    customer = db.get(Customer, case.customer_id) if case else None
+    vehicle = db.get(Vehicle, case.vehicle_id) if case else None
     return EstimateShareResponse(
         public_token=approval.public_token,
         public_path=f"/public/estimate/{approval.public_token}",
+        estimate_number=estimate.estimate_number,
+        total=estimate.total,
+        customer_name=customer_display_name(customer) if customer else None,
+        customer_phone=customer.phone if customer else None,
+        customer_email=customer.email if customer else None,
+        license_plate=vehicle.license_plate if vehicle else None,
+        answered=approval.responded_at is not None,
     )
 
 
@@ -167,8 +179,11 @@ def public_estimate_decision(
             RepairCase.tenant_id == approval.tenant_id,
         )
     )
-    if case is not None:
-        case.status = RepairCaseStatus.APPROVED if payload.accepted else RepairCaseStatus.NEW
+    if payload.accepted:
+        # Approved by the customer: the job goes straight to the workshop ("Il mio lavoro").
+        open_work_order(db, estimate, None, "approved_by_customer")
+    elif case is not None:
+        case.status = RepairCaseStatus.NEW
     db.commit()
 
     return {"status": "accepted" if payload.accepted else "rejected"}

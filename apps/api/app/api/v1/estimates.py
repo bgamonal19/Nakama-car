@@ -29,6 +29,7 @@ from app.services.audit import record_audit
 from app.services.contracts import customer_display_name, find_active_contract
 from app.services.pdf import build_estimate_pdf
 from app.services.pricing import PUBLIC_TERMS, PricingTerms, money, price_line
+from app.services.workshop import open_work_order
 
 router = APIRouter(tags=["estimates"])
 
@@ -256,6 +257,9 @@ def update_estimate_status(
         old_value=old_status,
         new_value=payload.status.value,
     )
+    if payload.status == EstimateStatus.APPROVED:
+        # Approved by the office (e.g. the customer said yes by phone): open the job for the workshop.
+        open_work_order(db, estimate, auth.user_id, "approved_by_office")
     db.commit()
     db.refresh(estimate)
     return estimate
