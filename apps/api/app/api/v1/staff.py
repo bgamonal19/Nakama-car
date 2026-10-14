@@ -2,9 +2,9 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -16,6 +16,7 @@ from app.db.deps import get_db
 from app.models.estimating import Estimate, EstimateLine, EstimateLineCategory, EstimateStatus, LaborRate, LaborType
 from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
 from app.models.identity import User
+from app.models.media import DB_STORAGE_PREFIX, Media, MediaCategory, MediaType
 from app.models.staff import Diagnosis, DiagnosisLine, DiagnosisStatus, QuickItem, UserProfile
 from app.models.workshop import WorkOrder, WorkOrderStatus, WorkOrderTask, WorkTaskStatus
 from app.schemas.estimating import EstimateLineCreate
@@ -23,6 +24,7 @@ from app.security.context import AuthContext, get_auth_context, require_permissi
 from app.services import staff
 from app.services.audit import record_audit
 from app.services.contracts import customer_display_name, find_active_contract
+from app.services.photos import MAX_UPLOAD_BYTES, PhotoError, prepare_photo
 from app.services.tracking import case_render
 from app.services.workshop import ensure_item_tasks
 
@@ -207,6 +209,7 @@ class DiagnosisIn(BaseModel):
     license_plate: str = Field(min_length=2, max_length=20)
     work_type: Literal["BODY", "MECHANICAL"] | None = None
     mileage: int | None = Field(default=None, ge=0, le=5_000_000)
+    fuel_level: int | None = Field(default=None, ge=0, le=100)
     complaint: str | None = Field(default=None, max_length=4000)
     findings: str | None = Field(default=None, max_length=8000)
     urgency: Literal["LOW", "NORMAL", "HIGH"] = "NORMAL"
@@ -268,6 +271,10 @@ def diagnosis_dict(db: Session, diagnosis: Diagnosis, names: dict | None = None)
         "case_number": case.case_number if case else None, "repair_case_id": str(case.id) if case else None,
         "estimate_number": estimate.estimate_number if estimate else None, "estimate_id": str(estimate.id) if estimate else None,
         "estimate_status": estimate.status.value if estimate else None,
+        "fuel_level": diagnosis.fuel_level,
+        "photos": [{"id": str(photo.id), "category": photo.category.value} for photo in db.scalars(
+            select(Media).where(Media.diagnosis_id == diagnosis.id, Media.tenant_id == diagnosis.tenant_id).order_by(Media.created_at)
+        ).all()],
         "lines": [{
             "id": str(line.id), "kind": line.kind, "description": line.description, "oem_code": line.oem_code,
             "quantity": str(line.quantity), "unit_price": None if line.unit_price is None else str(line.unit_price),
@@ -301,6 +308,15 @@ def write_diagnosis(db: Session, auth: AuthContext, diagnosis: Diagnosis, payloa
     diagnosis.repair_case_id = case.id if case else None
     diagnosis.work_type = work_type
     diagnosis.mileage = payload.mileage
+    diagnosis.fuel_level = payload.fuel_level
+    if case is not None:
+        # The check-in data also goes on the repair case (fuel, km), photos follow the case.
+        if payload.fuel_level is not None:
+            case.fuel_level_percent = payload.fuel_level
+        if payload.mileage and not case.mileage:
+            case.mileage = payload.mileage
+        if diagnosis.id:
+            attach_photos_to_case(db, diagnosis, case.id)
     diagnosis.complaint = (payload.complaint or "").strip() or None
     diagnosis.findings = (payload.findings or "").strip() or None
     diagnosis.urgency = payload.urgency
@@ -416,10 +432,12 @@ def diagnosis_to_estimate(
         case = RepairCase(
             tenant_id=auth.tenant_id, case_number=next_case_number(db, auth.tenant_id), opened_at=datetime.now(timezone.utc),
             customer_id=vehicle.customer_id, vehicle_id=vehicle.id, work_type=diagnosis.work_type, mileage=diagnosis.mileage,
-            customer_notes=diagnosis.complaint,
+            fuel_level_percent=diagnosis.fuel_level, customer_notes=diagnosis.complaint,
         )
         db.add(case)
         db.flush()
+    diagnosis.repair_case_id = case.id
+    attach_photos_to_case(db, diagnosis, case.id)
 
     year = datetime.now(timezone.utc).year
     count = db.scalar(select(func.count(Estimate.id)).where(Estimate.tenant_id == auth.tenant_id, Estimate.estimate_number.like(f"NC-P-{year}-%"))) or 0
@@ -459,6 +477,77 @@ def diagnosis_to_estimate(
                  action="converted", new_value={"estimate": estimate.estimate_number, "case": case.case_number})
     db.commit()
     return {"estimate_id": str(estimate.id), "estimate_number": estimate.estimate_number, "repair_case_id": str(case.id), "case_number": case.case_number}
+
+
+# ---------- check-in photos of a diagnosis ----------
+
+MAX_DIAGNOSIS_PHOTOS = 20
+
+
+def attach_photos_to_case(db: Session, diagnosis: Diagnosis, case_id: UUID) -> None:
+    """Photos taken before the vehicle had a case join it, so the office sees them in the case."""
+    for photo in db.scalars(select(Media).where(Media.diagnosis_id == diagnosis.id, Media.repair_case_id.is_(None))).all():
+        photo.repair_case_id = case_id
+
+
+def editable_diagnosis(db: Session, auth: AuthContext, diagnosis_id: UUID) -> Diagnosis:
+    diagnosis = get_diagnosis(db, auth, diagnosis_id)
+    if diagnosis.status != DiagnosisStatus.SENT and not is_manager(auth):
+        raise HTTPException(status_code=409, detail="La diagnosi è già stata lavorata dall'ufficio")
+    return diagnosis
+
+
+@router.post("/diagnoses/{diagnosis_id}/photos", status_code=status.HTTP_201_CREATED)
+async def add_diagnosis_photo(
+    diagnosis_id: UUID,
+    request: Request,
+    category: MediaCategory = Query(MediaCategory.OTHER),
+    filename: str | None = Query(None, max_length=255),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("work_order.read")),
+):
+    """Photo of how the vehicle arrived (raw image body), compressed and kept with the diagnosis."""
+    diagnosis = editable_diagnosis(db, auth, diagnosis_id)
+    count = db.scalar(select(func.count(Media.id)).where(Media.diagnosis_id == diagnosis.id)) or 0
+    if count >= MAX_DIAGNOSIS_PHOTOS:
+        raise HTTPException(status_code=409, detail=f"Massimo {MAX_DIAGNOSIS_PHOTOS} foto per diagnosi")
+    if int(request.headers.get("content-length") or 0) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Foto troppo grande (max 15 MB).")
+    try:
+        content, width, height = prepare_photo(await request.body())
+    except PhotoError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    photo = Media(
+        tenant_id=auth.tenant_id, repair_case_id=diagnosis.repair_case_id, diagnosis_id=diagnosis.id, uploaded_by=auth.user_id,
+        media_type=MediaType.PHOTO, category=category,
+        storage_key=f"{DB_STORAGE_PREFIX}{auth.tenant_id}/diagnosis/{diagnosis.id}/{uuid4().hex}.webp",
+        original_filename=filename, mime_type="image/webp", size_bytes=len(content), width=width, height=height, content=content,
+    )
+    db.add(photo)
+    db.commit()
+    return {"id": str(photo.id), "category": photo.category.value}
+
+
+def diagnosis_photo(db: Session, auth: AuthContext, diagnosis: Diagnosis, photo_id: UUID) -> Media:
+    photo = db.scalar(select(Media).where(Media.id == photo_id, Media.diagnosis_id == diagnosis.id, Media.tenant_id == auth.tenant_id))
+    if photo is None:
+        raise HTTPException(status_code=404, detail="Foto non trovata")
+    return photo
+
+
+@router.get("/diagnoses/{diagnosis_id}/photos/{photo_id}")
+def read_diagnosis_photo(diagnosis_id: UUID, photo_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    photo = diagnosis_photo(db, auth, get_diagnosis(db, auth, diagnosis_id), photo_id)
+    if not photo.content:
+        raise HTTPException(status_code=404, detail="Foto non disponibile")
+    return Response(content=photo.content, media_type=photo.mime_type or "image/webp", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.delete("/diagnoses/{diagnosis_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_diagnosis_photo(diagnosis_id: UUID, photo_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    diagnosis = editable_diagnosis(db, auth, diagnosis_id)
+    db.delete(diagnosis_photo(db, auth, diagnosis, photo_id))
+    db.commit()
 
 
 @router.post("/diagnoses/{diagnosis_id}/reject")
