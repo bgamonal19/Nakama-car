@@ -24,6 +24,8 @@ def area_for(roles: list[str], profile: UserProfile | None = None) -> str | None
     """BODY, MECHANICAL or None (sees both). A profile override wins over the role."""
     if profile is not None and profile.work_area in AREAS:
         return profile.work_area
+    if profile is not None and profile.work_area == "ALL":  # chosen by the main account: sees both
+        return None
     if "ADMIN" in roles or "RECEPTION" in roles:
         return None
     areas = {ROLE_AREA[role] for role in roles if role in ROLE_AREA}

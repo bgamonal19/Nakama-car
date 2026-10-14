@@ -124,7 +124,7 @@ def set_user_area(user_id: UUID, payload: StaffAreaUpdate, db: Session = Depends
     if profile is None:
         profile = UserProfile(user_id=user.id)
         db.add(profile)
-    profile.work_area = None if payload.work_area == "ALL" else payload.work_area
+    profile.work_area = payload.work_area
     db.commit()
     return user_profile(user_id, db, auth)
 
