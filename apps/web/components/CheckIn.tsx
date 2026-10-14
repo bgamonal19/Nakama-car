@@ -85,30 +85,38 @@ export function CheckInPhotos({ pending, onAdd, onRemovePending, saved = [], dia
   onRemoveSaved?: (photo: SavedPhoto) => void;
 }) {
   const { t } = useLanguage();
-  const input = useRef<HTMLInputElement>(null);
-  const category = useRef<string>("OTHER");
-
-  function choose(code: string) {
-    category.current = code;
-    input.current?.click();
-  }
+  const camera = useRef<HTMLInputElement>(null);
+  const gallery = useRef<HTMLInputElement>(null);
+  const [category, setCategory] = useState("FRONT");
 
   function picked(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith("image/"));
+    const files = Array.from(event.target.files || []).filter((file) => file.type.startsWith("image/") || file.type === "");
     event.target.value = "";
-    onAdd(files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, file, url: URL.createObjectURL(file), category: category.current || "OTHER" })));
+    if (files.length === 0) return;
+    const current = category;
+    onAdd(files.map((file, index) => ({ key: `${Date.now()}-${index}-${file.name}`, file, url: URL.createObjectURL(file), category: current })));
+    // Walk around the car: after a side is photographed, the next one is selected.
+    const order = photoCategories.map(([code]) => code);
+    const next = order.indexOf(current) + 1;
+    if (next > 0 && next < 4) setCategory(order[next]);
   }
 
   const total = pending.length + saved.length;
   return (
     <div className="checkin-photos">
       <p className="checkin-title"><strong>📸 {t("Foto all'arrivo")}</strong> · {t("come è entrato il veicolo in officina")}{total ? ` · ${total}` : ""}</p>
-      <div className="choice-chips">
+      <div className="choice-chips" role="radiogroup" aria-label={t("Che cosa fotografi?")}>
         {photoCategories.map(([code, name, icon]) => (
-          <button type="button" key={code} onClick={() => choose(code)}>{icon} {t(name)}</button>
+          <button type="button" key={code} role="radio" aria-checked={category === code} className={category === code ? "active" : ""} onClick={() => setCategory(code)}>{icon} {t(name)}</button>
         ))}
       </div>
-      <input ref={input} type="file" accept="image/*" capture="environment" multiple hidden onChange={picked} />
+      <div className="checkin-actions">
+        <button type="button" className="primary" onClick={() => camera.current?.click()}>📷 {t("Scatta foto")}</button>
+        <button type="button" className="secondary" onClick={() => gallery.current?.click()}>🖼 {t("Dalla galleria")}</button>
+      </div>
+      {/* capture without "multiple": phones open the camera directly instead of the photo picker. */}
+      <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={picked} />
+      <input ref={gallery} type="file" accept="image/*" multiple hidden onChange={picked} />
       {total > 0 && (
         <div className="checkin-grid">
           {diagnosisId && saved.map((photo) => (

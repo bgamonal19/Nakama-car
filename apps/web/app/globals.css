@@ -1789,3 +1789,5 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .checkin-photo.new img { border: 2px dashed #1e9e5a; }
 .checkin-photo figcaption { font-size: 11px; color: var(--muted); }
 .checkin-remove { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; cursor: pointer; }
+.checkin-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.checkin-actions button { height: 52px; font-size: 15px; }
