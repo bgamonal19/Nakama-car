@@ -6,6 +6,7 @@ import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, getAccessToken, sessionUser, SessionUser } from "../../lib/api";
 import { mechanicalCatalog } from "../../lib/mechanicalCatalog";
 import { QuickKind, QuickPick, QuickPicker } from "../../components/QuickPicker";
+import { CheckInPhotos, DiagnosisPhoto, FuelGauge, PendingPhoto, SavedPhoto } from "../../components/CheckIn";
 
 type Kind = "PART" | "MATERIAL" | "SERVICE";
 type Line = { kind: Kind; description: string; oem_code: string; quantity: string; unit_price: string };
@@ -13,12 +14,12 @@ type Diagnosis = {
   id: string; diagnosis_number: string; status: "SENT" | "CONVERTED" | "REJECTED"; license_plate: string; work_type: string;
   mileage: number | null; complaint: string | null; findings: string | null; urgency: string; labor_hours: string; created_at: string;
   author_name: string; review_note: string | null; customer_name: string | null; case_number: string | null;
-  estimate_number: string | null; estimate_id: string | null; estimate_status: string | null; vehicle: { make: string | null; model: string | null } | null;
+  estimate_number: string | null; estimate_id: string | null; estimate_status: string | null; fuel_level: number | null; photos: SavedPhoto[]; repair_case_id: string | null; vehicle: { make: string | null; model: string | null } | null;
   lines: { kind: Kind; description: string; oem_code: string | null; quantity: string; unit_price: string | null }[];
 };
 type Customer = { id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null };
 
-const emptyForm = { license_plate: "", work_type: "MECHANICAL", mileage: "", complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
+const emptyForm = { license_plate: "", work_type: "MECHANICAL", mileage: "", fuel_level: null as number | null, complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
 const urgencies = [["LOW", "Bassa"], ["NORMAL", "Normale"], ["HIGH", "Urgente"]] as const;
 const statusNames: Record<string, string> = { SENT: "Inviata all'ufficio", CONVERTED: "Preventivo creato", REJECTED: "Respinta" };
 // Where the estimate made from my diagnosis stands with the customer.
@@ -46,6 +47,8 @@ export default function DiagnosiPage() {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [lines, setLines] = useState<Line[]>([]);
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  const [savedPhotos, setSavedPhotos] = useState<SavedPhoto[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [list, setList] = useState<Diagnosis[]>([]);
   const [filter, setFilter] = useState<"SENT" | "CONVERTED" | "REJECTED" | "">("SENT");
@@ -119,17 +122,43 @@ export default function DiagnosiPage() {
   const setLine = (index: number, change: Partial<Line>) => setLines((current) => current.map((line, i) => (i === index ? { ...line, ...change } : line)));
   const hours = (delta: number) => setForm((current) => ({ ...current, labor_hours: Math.max(0, Math.round((current.labor_hours + delta) * 10) / 10) }));
 
+  function clearPending() {
+    setPendingPhotos((current) => { current.forEach((photo) => URL.revokeObjectURL(photo.url)); return []; });
+  }
+
   function reset() {
-    setForm(emptyForm); setLines([]); setEditing(null);
+    setForm(emptyForm); setLines([]); setEditing(null); setSavedPhotos([]); clearPending();
+  }
+
+  /** Upload the new photos once the diagnosis exists; returns how many failed. */
+  async function uploadPhotos(diagnosisId: string) {
+    let failed = 0;
+    for (const photo of pendingPhotos) {
+      const params = new URLSearchParams({ category: photo.category, filename: photo.file.name.slice(0, 200) });
+      const response = await apiFetch(`/diagnoses/${diagnosisId}/photos?${params}`, {
+        method: "POST", headers: { "Content-Type": photo.file.type || "application/octet-stream" }, body: photo.file,
+      }).catch(() => null);
+      if (!response?.ok) failed += 1;
+    }
+    return failed;
+  }
+
+  async function removeSavedPhoto(photo: SavedPhoto) {
+    if (!editing || !window.confirm(t("Eliminare questa foto?"))) return;
+    const response = await apiFetch(`/diagnoses/${editing}/photos/${photo.id}`, { method: "DELETE" });
+    if (response.ok || response.status === 404) setSavedPhotos((current) => current.filter((x) => x.id !== photo.id));
+    else setMessage(await apiError(response, "Impossibile eliminare la foto."));
   }
 
   function edit(item: Diagnosis) {
     setEditing(item.id);
     setForm({
-      license_plate: item.license_plate, work_type: item.work_type, mileage: item.mileage ? String(item.mileage) : "",
+      license_plate: item.license_plate, work_type: item.work_type, mileage: item.mileage ? String(item.mileage) : "", fuel_level: item.fuel_level,
       complaint: item.complaint || "", findings: item.findings || "", urgency: item.urgency, labor_hours: Number(item.labor_hours),
     });
     setLines(item.lines.map((line) => ({ kind: line.kind, description: line.description, oem_code: line.oem_code || "", quantity: String(Number(line.quantity)), unit_price: line.unit_price ? String(Number(line.unit_price)) : "" })));
+    setSavedPhotos(item.photos || []);
+    clearPending();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -139,7 +168,7 @@ export default function DiagnosiPage() {
     setSending(true); setMessage("");
     try {
       const body = {
-        license_plate: form.license_plate, work_type: workType, mileage: form.mileage ? Number(form.mileage) : null,
+        license_plate: form.license_plate, work_type: workType, mileage: form.mileage ? Number(form.mileage) : null, fuel_level: form.fuel_level,
         complaint: form.complaint, findings: form.findings, urgency: form.urgency, labor_hours: String(form.labor_hours),
         lines: lines.filter((line) => line.description.trim()).map((line) => ({
           kind: line.kind, description: line.description.trim(), oem_code: line.oem_code.trim() || null,
@@ -149,7 +178,8 @@ export default function DiagnosiPage() {
       const response = await apiFetch(editing ? `/diagnoses/${editing}` : "/diagnoses", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) });
       if (!response.ok) { setMessage(await apiError(response, "Impossibile inviare la diagnosi.")); return; }
       const saved: Diagnosis = await response.json();
-      setMessage(`${t(editing ? "Diagnosi aggiornata" : "Diagnosi inviata all'ufficio")}: ${saved.diagnosis_number}`);
+      const failed = pendingPhotos.length ? await uploadPhotos(saved.id) : 0;
+      setMessage(`${t(editing ? "Diagnosi aggiornata" : "Diagnosi inviata all'ufficio")}: ${saved.diagnosis_number}${failed ? ` · ${t("{n} foto non caricate").replace("{n}", String(failed))}` : ""}`);
       reset();
       setFilter("SENT");
       void load();
@@ -229,6 +259,16 @@ export default function DiagnosiPage() {
           <label className="span-all">{t("Diagnosi")}<textarea rows={3} value={form.findings} onChange={(e) => setForm({ ...form, findings: e.target.value })} placeholder={t("Cosa hai trovato e cosa va fatto")} /></label>
         </div>
 
+        <FuelGauge value={form.fuel_level} onChange={(fuel_level) => setForm((current) => ({ ...current, fuel_level }))} />
+        <CheckInPhotos
+          pending={pendingPhotos}
+          onAdd={(photos) => setPendingPhotos((current) => [...current, ...photos].slice(0, 20))}
+          onRemovePending={(key) => setPendingPhotos((current) => current.filter((photo) => { if (photo.key === key) URL.revokeObjectURL(photo.url); return photo.key !== key; }))}
+          saved={savedPhotos}
+          diagnosisId={editing}
+          onRemoveSaved={removeSavedPhoto}
+        />
+
         <div className="hours-stepper" role="group" aria-label={t("Ore di lavoro")}>
           <span>{t("Ore di lavoro")}</span>
           <button type="button" onClick={() => hours(-0.5)} aria-label="-0,5">−</button>
@@ -288,6 +328,12 @@ export default function DiagnosiPage() {
             <p className="diagnosis-meta">{item.diagnosis_number} · {new Date(item.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · {item.author_name} · {t(item.work_type === "BODY" ? "Carrozzeria" : "Meccanica")}{item.urgency === "HIGH" ? ` · ⚠️ ${t("Urgente")}` : ""}</p>
             {item.complaint && <p><b>{t("Problema")}:</b> {item.complaint}</p>}
             {item.findings && <p><b>{t("Diagnosi")}:</b> {item.findings}</p>}
+            {item.fuel_level != null && (
+              <p className="diagnosis-fuel">⛽ {t("Carburante all'arrivo")}: <span className="fuel-bar mini" aria-hidden="true"><span style={{ width: `${item.fuel_level}%`, background: item.fuel_level <= 15 ? "#d93025" : item.fuel_level <= 35 ? "#e0a100" : "#1e9e5a" }} /></span> <b>{item.fuel_level}%</b></p>
+            )}
+            {item.photos?.length > 0 && (
+              <div className="checkin-grid small">{item.photos.map((photo) => <DiagnosisPhoto key={photo.id} diagnosisId={item.id} photo={photo} />)}</div>
+            )}
             <ul className="diagnosis-items">
               {Number(item.labor_hours) > 0 && <li>🛠 {t("Manodopera")}: {Number(item.labor_hours).toLocaleString("it-IT")} h</li>}
               {item.lines.map((line, index) => <li key={index}>{line.kind === "PART" ? "⚙️" : line.kind === "MATERIAL" ? "🧴" : "🔧"} {Number(line.quantity)} × {line.description}{line.oem_code ? ` (${line.oem_code})` : ""}{line.unit_price ? ` · ${money(line.unit_price)}` : ""}</li>)}

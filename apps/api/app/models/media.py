@@ -30,8 +30,13 @@ class MediaCategory(str, enum.Enum):
 class Media(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     __tablename__ = "media"
 
-    repair_case_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("repair_cases.id", ondelete="CASCADE"), nullable=False, index=True
+    # Empty only for photos of a diagnosis sent before the vehicle had a repair case.
+    repair_case_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("repair_cases.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    # Diagnosis whose check-in photos these are (how the vehicle arrived).
+    diagnosis_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("diagnoses.id", ondelete="CASCADE"), nullable=True, index=True
     )
     media_type: Mapped[MediaType] = mapped_column(
         Enum(MediaType, name="media_type"), nullable=False, default=MediaType.PHOTO

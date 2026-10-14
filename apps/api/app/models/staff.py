@@ -49,6 +49,8 @@ class Diagnosis(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     estimate_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("estimates.id", ondelete="SET NULL"))
     work_type: Mapped[str] = mapped_column(String(12), nullable=False, default="MECHANICAL")
     mileage: Mapped[int | None] = mapped_column()
+    # Fuel in the tank when the vehicle arrived, 0–100 %.
+    fuel_level: Mapped[int | None] = mapped_column()
     complaint: Mapped[str | None] = mapped_column(Text)
     findings: Mapped[str | None] = mapped_column(Text)
     urgency: Mapped[str] = mapped_column(String(12), nullable=False, default="NORMAL")

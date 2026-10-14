@@ -226,3 +226,47 @@ def test_job_shows_vehicle_parts_as_buttons_and_notes(client):
     # The worker may load the vehicle picture of the job (without vehicle.read).
     assert mechanic.get(f"/api/v1/my-work/cases/{case['id']}/renders/front").status_code != 403
     assert mechanic.get(f"/api/v1/my-work/cases/{case['id']}/renders/nope").status_code == 422
+
+
+def png_bytes() -> bytes:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", (64, 48), (200, 30, 30)).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_diagnosis_check_in_photos_and_fuel_level(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec7@example.com", "MECHANIC")
+    other, _, _ = worker(c, "mec8@example.com", "MECHANIC")
+    sent = mechanic.post("/api/v1/diagnoses", json={"license_plate": "NW001FT", "fuel_level": 25, "mileage": 98000, "complaint": "Spia olio"}).json()
+    assert sent["fuel_level"] == 25 and sent["photos"] == [] and sent["repair_case_id"] is None
+    assert mechanic.post("/api/v1/diagnoses", json={"license_plate": "NW002FT", "fuel_level": 120}).status_code == 422
+
+    up = mechanic.post(f"/api/v1/diagnoses/{sent['id']}/photos", params={"category": "FRONT", "filename": "davanti.png"}, content=png_bytes(), headers={"Content-Type": "image/png"})
+    assert up.status_code == 201, up.text
+    photo = up.json()
+    assert photo["category"] == "FRONT"
+    assert mechanic.post(f"/api/v1/diagnoses/{sent['id']}/photos", content=b"not an image").status_code == 422
+    assert other.post(f"/api/v1/diagnoses/{sent['id']}/photos", content=png_bytes()).status_code == 404  # not their diagnosis
+    shown = mechanic.get(f"/api/v1/diagnoses/{sent['id']}/photos/{photo['id']}")
+    assert shown.status_code == 200 and shown.headers["content-type"].startswith("image/")
+    assert c.get(f"/api/v1/diagnoses/{sent['id']}").json()["photos"] == [photo]  # the office sees them
+
+    # Converted: the vehicle gets a case with the fuel level, and the photos join that case.
+    customer = c.post("/api/v1/customers", json={"first_name": "Elio"}).json()
+    converted = c.post(f"/api/v1/diagnoses/{sent['id']}/estimate", json={"customer_id": customer["id"]}).json()
+    case = c.get(f"/api/v1/cases/{converted['repair_case_id']}").json()
+    assert case["fuel_level_percent"] == 25 and case["mileage"] == 98000
+    media = c.get(f"/api/v1/cases/{converted['repair_case_id']}/media").json()
+    assert [item["id"] for item in media] == [photo["id"]]
+    # After the office worked it, the mechanic can no longer remove evidence.
+    assert mechanic.delete(f"/api/v1/diagnoses/{sent['id']}/photos/{photo['id']}").status_code == 409
+
+    second = mechanic.post("/api/v1/diagnoses", json={"license_plate": "NW003FT"}).json()
+    extra = mechanic.post(f"/api/v1/diagnoses/{second['id']}/photos", content=png_bytes()).json()
+    assert mechanic.delete(f"/api/v1/diagnoses/{second['id']}/photos/{extra['id']}").status_code == 204
+    assert mechanic.get(f"/api/v1/diagnoses/{second['id']}").json()["photos"] == []

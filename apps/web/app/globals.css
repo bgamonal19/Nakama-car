@@ -1768,3 +1768,24 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .job-card.finished { border-color: #1e9e5a; }
 .done-tag { background: #145c37; }
 @media (max-width: 900px) { .job-vehicle-view { grid-template-columns: 1fr; } }
+
+/* ── Diagnosis check-in: fuel gauge and photos ──────────────────────────── */
+.fuel-gauge { display: grid; gap: 8px; padding: 14px; border-radius: 12px; background: var(--soft, #f4f6f8); }
+.fuel-gauge-head { display: flex; justify-content: space-between; font-size: 14px; }
+.fuel-gauge-head span { font-weight: 700; }
+.fuel-bar { position: relative; display: block; height: 22px; border-radius: 999px; background: var(--line); overflow: hidden; border: 1px solid var(--line); }
+.fuel-bar > span { position: absolute; inset: 0 auto 0 0; border-radius: 999px; transition: width .2s, background .2s; }
+.fuel-bar > i { position: absolute; top: 3px; bottom: 3px; width: 2px; background: rgba(255,255,255,.75); }
+.fuel-bar.mini { display: inline-block; width: 90px; height: 10px; vertical-align: middle; }
+.fuel-gauge input[type="range"] { width: 100%; accent-color: #1e9e5a; height: 28px; }
+.fuel-marks button { min-width: 56px; }
+.diagnosis-fuel { display: flex; align-items: center; gap: 8px; }
+.checkin-photos { display: grid; gap: 10px; }
+.checkin-title { margin: 0; font-size: 13px; }
+.checkin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.checkin-grid.small { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; }
+.checkin-photo { position: relative; margin: 0; display: grid; gap: 4px; }
+.checkin-photo img, .checkin-photo-loading { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--soft, #f4f6f8); display: block; }
+.checkin-photo.new img { border: 2px dashed #1e9e5a; }
+.checkin-photo figcaption { font-size: 11px; color: var(--muted); }
+.checkin-remove { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; cursor: pointer; }
