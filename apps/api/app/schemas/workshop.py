@@ -47,4 +47,6 @@ class WorkTaskRead(WorkTaskCreate):
     id: UUID
     work_order_id: UUID
     status: WorkTaskStatus
+    note: str | None = None
+    estimate_line_id: UUID | None = None
     model_config = ConfigDict(from_attributes=True)

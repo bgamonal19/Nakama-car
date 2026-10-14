@@ -9,8 +9,8 @@ AREAS = ("BODY", "MECHANICAL")
 # Role -> area of the workshop. Roles not listed (admin, reception, accounting) see everything.
 ROLE_AREA = {"MECHANIC": "MECHANICAL", "BODYSHOP": "BODY", "PAINTER": "BODY"}
 
-MECHANICAL_TASKS = {"ACCEPTANCE", "DIAGNOSTIC", "PARTS", "MECHANICAL_REPAIR", "ROAD_TEST"}
-BODY_TASKS = {"DISASSEMBLY", "BODY_REPAIR", "PAINT_PREP", "PAINT", "ASSEMBLY"}
+MECHANICAL_TASKS = {"ACCEPTANCE", "DIAGNOSTIC", "PARTS", "MECHANICAL_REPAIR", "ROAD_TEST", "ITEM_MECHANICAL"}
+BODY_TASKS = {"DISASSEMBLY", "BODY_REPAIR", "PAINT_PREP", "PAINT", "ASSEMBLY", "ITEM_BODY"}
 
 
 def user_roles(db: Session, user_id, tenant_id) -> list[str]:

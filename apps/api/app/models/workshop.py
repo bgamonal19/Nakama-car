@@ -65,3 +65,7 @@ class WorkOrderTask(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin)
     # Who ticked the task as done in the workshop, and when.
     completed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Short note written by the worker on this job (e.g. "pastiglie già consumate al 50%").
+    note: Mapped[str | None] = mapped_column(Text)
+    # The estimate line this job comes from (part to change, labour, paint…).
+    estimate_line_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)

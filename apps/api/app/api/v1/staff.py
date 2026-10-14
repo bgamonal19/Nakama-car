@@ -4,13 +4,14 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.v1.cases import next_case_number
 from app.api.v1.estimates import apply_terms, calculate_line, recalculate, terms_of
+from app.api.v1.renders import VIEW_PATTERN, plate_spots_for
 from app.db.deps import get_db
 from app.models.estimating import Estimate, EstimateLine, EstimateLineCategory, EstimateStatus, LaborRate, LaborType
 from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
@@ -22,6 +23,8 @@ from app.security.context import AuthContext, get_auth_context, require_permissi
 from app.services import staff
 from app.services.audit import record_audit
 from app.services.contracts import customer_display_name, find_active_contract
+from app.services.tracking import case_render
+from app.services.workshop import ensure_item_tasks
 
 router = APIRouter(tags=["staff"])
 
@@ -472,10 +475,22 @@ def reject_diagnosis(diagnosis_id: UUID, payload: DiagnosisReject, db: Session =
 
 # ---------- my work: vehicles waiting in my area, tasks as buttons ----------
 
+def vehicle_details(db: Session, vehicle: Vehicle, case: RepairCase) -> dict:
+    """Everything the worker needs to know about the car on the lift."""
+    return {
+        "make": vehicle.make, "model": vehicle.model, "version": vehicle.version, "year": vehicle.year,
+        "color": vehicle.color_name, "paint_code": vehicle.paint_code, "vin": vehicle.vin, "fuel_type": vehicle.fuel_type,
+        "engine_size": vehicle.engine_size, "power_kw": vehicle.power_kw, "category": vehicle.vehicle_category,
+        "mileage": case.mileage or vehicle.mileage, "fuel_level": case.fuel_level_percent, "fleet_number": vehicle.fleet_number,
+        "plate_spots": plate_spots_for(db, case.tenant_id, vehicle.make, vehicle.model),
+    }
+
+
 def task_dict(task: WorkOrderTask, names: dict) -> dict:
     return {
         "id": str(task.id), "task_type": task.task_type, "description": task.description, "status": task.status.value,
         "completed_by": names.get(task.completed_by) if task.completed_by else None, "completed_at": task.completed_at,
+        "note": task.note, "estimate_line_id": str(task.estimate_line_id) if task.estimate_line_id else None,
     }
 
 
@@ -494,6 +509,9 @@ def my_work(db: Session = Depends(get_db), auth: AuthContext = Depends(require_p
         query = query.where(RepairCase.work_type == area)
     rows = db.execute(query.order_by(WorkOrder.created_at)).all()
     orders = [order for order, *_ in rows]
+    # Older orders get one button per part/job of their estimate.
+    if any([ensure_item_tasks(db, order) for order in orders]):
+        db.commit()
     tasks_by_order: dict = {}
     if orders:
         for task in db.scalars(select(WorkOrderTask).where(
@@ -511,6 +529,7 @@ def my_work(db: Session = Depends(get_db), auth: AuthContext = Depends(require_p
             "priority": order.priority, "case_number": case.case_number, "repair_case_id": str(case.id), "work_type": case.work_type,
             "plate": vehicle.license_plate, "vehicle": " ".join(filter(None, [vehicle.make, vehicle.model])) or None,
             "color": vehicle.color_name, "customer_name": customer_display_name(customer), "request": case.customer_notes,
+            "details": vehicle_details(db, vehicle, case), "internal_notes": case.internal_notes,
             "tasks": [task_dict(task, names) for task in tasks],
             "done": (done := sum(1 for task in tasks if task.status == WorkTaskStatus.DONE)), "total": len(tasks),
             # Approved by the customer and nobody has started yet.
@@ -551,9 +570,12 @@ class TaskToggle(BaseModel):
     done: bool
 
 
-@router.post("/my-work/tasks/{task_id}")
-def toggle_task(task_id: UUID, payload: TaskToggle, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.update_status"))):
-    """Tick a task as done (or untick it if pressed by mistake)."""
+class TaskNote(BaseModel):
+    note: str = Field(default="", max_length=1000)
+
+
+def my_task(db: Session, auth: AuthContext, task_id: UUID) -> WorkOrderTask:
+    """A task of this workshop that belongs to the worker's area (403 otherwise)."""
     task = db.scalar(select(WorkOrderTask).where(WorkOrderTask.id == task_id, WorkOrderTask.tenant_id == auth.tenant_id))
     if task is None:
         raise HTTPException(status_code=404, detail="Work task not found")
@@ -561,6 +583,40 @@ def toggle_task(task_id: UUID, payload: TaskToggle, db: Session = Depends(get_db
     case = db.scalar(select(RepairCase).join(WorkOrder, WorkOrder.repair_case_id == RepairCase.id).where(WorkOrder.id == task.work_order_id))
     if area and (not staff.task_in_area(task.task_type, area) or (case and case.work_type != area)):
         raise HTTPException(status_code=403, detail="Questo lavoro non è della tua area")
+    return task
+
+
+@router.put("/my-work/tasks/{task_id}/note")
+def save_task_note(task_id: UUID, payload: TaskNote, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.update_status"))):
+    """Short comment on one job (what was found, what is missing…); empty text removes it."""
+    task = my_task(db, auth, task_id)
+    old = task.note
+    task.note = payload.note.strip() or None
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="work_task", entity_id=task.id,
+                 action="note_changed", field_name="note", old_value=old, new_value=task.note)
+    db.commit()
+    names = {task.completed_by: name} if task.completed_by and (name := user_name(db, task.completed_by)) else {}
+    return task_dict(task, names)
+
+
+def user_name(db: Session, user_id) -> str:
+    user = db.get(User, user_id)
+    return f"{user.first_name} {user.last_name}".strip() if user else ""
+
+
+@router.get("/my-work/cases/{case_id}/renders/{view}")
+def my_work_render(case_id: UUID, view: str = Path(pattern=VIEW_PATTERN), db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.read"))):
+    """Studio picture of the vehicle the worker is repairing (no vehicle.read needed)."""
+    case = db.scalar(select(RepairCase).where(RepairCase.id == case_id, RepairCase.tenant_id == auth.tenant_id))
+    if case is None:
+        raise HTTPException(status_code=404, detail="Repair case not found")
+    return case_render(db, case, view)
+
+
+@router.post("/my-work/tasks/{task_id}")
+def toggle_task(task_id: UUID, payload: TaskToggle, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.update_status"))):
+    """Tick a task as done (or untick it if pressed by mistake)."""
+    task = my_task(db, auth, task_id)
     old = task.status.value
     if payload.done:
         task.status, task.completed_by, task.completed_at = WorkTaskStatus.DONE, auth.user_id, datetime.now(timezone.utc)

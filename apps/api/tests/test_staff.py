@@ -190,3 +190,39 @@ def test_quick_items_are_saved_for_the_workshop(client):
     assert mechanic.delete(f"/api/v1/quick-items/{item['id']}").status_code == 204
     assert c.delete(f"/api/v1/quick-items/{both['id']}").status_code == 204
     assert c.get("/api/v1/quick-items").json() == []
+
+
+def test_job_shows_vehicle_parts_as_buttons_and_notes(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec6@example.com", "MECHANIC")
+    body, _, _ = worker(c, "carr6@example.com", "BODYSHOP")
+    customer = c.post("/api/v1/customers", json={"first_name": "Gino"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "EX030XG", "customer_id": customer["id"], "make": "Renault", "model": "Trafic", "vin": "VF1FL000123456789", "color_name": "Bianco"}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL", "mileage": 150000}).json()
+    sent = mechanic.post("/api/v1/diagnoses", json={"license_plate": "EX030XG", "labor_hours": "2", "lines": [
+        {"kind": "PART", "description": "Pastiglie anteriori", "quantity": "1", "unit_price": "60"},
+        {"kind": "MATERIAL", "description": "Liquido freni"},
+    ]}).json()
+    converted = c.post(f"/api/v1/diagnoses/{sent['id']}/estimate", json={}).json()
+    assert c.patch(f"/api/v1/estimates/{converted['estimate_id']}/status", json={"status": "APPROVED"}).status_code == 200
+
+    job = mechanic.get("/api/v1/my-work").json()["jobs"][0]
+    assert job["details"]["vin"] == "VF1FL000123456789" and job["details"]["mileage"] == 150000 and job["details"]["make"] == "Renault"
+    descriptions = [task["description"] for task in job["tasks"]]
+    assert "Sostituzione Pastiglie anteriori" in descriptions
+    assert not any("Liquido freni" in text for text in descriptions)  # materials are not a job to tick
+    assert descriptions.index("Sostituzione Pastiglie anteriori") < descriptions.index("Controllo qualità")
+    item = next(task for task in job["tasks"] if task["description"] == "Sostituzione Pastiglie anteriori")
+    assert item["estimate_line_id"] and item["task_type"] == "ITEM_MECHANICAL"
+
+    # Note on a button, then removed.
+    noted = mechanic.put(f"/api/v1/my-work/tasks/{item['id']}/note", json={"note": "  Dischi al limite, avvisare ufficio "})
+    assert noted.status_code == 200 and noted.json()["note"] == "Dischi al limite, avvisare ufficio"
+    again = next(task for task in mechanic.get("/api/v1/my-work").json()["jobs"][0]["tasks"] if task["id"] == item["id"])
+    assert again["note"] == "Dischi al limite, avvisare ufficio"
+    assert body.put(f"/api/v1/my-work/tasks/{item['id']}/note", json={"note": "x"}).status_code == 403
+    assert mechanic.put(f"/api/v1/my-work/tasks/{item['id']}/note", json={"note": ""}).json()["note"] is None
+
+    # The worker may load the vehicle picture of the job (without vehicle.read).
+    assert mechanic.get(f"/api/v1/my-work/cases/{case['id']}/renders/front").status_code != 403
+    assert mechanic.get(f"/api/v1/my-work/cases/{case['id']}/renders/nope").status_code == 422
