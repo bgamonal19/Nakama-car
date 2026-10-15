@@ -50,10 +50,25 @@ jobs:
           KEY_ALIAS="${KEY_ALIAS:-nakama}"
           KEY_PASS="${KEY_PASS:-$STORE_PASS}"
           export KEY_PASS
-          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:STORE_PASS \
+          # Spaces/newlines from copy-paste are ignored.
+          if ! printf '%s' "$KEYSTORE" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.jks" 2> "$RUNNER_TEMP/err.txt"; then
+            echo "::error title=Clave Android::El secreto ANDROID_KEYSTORE_BASE64 no es un texto base64 válido: vuelve a copiarlo con base64 -i … | pbcopy"; exit 1
+          fi
+          echo "Clave: $(wc -c < "$RUNNER_TEMP/release.jks") bytes"
+          if [ -z "${STORE_PASS}" ]; then echo "::error title=Clave Android::Falta el secreto ANDROID_KEYSTORE_PASSWORD"; exit 1; fi
+          # Which aliases the keystore holds (no secrets printed).
+          if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storetype PKCS12 -storepass:env STORE_PASS > "$RUNNER_TEMP/list.txt" 2>&1 && \
+             ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass:env STORE_PASS > "$RUNNER_TEMP/list.txt" 2>&1; then
+            msg=$(head -c 300 "$RUNNER_TEMP/list.txt" | tr '\n' ' ')
+            echo "::error title=Clave Android::No se puede abrir la clave (¿contraseña distinta?): $msg"; rm -f "$RUNNER_TEMP/release.jks"; exit 1
+          fi
+          echo "::notice title=Clave Android::Alias en la clave: $(grep -i 'PrivateKeyEntry' "$RUNNER_TEMP/list.txt" | cut -d, -f1 | tr '\n' ' ')"
+          if ! "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks "$RUNNER_TEMP/release.jks" --ks-pass env:STORE_PASS \
             --ks-key-alias "$KEY_ALIAS" --key-pass env:KEY_PASS \
-            --out "android/build/dist/NAKAMA-CAR-$VERSION.apk" android/build/dist/nakama-car-unsigned.apk
+            --out "android/build/dist/NAKAMA-CAR-$VERSION.apk" android/build/dist/nakama-car-unsigned.apk > "$RUNNER_TEMP/sign.txt" 2>&1; then
+            msg=$(head -c 400 "$RUNNER_TEMP/sign.txt" | tr '\n' ' ')
+            echo "::error title=Firma Android::$msg"; rm -f "$RUNNER_TEMP/release.jks"; exit 1
+          fi
           rm -f "$RUNNER_TEMP/release.jks"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "android/build/dist/NAKAMA-CAR-$VERSION.apk"
           echo "signed=true" >> "$GITHUB_OUTPUT"
