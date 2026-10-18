@@ -1,6 +1,7 @@
 export type Language = "it" | "es";
 
 export const spanish: Record<string, string> = {
+  "Accessi al portale": "Accesos al portal",
   "Impossibile caricare la flotta.": "No se pudo cargar la flota.",
   "Impossibile leggere il file.": "No se pudo leer el archivo.",
   "Impossibile scaricare il modello.": "No se pudo descargar la plantilla.",
