@@ -72,3 +72,62 @@ def test_fleet_portal_login_vehicles_maintenance_and_chat(client):
     assert c.patch(f"/api/v1/portal-accounts/{account['id']}", json={"active": False}).json()["active"] is False
     assert portal.get("/api/v1/portal/me").status_code == 401
     assert portal.post("/api/v1/portal/auth/login", json={"email": "flotta@univex.example.com", "password": "NuovaPassword2026"}).status_code == 401
+
+
+def portal_client(c, customer):
+    email = f"menu-{customer['id'][:8]}@example.com"
+    account = c.post(f"/api/v1/customers/{customer['id']}/portal-accounts", json={"email": email, "full_name": "Ufficio flotta"}).json()
+    portal = c.__class__(c.app)
+    login = portal.post("/api/v1/portal/auth/login", json={"email": email, "password": account["temporary_password"]})
+    portal.headers["Authorization"] = "Bearer " + login.json()["access_token"]
+    return portal
+
+
+def test_portal_menu_sections_and_customer_adds_vehicles(client):
+    c, _, _ = client
+    customer, contract, vehicle, case = fleet.create_fleet_case(c)
+    portal = portal_client(c, customer)
+
+    # Estimates appear once sent; drafts stay with the workshop.
+    estimate = c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json()
+    c.post(f"/api/v1/estimates/{estimate['id']}/lines", json=fleet.mechanical_line())
+    assert portal.get("/api/v1/portal/estimates").json() == []
+    assert c.patch(f"/api/v1/estimates/{estimate['id']}/status", json={"status": "SENT"}).status_code == 200
+    estimates = portal.get("/api/v1/portal/estimates").json()
+    assert estimates[0]["estimate_number"] == estimate["estimate_number"] and estimates[0]["license_plate"] == "FL123TR"
+
+    # Only issued invoices, with their PDF.
+    fee = c.post(f"/api/v1/contracts/{contract['id']}/fee-invoices", json={"period_month": "2026-10"}).json()
+    assert portal.get("/api/v1/portal/invoices").json() == []
+    assert portal.get(f"/api/v1/portal/invoices/{fee['id']}/pdf").status_code == 404
+    c.patch(f"/api/v1/invoices/{fee['id']}/status", json={"status": "ISSUED"})
+    invoices = portal.get("/api/v1/portal/invoices").json()
+    assert invoices[0]["invoice_number"] == fee["invoice_number"] and invoices[0]["status"] == "ISSUED"
+    pdf = portal.get(f"/api/v1/portal/invoices/{fee['id']}/pdf")
+    assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
+
+    # One chat per open repair, with the workshop's unread messages.
+    c.post(f"/api/v1/cases/{case['id']}/messages", json={"body": "Mezzo pronto domani"})
+    chats = portal.get("/api/v1/portal/conversations").json()
+    assert chats[0]["case_id"] == case["id"] and chats[0]["unread"] == 1
+    assert chats[0]["last_message"]["body"] == "Mezzo pronto domani"
+
+    # The customer adds a vehicle; existing plates are never taken over.
+    added = portal.post("/api/v1/portal/vehicles", json={"license_plate": " gh 123 kk ", "make": "Fiat", "model": "Ducato", "fleet_number": "U-18"})
+    assert added.status_code == 201, added.text
+    assert added.json()["license_plate"] == "GH 123 KK"
+    assert len(portal.get("/api/v1/portal/vehicles").json()) == 2
+    assert portal.post("/api/v1/portal/vehicles", json={"license_plate": "GH123KK"}).status_code == 409
+    assert portal.post("/api/v1/portal/vehicles", json={"license_plate": "fl-123-tr"}).status_code == 409
+    assert portal.post("/api/v1/portal/vehicles", json={"license_plate": "AB"}).status_code == 422
+    # Nothing lets the customer edit or delete vehicles.
+    assert portal.delete(f"/api/v1/portal/vehicles/{vehicle['id']}").status_code == 405
+    assert portal.patch(f"/api/v1/vehicles/{vehicle['id']}/maintenance", json={"mileage": 1}).status_code == 401
+
+    # Another customer sees none of it.
+    other = c.post("/api/v1/customers", json={"first_name": "Mario", "last_name": "Rossi"}).json()
+    stranger = portal_client(c, other)
+    assert stranger.get("/api/v1/portal/estimates").json() == []
+    assert stranger.get("/api/v1/portal/invoices").json() == []
+    assert stranger.get("/api/v1/portal/conversations").json() == []
+    assert stranger.get(f"/api/v1/portal/invoices/{fee['id']}/pdf").status_code == 404
