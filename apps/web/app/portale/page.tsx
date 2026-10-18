@@ -10,6 +10,7 @@ import { TelemetryBadge, TelemetryCard, TelemetryReading } from "../../component
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import type { PlateSpots } from "../../lib/plateSpots";
+import { FleetProfile } from "../../components/FleetProfile";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
 type Maintenance = {
@@ -316,6 +317,12 @@ export default function PortalPage() {
               {vehicles.length > 0 && filtered.length === 0 && <p className="hint">{t("Nessun veicolo trovato.")}</p>}
               {me && vehicles.length === 0 && <p className="hint">{t("Nessun veicolo registrato: contatta l'officina.")}</p>}
             </div>
+            {me && vehicles.length > 0 && (
+              <section className="panel portal-fleet-jobs">
+                <h2>{t("Lavori per targa")}</h2>
+                <FleetProfile mode="portal" query={query} />
+              </section>
+            )}
           </>
         )}
 

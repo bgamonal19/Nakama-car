@@ -20,7 +20,7 @@ from app.models.portal import PortalAccount
 from app.models.tracking import CaseMessage
 from app.security.context import AuthContext, require_permission
 from app.security.passwords import hash_password, verify_password
-from app.services import tracking
+from app.services import fleet, tracking
 from app.services.integrations import latest_reading
 from app.services.maintenance import maintenance_status
 
@@ -335,6 +335,13 @@ def portal_vehicles(db: Session = Depends(get_db), context: PortalContext = Depe
         select(Vehicle).where(Vehicle.customer_id == context.customer_id, Vehicle.tenant_id == context.tenant_id).order_by(Vehicle.fleet_number, Vehicle.license_plate)
     ).all()
     return [vehicle_summary(db, vehicle) for vehicle in vehicles]
+
+
+@router.get("/portal/fleet")
+def portal_fleet(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    """The customer's whole fleet with jobs to do and jobs done, plate by plate."""
+    customer = db.scalar(select(Customer).where(Customer.id == context.customer_id, Customer.tenant_id == context.tenant_id))
+    return fleet.fleet_profile(db, customer)
 
 
 @router.get("/portal/vehicles/{vehicle_id}")
