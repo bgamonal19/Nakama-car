@@ -1795,3 +1795,54 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .checkin-gallery { justify-self: center; background: none; border: 0; cursor: pointer; font: inherit; font-size: 13px; padding: 4px; }
 .checkin-old-app { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fff6e0; color: #6b4a00; }
 [data-theme="dark"] .checkin-old-app { background: #3a3312; color: #f3e6a6; }
+
+/* Customer fleet profile: vehicles by plate with jobs to do and done */
+.record-fleet { border-top: 1px solid var(--line); margin-top: 20px; padding-top: 16px; }
+.record-fleet h3 { margin: 0 0 12px; }
+.fleet-profile { display: grid; gap: 12px; }
+.fleet-totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.fleet-totals div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; background: var(--soft); }
+.fleet-totals strong { font-size: 22px; }
+.fleet-totals span { font-size: 12px; color: var(--muted); }
+.fleet-totals .soon strong { color: var(--warning); }
+.fleet-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fleet-toolbar input[type="search"] { flex: 1 1 220px; min-width: 0; }
+.fleet-only-todo { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+.fleet-import-preview { border: 1px solid #f0cf97; background: #fff8ec; border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.fleet-import-preview h3, .fleet-import-preview p { margin: 0; }
+.fleet-import-rows { display: grid; gap: 4px; max-height: 320px; overflow: auto; }
+.fleet-import-row { display: grid; grid-template-columns: 70px 110px 100px 1fr; gap: 8px; align-items: center; font-size: 13px; padding: 4px 6px; border-radius: 6px; background: #fff; }
+.fleet-import-row.created span { color: var(--success); font-weight: 700; }
+.fleet-import-row.updated span { color: #1257a0; font-weight: 700; }
+.fleet-import-row.skipped span { color: var(--danger); font-weight: 700; }
+.fleet-vehicles { display: grid; gap: 8px; }
+.fleet-vehicle { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--panel); }
+.fleet-vehicle summary { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 10px; align-items: center; cursor: pointer; list-style: none; }
+.fleet-vehicle summary::-webkit-details-marker { display: none; }
+.fleet-vehicle-name { display: grid; min-width: 0; }
+.fleet-vehicle-name small { color: var(--muted); }
+.fleet-count { font-size: 12px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.fleet-count.todo { color: var(--warning); }
+.fleet-jobs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.fleet-jobs h4 { margin: 0 0 6px; font-size: 13px; }
+.fleet-jobs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.fleet-job { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13px; border-left: 3px solid var(--line); }
+.fleet-job small { color: var(--muted); }
+.fleet-job.task.done { border-left-color: var(--success); }
+.fleet-job.task.in_progress { border-left-color: #1257a0; }
+.fleet-job.task.blocked, .fleet-job.maintenance.due { border-left-color: var(--danger); }
+.fleet-job.request, .fleet-job.maintenance.soon, .fleet-job.task.pending { border-left-color: var(--warning); }
+.fleet-job-note { font-style: italic; }
+.fleet-vehicle-specs { margin: 8px 0 0; }
+.portal-fleet-jobs { padding: 16px; margin-top: 16px; display: grid; gap: 10px; }
+.portal-fleet-jobs h2 { margin: 0; }
+[data-theme="dark"] .fleet-import-preview { background: #3a2f14; border-color: #6b5320; }
+[data-theme="dark"] .fleet-import-row { background: #142538; }
+@media (max-width: 700px) {
+  .fleet-totals { grid-template-columns: repeat(2, 1fr); }
+  .fleet-vehicle summary { grid-template-columns: auto 1fr; }
+  .fleet-vehicle summary .fleet-count, .fleet-vehicle summary .maintenance-state { grid-column: span 1; }
+  .fleet-jobs { grid-template-columns: 1fr; }
+  .fleet-import-row { grid-template-columns: 60px 1fr; }
+}
+.fleet-vehicle summary .plate-chip { justify-self: start; }
