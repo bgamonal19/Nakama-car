@@ -1,13 +1,18 @@
 from uuid import UUID
 from pydantic import ValidationError
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.garage import Customer
+from app.models.billing import Invoice
+from app.models.contracts import ServiceContract
+from app.models.garage import Customer, RepairCase, Vehicle
+from app.models.portal import PortalAccount
 from app.schemas.garage import CustomerCreate, CustomerRead, CustomerUpdate
 from app.security.context import AuthContext, require_permission
+from app.services.audit import record_audit
+from app.services.tracking import customer_display_name
 
 router = APIRouter(prefix="/customers", tags=["customers"])
 
@@ -85,3 +90,41 @@ def update_customer(
     db.commit()
     db.refresh(customer)
     return customer
+
+
+@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_customer(
+    customer_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.write")),
+):
+    """Remove a customer created by mistake.
+
+    Refused while the customer has repair cases, contracts or invoices (that history
+    must stay). Its vehicles are kept without an owner and its portal logins are removed.
+    """
+    customer = db.scalar(
+        select(Customer).where(
+            Customer.id == customer_id,
+            Customer.tenant_id == auth.tenant_id,
+        )
+    )
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    history = [
+        (label, db.scalar(select(func.count()).select_from(model).where(model.customer_id == customer.id)))
+        for label, model in (("pratiche", RepairCase), ("contratti", ServiceContract), ("fatture", Invoice))
+    ]
+    blocking = [f"{count} {label}" for label, count in history if count]
+    if blocking:
+        raise HTTPException(
+            status_code=409,
+            detail="Impossibile eliminare il cliente: ha " + ", ".join(blocking) + ".",
+        )
+    db.execute(update(Vehicle).where(Vehicle.customer_id == customer.id).values(customer_id=None))
+    for account in db.scalars(select(PortalAccount).where(PortalAccount.customer_id == customer.id)).all():
+        db.delete(account)
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="customer", entity_id=customer.id,
+                 action="deleted", old_value={"name": customer_display_name(customer)})
+    db.delete(customer)
+    db.commit()

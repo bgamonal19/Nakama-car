@@ -145,6 +145,19 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Salvato correttamente.","Guardado correctamente."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
+  async function remove() {
+    if(!selected?.id||!canWrite||kind!=="customers")return;
+    if(!window.confirm(words(`Eliminare il cliente "${label(selected)}"? L'operazione non si può annullare. I suoi veicoli restano in archivio senza cliente.`,`¿Eliminar el cliente "${label(selected)}"? No se puede deshacer. Sus vehículos se quedan guardados sin cliente.`)))return;
+    setSaving(true);setError("");setNotice("");
+    try {
+      const response=await apiFetch(`/customers/${selected.id}`,{method:"DELETE"});
+      if(response.status===409)throw new Error(words("Questo cliente ha già pratiche, contratti o fatture: non si può eliminare.","Este cliente ya tiene expedientes, contratos o facturas: no se puede eliminar."));
+      if(response.status===401)throw new Error(words("Sessione scaduta. Accedi di nuovo.","Sesión vencida. Inicia sesión de nuevo."));
+      if(response.status===403)throw new Error(words("Il tuo profilo non consente questa operazione.","Tu perfil no permite esta operación."));
+      if(!response.ok&&response.status!==404)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+      setSelected(null);setRefresh(n=>n+1);setNotice(words("Cliente eliminato.","Cliente eliminado."));
+    }catch(e){setError(message(e));}finally{setSaving(false);}
+  }
   return <SectionShell title={words(definition.it,definition.es)} actions={signedIn&&canCreate&&(kind==="cases"?<a className="primary link-button" href="/?new=practice">{words("Nuova pratica","Nuevo expediente")}</a>:<button className="primary" onClick={create} disabled={saving||opening}>{words("Aggiungi","Añadir")}</button>)}>
     {!signedIn?<div className="empty-state">{words("Accedi per consultare i dati della tua officina.","Inicia sesión para consultar los datos de tu taller.")} <a href="/login">{words("Accedi","Iniciar sesión")}</a></div>:<>
       <form className="record-search" onSubmit={e=>{e.preventDefault();setSearch(query.trim());setOffset(0);setRefresh(n=>n+1);}}>
@@ -161,7 +174,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
             {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||(!!selected.id&&!f.editable)} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}
           </label>)}
-          {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button></div>}
+          {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}</div>}
         </form>
         {selected.id&&kind==="customers"&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
         {selected.id&&kind==="customers"&&<div className="record-fleet"><h3>{words("Flotta e lavori per targa","Flota y trabajos por matrícula")}</h3><FleetProfile mode="staff" customerId={String(selected.id)} /></div>}
