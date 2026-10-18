@@ -6,6 +6,7 @@ import { useLanguage } from "./LanguageProvider";
 import { apiFetch, getAccessToken } from "../lib/api";
 import { CaseExtras } from "./CaseExtras";
 import { FleetProfile } from "./FleetProfile";
+import { PortalAccess } from "./PortalAccess";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
 type Field = { key: string; it: string; es: string; type?: string; required?: boolean; max?: number; min?: number; options?: string[]; readOnly?: boolean; editable?: boolean };
@@ -162,6 +163,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           </label>)}
           {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button></div>}
         </form>
+        {selected.id&&kind==="customers"&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
         {selected.id&&kind==="customers"&&<div className="record-fleet"><h3>{words("Flotta e lavori per targa","Flota y trabajos por matrícula")}</h3><FleetProfile mode="staff" customerId={String(selected.id)} /></div>}
         {selected.id&&kind!=="cases"&&<div className="record-history"><h3>{words("Storico pratiche","Historial de expedientes")}</h3>
           {historyBusy?<p>{words("Caricamento…","Cargando…")}</p>:historyError?<p role="alert">{t(historyError)}</p>:history.length===0?<p>{words("Nessuna pratica.","No hay expedientes.")}</p>:history.map(h=><a key={h.id} href={`/pratiche?q=${encodeURIComponent(String(h.case_number))}`}>{h.case_number} · {h.plate} · {t(String(h.status))}</a>)}
