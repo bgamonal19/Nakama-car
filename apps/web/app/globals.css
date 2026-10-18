@@ -913,6 +913,8 @@ html[data-theme="dark"], html[data-theme="dark"] body { background: #0b1725; col
 .record-form label { display:grid; align-content:start; gap:8px; font-size:13px; }
 .record-form textarea { min-height:100px; resize:vertical; }
 .record-form-actions { grid-column:1/-1; display:flex; gap:10px; }
+.record-form-actions .record-delete { margin-left:auto; color:#b42318; border-color:#f1b5ae; }
+[data-theme="dark"] .record-form-actions .record-delete { color:#ff9b8f; border-color:#8a3b33; }
 .record-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px; border-bottom:1px solid var(--line); font-size:14px; }
 .record-row small { display:block; margin-top:6px; color:var(--muted); overflow-wrap:anywhere; }
 .record-row > div { min-width:0; overflow-wrap:anywhere; }
