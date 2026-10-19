@@ -7,6 +7,7 @@ import { apiFetch, getAccessToken } from "../lib/api";
 import { CaseExtras } from "./CaseExtras";
 import { FleetProfile } from "./FleetProfile";
 import { PortalAccess } from "./PortalAccess";
+import { EstimateChip } from "./EstimateChip";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
 type Field = { key: string; it: string; es: string; type?: string; required?: boolean; max?: number; min?: number; options?: string[]; readOnly?: boolean; editable?: boolean };
@@ -145,6 +146,19 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Salvato correttamente.","Guardado correctamente."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
+  async function removeCase() {
+    if(!selected?.id||!canCreate||kind!=="cases")return;
+    if(!window.confirm(words(`Eliminare la pratica ${label(selected)}? Si eliminano anche i suoi preventivi, foto e messaggi. L'operazione non si può annullare. Cliente e veicolo restano.`,`¿Eliminar el expediente ${label(selected)}? También se eliminan sus presupuestos, fotos y mensajes. No se puede deshacer. El cliente y el vehículo se quedan.`)))return;
+    setSaving(true);setError("");setNotice("");
+    try {
+      const response=await apiFetch(`/cases/${selected.id}`,{method:"DELETE"});
+      if(response.status===409)throw new Error(words("Questa pratica ha già lavori eseguiti o fatture: non si può eliminare.","Este expediente ya tiene trabajos ejecutados o facturas: no se puede eliminar."));
+      if(response.status===401)throw new Error(words("Sessione scaduta. Accedi di nuovo.","Sesión vencida. Inicia sesión de nuevo."));
+      if(response.status===403)throw new Error(words("Il tuo profilo non consente questa operazione.","Tu perfil no permite esta operación."));
+      if(!response.ok&&response.status!==404)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+      setSelected(null);setRefresh(n=>n+1);setNotice(words("Pratica eliminata.","Expediente eliminado."));
+    }catch(e){setError(message(e));}finally{setSaving(false);}
+  }
   async function remove() {
     if(!selected?.id||!canWrite||kind!=="customers")return;
     if(!window.confirm(words(`Eliminare il cliente "${label(selected)}"? L'operazione non si può annullare. I suoi veicoli restano in archivio senza cliente.`,`¿Eliminar el cliente "${label(selected)}"? No se puede deshacer. Sus vehículos se quedan guardados sin cliente.`)))return;
@@ -168,13 +182,13 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       {notice&&<p role="status">{notice}</p>}
       {selected&&<section className="panel record-editor" aria-label={words("Scheda","Ficha")}>
         <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
-        {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}</p>}
+        {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} workType={selected.work_type?String(selected.work_type):undefined} />}
         <form className="record-form" onSubmit={save}>
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
             {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||(!!selected.id&&!f.editable)} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}
           </label>)}
-          {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}</div>}
+          {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}{kind==="cases"&&selected.id&&canCreate&&<button type="button" className="secondary record-delete" disabled={saving} onClick={removeCase}>{words("Elimina pratica","Eliminar expediente")}</button>}</div>}
         </form>
         {selected.id&&kind==="customers"&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
         {selected.id&&kind==="customers"&&<div className="record-fleet"><h3>{words("Flotta e lavori per targa","Flota y trabajos por matrícula")}</h3><FleetProfile mode="staff" customerId={String(selected.id)} /></div>}
@@ -185,7 +199,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       </section>}
       <section className="panel record-list" aria-busy={busy}>
         {busy?<div className="empty-state">{words("Caricamento…","Cargando…")}</div>:!error&&items.length===0?<div className="empty-state">{words("Nessun risultato.","No hay resultados.")}</div>:items.map(item=><div className="record-row" key={item.id}>
-          <div><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}</small></div>
+          <div><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}{kind==="cases"&&item.estimate_status&&<> <EstimateChip status={String(item.estimate_status)} prefix={t("Preventivo")}/></>}</small></div>
           <button className="secondary" disabled={opening||saving} onClick={()=>open(item)}>{words("Apri scheda","Abrir ficha")}</button>
         </div>)}
       </section>

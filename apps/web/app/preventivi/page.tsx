@@ -3,8 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
-import { apiError, apiFetch, formatMoney, getAccessToken, hasPermission, openProtectedFile } from "../../lib/api";
+import { apiError, apiFetch, estimateTone, formatMoney, getAccessToken, hasPermission, openProtectedFile } from "../../lib/api";
 import { whatsappNumber } from "../../components/CaseTracking";
+import { EstimateChip } from "../../components/EstimateChip";
 
 type Estimate = {
   id: string;
@@ -143,6 +144,7 @@ export default function PreventiviPage() {
   }
 
   async function setEstimateStatus(id: string, next: string) {
+    if (next === "APPROVED" && !confirm(t("Segnare il preventivo come accettato? Il lavoro passa in officina e il preventivo non sarà più modificabile."))) return;
     if (await act(`/estimates/${id}/status`, { method: "PATCH", body: JSON.stringify({ status: next }) }, "Impossibile aggiornare lo stato")) load();
   }
 
@@ -180,18 +182,19 @@ export default function PreventiviPage() {
               <span>{t("Preventivo")}</span><span>{t("Cliente / targa")}</span><span>{t("Stato")}</span><span>{t("Imponibile")}</span><span>{t("Totale")}</span><span>{t("Azioni")}</span>
             </div>
             {busy ? <div className="empty-state">{t("Caricamento…")}</div> : items.length === 0 ? <div className="empty-state">{t("Nessun preventivo.")}</div> : items.map((x) => (
-              <div className="data-table estimates" key={x.id}>
+              <div className={`data-table estimates${estimateTone(x.status) ? ` tone-${estimateTone(x.status)}` : ""}`} key={x.id}>
                 <span><strong>{x.estimate_number}</strong><small>{x.case_number} · v{x.version}</small></span>
                 <span>{x.customer_name}<small>{x.plate}{x.contract_name ? ` · ${t("Contratto")}: ${x.contract_name}` : ""}</small></span>
-                <span className="status-chip">{t(x.status)}</span>
+                <EstimateChip status={x.status} />
                 <span>{formatMoney(x.subtotal)}</span>
                 <strong>{formatMoney(x.total)}</strong>
                 <span className="table-actions wrap">
                   <button onClick={() => { setOpenId(x.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{x.status === "APPROVED" ? t("Apri") : t("Modifica")}</button>
                   <button onClick={() => pdf(x)}>PDF</button>
                   {x.status !== "APPROVED" && <button onClick={() => share(x.id)}>{t("Invia")}</button>}
-                  {x.status !== "APPROVED" && <button onClick={() => setEstimateStatus(x.id, "APPROVED")}>{t("Approva")}</button>}
-                  {x.status !== "APPROVED" && x.status !== "REJECTED" && <button onClick={() => setEstimateStatus(x.id, "REJECTED")}>{t("Rifiuta")}</button>}
+                  {x.status !== "APPROVED" && <button className="tone-button accepted" onClick={() => setEstimateStatus(x.id, "APPROVED")}>{t("Accettato")}</button>}
+                  {x.status !== "APPROVED" && x.status !== "REJECTED" && <button className="tone-button rejected" onClick={() => setEstimateStatus(x.id, "REJECTED")}>{t("Rifiutato")}</button>}
+                  {x.status === "REJECTED" && <button className="tone-button pending" onClick={() => setEstimateStatus(x.id, "SENT")}>{t("Da valutare")}</button>}
                   {x.status === "APPROVED" && <button onClick={() => createWorkOrder(x.id)}>ODL</button>}
                   {x.status === "APPROVED" && <button onClick={() => createInvoice(x.id)}>{t("Fattura")}</button>}
                 </span>
@@ -299,7 +302,7 @@ function EstimateEditor({ id, onClose, onChanged }: { id: string; onClose: () =>
       <div className="panel-head">
         <div>
           <h2>{estimate?.estimate_number || t("Caricamento…")}</h2>
-          {estimate && <p>{t(estimate.status)} · {t("Totale")} {formatMoney(estimate.total)} ({t("imponibile")} {formatMoney(estimate.subtotal)} + {t("IVA")} {formatMoney(estimate.vat_total)})</p>}
+          {estimate && <p><EstimateChip status={estimate.status} /> {t("Totale")} {formatMoney(estimate.total)} ({t("imponibile")} {formatMoney(estimate.subtotal)} + {t("IVA")} {formatMoney(estimate.vat_total)})</p>}
         </div>
         <button className="secondary" onClick={onClose}>{t("Chiudi")}</button>
       </div>

@@ -5,7 +5,10 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.garage import Customer, RepairCase, Vehicle
+from app.models.billing import Invoice
+from app.models.estimating import Estimate, EstimateStatus
+from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
+from app.models.workshop import WorkOrder, WorkOrderTask, WorkTaskStatus
 from app.schemas.garage import RepairCaseCreate, RepairCaseListItem, RepairCaseRead, RepairCaseUpdate
 from app.services.audit import record_audit
 from app.security.context import AuthContext, require_permission
@@ -92,6 +95,17 @@ def list_repair_cases(
         .offset(offset).limit(limit)
     ).all()
 
+    # Latest estimate of each case, so the list can show whether it was accepted, rejected or is still pending.
+    estimate_status: dict = {}
+    case_ids = [case.id for case, _, _ in rows]
+    if case_ids:
+        for case_id, value in db.execute(
+            select(Estimate.repair_case_id, Estimate.status)
+            .where(Estimate.tenant_id == auth.tenant_id, Estimate.repair_case_id.in_(case_ids), Estimate.status != EstimateStatus.SUPERSEDED)
+            .order_by(Estimate.created_at, Estimate.id)
+        ).all():
+            estimate_status[case_id] = value
+
     return [
         RepairCaseListItem(
             id=case.id,
@@ -102,6 +116,7 @@ def list_repair_cases(
             vehicle_name=" ".join(filter(None, [vehicle.make, vehicle.model, vehicle.version])) or "Veicolo",
             customer_name=customer.company_name or f"{customer.first_name or ''} {customer.last_name or ''}".strip() or "Cliente",
             mileage=case.mileage,
+            estimate_status=estimate_status.get(case.id),
         )
         for case, vehicle, customer in rows
     ]
@@ -128,3 +143,36 @@ def update_repair_case(case_id: UUID, payload: RepairCaseUpdate, db: Session = D
     db.commit()
     db.refresh(case)
     return case
+
+
+# Once the job reaches one of these, work has been done on the vehicle and the case is history.
+WORK_STARTED = {
+    RepairCaseStatus.IN_REPAIR, RepairCaseStatus.PAINTING, RepairCaseStatus.ASSEMBLY, RepairCaseStatus.QUALITY_CONTROL,
+    RepairCaseStatus.READY, RepairCaseStatus.DELIVERED, RepairCaseStatus.INVOICED,
+}
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_repair_case(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.create"))):
+    """Remove a case that was never carried out (opened by mistake, estimate refused, customer never came).
+
+    Refused once work has started on the vehicle or the case has invoices. Its estimates, work orders,
+    photos, damages and chat go with it; the customer and the vehicle stay.
+    """
+    case = db.scalar(select(RepairCase).where(RepairCase.id == case_id, RepairCase.tenant_id == auth.tenant_id))
+    if case is None:
+        raise HTTPException(status_code=404, detail="Repair case not found")
+    invoices = db.scalar(select(func.count()).select_from(Invoice).where(Invoice.repair_case_id == case.id)) or 0
+    if invoices:
+        raise HTTPException(status_code=409, detail="Impossibile eliminare la pratica: ha già fatture.")
+    done_tasks = db.scalar(
+        select(func.count()).select_from(WorkOrderTask)
+        .join(WorkOrder, WorkOrder.id == WorkOrderTask.work_order_id)
+        .where(WorkOrder.repair_case_id == case.id, WorkOrderTask.status.in_((WorkTaskStatus.IN_PROGRESS, WorkTaskStatus.DONE)))
+    ) or 0
+    if case.status in WORK_STARTED or done_tasks:
+        raise HTTPException(status_code=409, detail="Impossibile eliminare la pratica: i lavori sono già iniziati.")
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="repair_case", entity_id=case.id,
+                 action="deleted", old_value={"case_number": case.case_number, "status": case.status.value})
+    db.delete(case)
+    db.commit()

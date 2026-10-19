@@ -1943,3 +1943,21 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 [data-theme="dark"] .portal-profile-tax { background: #142538; border-color: #34475c; }
 [data-theme="dark"] .portal-profile-tax dt { color: #adbed1; }
 [data-theme="dark"] .portal-add-form + .portal-add-form { border-color: #34475c; }
+
+/* Estimate at a glance: accepted green, rejected red, still to be evaluated orange. */
+.status-chip.tone-accepted { background:#dcf3e6; color:#16794a; }
+.status-chip.tone-rejected { background:#fbe1df; color:#b42318; }
+.status-chip.tone-pending { background:#fdebd3; color:#b85c00; }
+[data-theme="dark"] .status-chip.tone-accepted { background:#163d2a; color:#7fe0a8; }
+[data-theme="dark"] .status-chip.tone-rejected { background:#4a1f1c; color:#ff9b8f; }
+[data-theme="dark"] .status-chip.tone-pending { background:#4a3214; color:#ffc27a; }
+.data-table.tone-accepted { box-shadow:inset 4px 0 0 #16a05a; background:#f3fbf6; }
+.data-table.tone-rejected { box-shadow:inset 4px 0 0 #d92d20; background:#fef5f4; }
+.data-table.tone-pending { box-shadow:inset 4px 0 0 #f08c00; background:#fffaf2; }
+[data-theme="dark"] .data-table.tone-accepted { background:#15302a; }
+[data-theme="dark"] .data-table.tone-rejected { background:#33201f; }
+[data-theme="dark"] .data-table.tone-pending { background:#332a1b; }
+.tone-button.accepted { color:#16794a; border-color:#9fd8b8; }
+.tone-button.rejected { color:#b42318; border-color:#f1b5ae; }
+.tone-button.pending { color:#b85c00; border-color:#f5c98f; }
+.record-row small .status-chip { margin-left:4px; }

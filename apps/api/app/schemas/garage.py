@@ -91,6 +91,7 @@ class RepairCaseListItem(BaseModel):
     vehicle_name: str
     customer_name: str
     mileage: int | None = None
+    estimate_status: str | None = None
 
 
 class CustomerUpdate(BaseModel):

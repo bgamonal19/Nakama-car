@@ -100,7 +100,7 @@ export function PortalEstimates({ onOpenVehicle }: { onOpenVehicle: (id: string)
             <strong>{t("Preventivo")} {item.estimate_number}</strong>
             <small>{[item.vehicle, item.case_number, day(item.created_at)].filter(Boolean).join(" · ")}</small>
           </div>
-          <span className={`status-chip${item.status === "APPROVED" ? " ok" : pending ? " warn" : ""}`}>{t(estimateStatus[item.status] || item.status)}</span>
+          <span className={`status-chip${item.status === "APPROVED" ? " ok tone-accepted" : item.status === "REJECTED" ? " tone-rejected" : pending ? " warn tone-pending" : ""}`}>{t(estimateStatus[item.status] || item.status)}</span>
           <strong className="portal-doc-total">{money(item.total)}</strong>
           {item.approval_path ? <a className="primary portal-doc-action" href={item.approval_path} target="_blank" rel="noreferrer">{t("Apri e approva")}</a> : <span />}
         </li>;
