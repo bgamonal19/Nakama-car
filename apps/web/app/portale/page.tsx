@@ -11,6 +11,7 @@ import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../compon
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import type { PlateSpots } from "../../lib/plateSpots";
 import { FleetProfile } from "../../components/FleetProfile";
+import { PortalAddVehicle, PortalChat, PortalEstimates, PortalInvoices, PortalSection, PortalSidebar } from "../../components/PortalSections";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
 type Maintenance = {
@@ -84,6 +85,9 @@ export default function PortalPage() {
   const [error, setError] = useState("");
   const [passwords, setPasswords] = useState({ current: "", next: "" });
   const [passwordNotice, setPasswordNotice] = useState("");
+  const [section, setSection] = useState<PortalSection>("fleet");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const loadAll = useCallback(async () => {
     const [meResponse, vehiclesResponse] = await Promise.all([portalFetch("/portal/me"), portalFetch("/portal/vehicles")]);
@@ -122,6 +126,17 @@ export default function PortalPage() {
     const timer = window.setInterval(() => { if (!document.hidden) loadCase(); }, POLL_MS);
     return () => window.clearInterval(timer);
   }, [currentCaseId, loadCase]);
+
+  function selectSection(next: PortalSection) {
+    setSection(next);
+    setSelected(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  const refreshMe = useCallback(async () => {
+    const response = await portalFetch("/portal/me");
+    if (response.ok) setMe(await response.json());
+  }, []);
 
   async function openVehicle(id: string) {
     const response = await portalFetch(`/portal/vehicles/${id}`);
@@ -162,12 +177,40 @@ export default function PortalPage() {
     return text.includes(query.trim().toLowerCase());
   });
   const inShop = vehicles.filter((vehicle) => vehicle.current_case).length;
+  const toPickUp = filtered.filter((vehicle) => vehicle.current_case?.status === "READY");
+  const inRepair = filtered.filter((vehicle) => vehicle.current_case && vehicle.current_case.status !== "READY");
+  const counts = {
+    shop: vehicles.filter((vehicle) => vehicle.current_case && vehicle.current_case.status !== "READY").length,
+    pickup: vehicles.filter((vehicle) => vehicle.current_case?.status === "READY").length,
+    chat: me?.unread || 0,
+  };
+  const card = (vehicle: FleetVehicle) => (
+    <button type="button" key={vehicle.id} className={`portal-card ${vehicle.maintenance.state.toLowerCase()}`} onClick={() => openVehicle(vehicle.id)}>
+      <div className="portal-card-head">
+        <span className="plate-chip">{vehicle.license_plate}</span>
+        {vehicle.fleet_number && <small>#{vehicle.fleet_number}</small>}
+      </div>
+      <strong>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || t("Veicolo")}</strong>
+      {vehicle.current_case ? (
+        <span className={`portal-in-shop${vehicle.current_case.status === "READY" ? " ready" : ""}`}>{vehicle.current_case.status === "READY" ? "✅" : "🔧"} {t(vehicle.current_case.status_text)}{vehicle.current_case.tasks_total ? ` · ${vehicle.current_case.tasks_done}/${vehicle.current_case.tasks_total}` : ""}</span>
+      ) : <span className="portal-free">{t("Non in officina")}</span>}
+      <TelemetryBadge reading={vehicle.telemetry} />
+      <span className="portal-maintenance">{t(stateLabel[vehicle.maintenance.state])}{countdown(vehicle.maintenance, t) ? ` · ${countdown(vehicle.maintenance, t)}` : ""}</span>
+    </button>
+  );
+  const search = <input className="portal-search" type="search" placeholder={t("Cerca targa, numero flotta o modello")} value={query} onChange={(e) => setQuery(e.target.value)} />;
   const due = vehicles.filter((vehicle) => vehicle.maintenance.state === "DUE").length;
   const soon = vehicles.filter((vehicle) => vehicle.maintenance.state === "SOON").length;
 
   return (
     <main className="portal-page">
       <header className="portal-top">
+        <button type="button" className="portal-menu-toggle" aria-expanded={menuOpen} aria-controls="portal-navigation"
+          aria-label={menuOpen ? t("Chiudi menu") : t("Apri menu")} onClick={() => setMenuOpen((value) => !value)}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+            <path d={menuOpen ? "M6 6l12 12M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} />
+          </svg>
+        </button>
         <NakamaLogo />
         {openCase && <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} presence={me?.workshop.chat_status} />}
         <div>
@@ -177,6 +220,8 @@ export default function PortalPage() {
         <button type="button" className="ghost" onClick={logout}>{t("Esci")}</button>
       </header>
 
+      <div className="portal-shell">
+      <PortalSidebar active={section} onSelect={selectSection} open={menuOpen} onClose={closeMenu} counts={counts} />
       <div className="portal-body">
         {error && <div className="record-error" role="alert">{t(error)}</div>}
 
@@ -289,33 +334,20 @@ export default function PortalPage() {
               </ul>
             )}
           </section>
-        ) : (
+        ) : section === "fleet" ? (
           <>
             <div className="portal-summary">
               <div><strong>{vehicles.length}</strong><span>{t("Veicoli")}</span></div>
-              <div><strong>{inShop}</strong><span>{t("In officina")}</span></div>
+              <button type="button" onClick={() => selectSection("shop")}><strong>{inShop}</strong><span>{t("In officina")}</span></button>
               <div className={soon ? "soon" : ""}><strong>{soon}</strong><span>{t("Manutenzione vicina")}</span></div>
               <div className={due ? "due" : ""}><strong>{due}</strong><span>{t("Manutenzione scaduta")}</span></div>
             </div>
-            {me && me.unread > 0 && <p className="portal-unread">{t("Hai nuovi messaggi dall'officina.")}</p>}
-            <input className="portal-search" type="search" placeholder={t("Cerca targa, numero flotta o modello")} value={query} onChange={(e) => setQuery(e.target.value)} />
+            {me && me.unread > 0 && <button type="button" className="portal-unread" onClick={() => selectSection("chat")}>{t("Hai nuovi messaggi dall'officina.")}</button>}
+            {search}
             <div className="portal-grid">
-              {filtered.map((vehicle) => (
-                <button type="button" key={vehicle.id} className={`portal-card ${vehicle.maintenance.state.toLowerCase()}`} onClick={() => openVehicle(vehicle.id)}>
-                  <div className="portal-card-head">
-                    <span className="plate-chip">{vehicle.license_plate}</span>
-                    {vehicle.fleet_number && <small>#{vehicle.fleet_number}</small>}
-                  </div>
-                  <strong>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || t("Veicolo")}</strong>
-                  {vehicle.current_case ? (
-                    <span className="portal-in-shop">🔧 {t(vehicle.current_case.status_text)}{vehicle.current_case.tasks_total ? ` · ${vehicle.current_case.tasks_done}/${vehicle.current_case.tasks_total}` : ""}</span>
-                  ) : <span className="portal-free">{t("Non in officina")}</span>}
-                  <TelemetryBadge reading={vehicle.telemetry} />
-                  <span className="portal-maintenance">{t(stateLabel[vehicle.maintenance.state])}{countdown(vehicle.maintenance, t) ? ` · ${countdown(vehicle.maintenance, t)}` : ""}</span>
-                </button>
-              ))}
+              {filtered.map(card)}
               {vehicles.length > 0 && filtered.length === 0 && <p className="hint">{t("Nessun veicolo trovato.")}</p>}
-              {me && vehicles.length === 0 && <p className="hint">{t("Nessun veicolo registrato: contatta l'officina.")}</p>}
+              {me && vehicles.length === 0 && <p className="hint">{t("Nessun veicolo registrato: aggiungilo dal menu o contatta l'officina.")}</p>}
             </div>
             {me && vehicles.length > 0 && (
               <section className="panel portal-fleet-jobs">
@@ -324,6 +356,24 @@ export default function PortalPage() {
               </section>
             )}
           </>
+        ) : section === "shop" || section === "pickup" ? (
+          <section className="portal-section-plain">
+            <h2>{t(section === "shop" ? "In manutenzione o riparazione" : "Da ritirare")}</h2>
+            {section === "pickup" && toPickUp.length > 0 && <p className="hint">{t("Questi veicoli sono pronti: puoi passare a ritirarli in officina.")}</p>}
+            {search}
+            <div className="portal-grid">
+              {(section === "shop" ? inRepair : toPickUp).map(card)}
+              {(section === "shop" ? inRepair : toPickUp).length === 0 && <p className="hint">{t(section === "shop" ? "Nessun veicolo in officina in questo momento." : "Nessun veicolo da ritirare.")}</p>}
+            </div>
+          </section>
+        ) : section === "estimates" ? (
+          <PortalEstimates onOpenVehicle={openVehicle} />
+        ) : section === "invoices" ? (
+          <PortalInvoices />
+        ) : section === "chat" ? (
+          <PortalChat presence={me?.workshop.chat_status} onUnread={refreshMe} />
+        ) : (
+          <PortalAddVehicle onAdded={() => { loadAll(); }} />
         )}
 
         {me && (
@@ -337,6 +387,7 @@ export default function PortalPage() {
             </div>
           </footer>
         )}
+      </div>
       </div>
     </main>
   );

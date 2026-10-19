@@ -1,26 +1,34 @@
 """Fleet customer portal: the workshop creates logins, the customer follows its vehicles."""
+import re
 import secrets
 import string
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from io import BytesIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.api.v1.billing import invoice_context, invoice_lines, tenant_settings
 from app.core.config import get_settings
 from app.db.deps import get_db
+from app.models.approval import EstimateApproval
+from app.models.billing import Invoice, InvoiceStatus
 from app.models.contracts import ServiceContract
+from app.models.estimating import Estimate, EstimateStatus
 from app.models.garage import Customer, RepairCase, Vehicle
 from app.models.portal import PortalAccount
 from app.models.tracking import CaseMessage
 from app.security.context import AuthContext, require_permission
 from app.security.passwords import hash_password, verify_password
 from app.services import fleet, tracking
+from app.services.pdf import build_invoice_pdf
 from app.services.integrations import latest_reading
 from app.services.maintenance import maintenance_status
 
@@ -64,6 +72,22 @@ class PasswordChange(BaseModel):
 
 class MessageCreate(BaseModel):
     body: str = Field(min_length=1, max_length=tracking.MESSAGE_MAX_LENGTH)
+
+
+class PortalVehicleCreate(BaseModel):
+    license_plate: str = Field(min_length=4, max_length=20)
+    make: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
+    year: int | None = Field(default=None, ge=1950, le=2100)
+    fleet_number: str | None = Field(default=None, max_length=40)
+    vin: str | None = Field(default=None, max_length=32)
+    mileage: int | None = Field(default=None, ge=0)
+    fuel_type: str | None = Field(default=None, max_length=40)
+
+
+# The customer sees estimates once the workshop has sent them, and only issued invoices.
+CUSTOMER_ESTIMATES = (EstimateStatus.SENT, EstimateStatus.VIEWED, EstimateStatus.APPROVED, EstimateStatus.REJECTED, EstimateStatus.EXPIRED)
+CUSTOMER_INVOICES = (InvoiceStatus.ISSUED, InvoiceStatus.PAID)
 
 
 # ---------- helpers ----------
@@ -421,3 +445,146 @@ def portal_case_photos(case_id: UUID, db: Session = Depends(get_db), context: Po
 @router.get("/portal/cases/{case_id}/photos/{media_id}")
 def portal_case_photo(case_id: UUID, media_id: UUID, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
     return tracking.customer_photo_content(db, portal_case(db, context, case_id), media_id)
+
+
+@router.post("/portal/vehicles", status_code=status.HTTP_201_CREATED)
+def portal_add_vehicle(payload: PortalVehicleCreate, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    """The customer can add vehicles to its fleet; editing and deleting stay with the workshop."""
+    plate = " ".join(payload.license_plate.upper().split())
+    compact = re.sub(r"[^A-Z0-9]", "", plate)
+    if not 5 <= len(compact) <= 10:
+        raise HTTPException(status_code=422, detail="Targa non valida.")
+    existing = db.scalar(select(Vehicle.id).where(
+        Vehicle.tenant_id == context.tenant_id,
+        func.replace(func.replace(func.upper(Vehicle.license_plate), " ", ""), "-", "") == compact,
+    ))
+    if existing:
+        raise HTTPException(status_code=409, detail="Questa targa è già registrata in officina: contatta l'officina.")
+    data = {key: (value.strip() or None) if isinstance(value, str) else value for key, value in payload.model_dump(exclude={"license_plate"}).items()}
+    if data.get("vin"):
+        data["vin"] = data["vin"].upper()
+    vehicle = Vehicle(tenant_id=context.tenant_id, customer_id=context.customer_id, license_plate=plate, **data)
+    db.add(vehicle)
+    db.commit()
+    db.refresh(vehicle)
+    return vehicle_summary(db, vehicle)
+
+
+@router.get("/portal/estimates")
+def portal_estimates(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    rows = db.execute(
+        select(Estimate, RepairCase, Vehicle)
+        .join(RepairCase, RepairCase.id == Estimate.repair_case_id)
+        .join(Vehicle, Vehicle.id == RepairCase.vehicle_id)
+        .where(
+            Estimate.tenant_id == context.tenant_id, RepairCase.tenant_id == context.tenant_id,
+            RepairCase.customer_id == context.customer_id, Estimate.status.in_(CUSTOMER_ESTIMATES),
+        )
+        .order_by(Estimate.created_at.desc())
+        .limit(200)
+    ).all()
+    result = []
+    for estimate, case, vehicle in rows:
+        approval = db.scalar(
+            select(EstimateApproval)
+            .where(EstimateApproval.estimate_id == estimate.id, EstimateApproval.tenant_id == context.tenant_id, EstimateApproval.responded_at.is_(None))
+            .order_by(EstimateApproval.created_at.desc())
+            .limit(1)
+        )
+        pending = estimate.status in (EstimateStatus.SENT, EstimateStatus.VIEWED)
+        result.append({
+            "id": str(estimate.id),
+            "estimate_number": estimate.estimate_number,
+            "status": estimate.status.value,
+            "total": str(estimate.total),
+            "created_at": estimate.created_at,
+            "case_number": case.case_number,
+            "vehicle_id": str(vehicle.id),
+            "license_plate": vehicle.license_plate,
+            "vehicle": " ".join(filter(None, [vehicle.make, vehicle.model])) or None,
+            "approval_path": f"/public/estimate/{approval.public_token}" if approval is not None and pending else None,
+        })
+    return result
+
+
+def portal_invoice_query(context: PortalContext):
+    return (
+        select(Invoice)
+        .outerjoin(RepairCase, RepairCase.id == Invoice.repair_case_id)
+        .where(
+            Invoice.tenant_id == context.tenant_id, Invoice.status.in_(CUSTOMER_INVOICES),
+            or_(Invoice.customer_id == context.customer_id, (Invoice.customer_id.is_(None)) & (RepairCase.customer_id == context.customer_id)),
+        )
+    )
+
+
+@router.get("/portal/invoices")
+def portal_invoices(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    invoices = db.scalars(portal_invoice_query(context).order_by(Invoice.issue_date.desc(), Invoice.created_at.desc()).limit(300)).all()
+    result = []
+    for invoice in invoices:
+        _, vehicle = invoice_context(db, invoice)
+        result.append({
+            "id": str(invoice.id),
+            "invoice_number": invoice.invoice_number,
+            "status": invoice.status.value,
+            "kind": invoice.invoice_kind,
+            "period_month": invoice.period_month,
+            "issue_date": invoice.issue_date,
+            "due_date": invoice.due_date,
+            "paid_at": invoice.paid_at,
+            "total": str(invoice.total),
+            "license_plate": vehicle.license_plate if vehicle is not None else None,
+        })
+    return result
+
+
+@router.get("/portal/invoices/{invoice_id}/pdf")
+def portal_invoice_pdf(invoice_id: UUID, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    invoice = db.scalar(portal_invoice_query(context).where(Invoice.id == invoice_id))
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    customer, vehicle = invoice_context(db, invoice)
+    company = tenant_settings(db, context.tenant_id)
+    pdf = build_invoice_pdf(
+        invoice=invoice, lines=invoice_lines(db, invoice), customer=customer, vehicle=vehicle,
+        company_name=(company.company_name if company and company.company_name else "NAKAMA CAR"), settings=company,
+    )
+    return StreamingResponse(BytesIO(pdf), media_type="application/pdf", headers={"Content-Disposition": f'inline; filename="{invoice.invoice_number}.pdf"'})
+
+
+@router.get("/portal/conversations")
+def portal_conversations(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    """One chat per repair: open repairs always, closed ones while they still have messages."""
+    cases = db.execute(
+        select(RepairCase, Vehicle)
+        .join(Vehicle, Vehicle.id == RepairCase.vehicle_id)
+        .where(RepairCase.tenant_id == context.tenant_id, RepairCase.customer_id == context.customer_id)
+        .order_by(RepairCase.created_at.desc())
+        .limit(100)
+    ).all()
+    result = []
+    for case, vehicle in cases:
+        last = db.scalar(
+            select(CaseMessage).where(CaseMessage.repair_case_id == case.id, CaseMessage.tenant_id == context.tenant_id)
+            .order_by(CaseMessage.created_at.desc(), CaseMessage.id.desc()).limit(1)
+        )
+        closed = tracking.is_closed(case)
+        if closed and last is None:
+            continue
+        unread = db.scalar(select(func.count(CaseMessage.id)).where(
+            CaseMessage.repair_case_id == case.id, CaseMessage.tenant_id == context.tenant_id,
+            CaseMessage.sender == "WORKSHOP", CaseMessage.read_at.is_(None),
+        )) or 0
+        result.append({
+            "case_id": str(case.id),
+            "case_number": case.case_number,
+            "closed": closed,
+            "status_text": tracking.STATUS_TEXT[case.status],
+            "license_plate": vehicle.license_plate,
+            "vehicle": " ".join(filter(None, [vehicle.make, vehicle.model])) or None,
+            "unread": unread,
+            "last_message": tracking.message_dict(last) if last is not None else None,
+        })
+    result.sort(key=lambda item: (item["closed"], -(tracking.aware(item["last_message"]["created_at"]).timestamp() if item["last_message"] else 0)))
+    return result
