@@ -131,3 +131,31 @@ def test_portal_menu_sections_and_customer_adds_vehicles(client):
     assert stranger.get("/api/v1/portal/invoices").json() == []
     assert stranger.get("/api/v1/portal/conversations").json() == []
     assert stranger.get(f"/api/v1/portal/invoices/{fee['id']}/pdf").status_code == 404
+
+
+def test_portal_profile_edits_contact_data_but_not_tax_data(client):
+    c, _, _ = client
+    customer, _, _, _ = fleet.create_fleet_case(c)
+    portal = portal_client(c, customer)
+
+    profile = portal.get("/api/v1/portal/profile").json()
+    assert profile["customer"]["company_name"] == "Univex Group" and profile["customer"]["vat_number"] == "IT01234567890"
+    assert profile["account"]["full_name"] == "Ufficio flotta"
+
+    updated = portal.patch("/api/v1/portal/profile", json={
+        "full_name": "Laura Bianchi", "phone": " 333 1234567 ", "email": "Flotta@Univex.it", "city": "Bergamo", "province": "bg", "address": "",
+        "company_name": "Altro nome", "vat_number": "IT99999999999",
+    })
+    assert updated.status_code == 200, updated.text
+    data = updated.json()
+    assert data["account"]["full_name"] == "Laura Bianchi"
+    assert data["customer"]["phone"] == "333 1234567" and data["customer"]["email"] == "flotta@univex.it"
+    assert data["customer"]["province"] == "BG" and data["customer"]["address"] is None
+    # Tax data is ignored: only the workshop changes it.
+    assert data["customer"]["company_name"] == "Univex Group" and data["customer"]["vat_number"] == "IT01234567890"
+    staff_view = c.get(f"/api/v1/customers/{customer['id']}").json()
+    assert staff_view["city"] == "Bergamo" and staff_view["vat_number"] == "IT01234567890"
+
+    assert portal.patch("/api/v1/portal/profile", json={"email": "non-una-email"}).status_code == 422
+    assert portal.patch("/api/v1/portal/profile", json={"full_name": "  "}).status_code == 422
+    assert c.get("/api/v1/portal/profile").status_code == 401

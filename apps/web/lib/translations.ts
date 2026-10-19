@@ -1,6 +1,22 @@
 export type Language = "it" | "es";
 
 export const spanish: Record<string, string> = {
+  "Provincia": "Provincia",
+  "Password attuale": "Contraseña actual",
+  "Password non aggiornata.": "Contraseña no actualizada.",
+  "Referente": "Persona de contacto",
+  "Impossibile caricare il profilo.": "No se pudo cargar el perfil.",
+  "Profilo non salvato: controlla i dati.": "Perfil no guardado: revisa los datos.",
+  "Dati salvati.": "Datos guardados.",
+  "Dati fiscali": "Datos fiscales",
+  "Per modificare i dati fiscali contatta l'officina.": "Para modificar los datos fiscales contacta con el taller.",
+  "Dati di contatto": "Datos de contacto",
+  "Annulla modifiche": "Deshacer cambios",
+  "Salva dati": "Guardar datos",
+  "Accesso al portale": "Acceso al portal",
+  "Email di accesso": "Correo de acceso",
+  "Cambia password": "Cambiar contraseña",
+  "Il nome è obbligatorio.": "El nombre es obligatorio.",
   "Tutta la flotta": "Toda la flota",
   "In manutenzione o riparazione": "En mantenimiento o reparación",
   "Da ritirare": "Por recoger",

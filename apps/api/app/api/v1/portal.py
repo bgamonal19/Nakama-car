@@ -85,6 +85,21 @@ class PortalVehicleCreate(BaseModel):
     fuel_type: str | None = Field(default=None, max_length=40)
 
 
+class PortalProfileUpdate(BaseModel):
+    """Contact data the customer keeps up to date; tax data stays with the workshop."""
+    full_name: str | None = Field(default=None, min_length=2, max_length=160)
+    phone: str | None = Field(default=None, max_length=32)
+    email: EmailStr | None = None
+    pec: EmailStr | None = None
+    address: str | None = Field(default=None, max_length=255)
+    city: str | None = Field(default=None, max_length=120)
+    province: str | None = Field(default=None, max_length=8)
+    postal_code: str | None = Field(default=None, max_length=16)
+
+
+CUSTOMER_CONTACT_FIELDS = ("phone", "email", "pec", "address", "city", "province", "postal_code")
+
+
 # The customer sees estimates once the workshop has sent them, and only issued invoices.
 CUSTOMER_ESTIMATES = (EstimateStatus.SENT, EstimateStatus.VIEWED, EstimateStatus.APPROVED, EstimateStatus.REJECTED, EstimateStatus.EXPIRED)
 CUSTOMER_INVOICES = (InvoiceStatus.ISSUED, InvoiceStatus.PAID)
@@ -588,3 +603,55 @@ def portal_conversations(db: Session = Depends(get_db), context: PortalContext =
         })
     result.sort(key=lambda item: (item["closed"], -(tracking.aware(item["last_message"]["created_at"]).timestamp() if item["last_message"] else 0)))
     return result
+
+
+def portal_profile_dict(account: PortalAccount, customer: Customer) -> dict:
+    return {
+        "account": {"full_name": account.full_name, "email": account.email, "last_login_at": account.last_login_at},
+        "customer": {
+            "display_name": tracking.customer_display_name(customer),
+            "customer_type": customer.customer_type.value,
+            "company_name": customer.company_name,
+            "first_name": customer.first_name,
+            "last_name": customer.last_name,
+            "vat_number": customer.vat_number,
+            "tax_code": customer.tax_code,
+            "sdi": customer.sdi,
+            **{field: getattr(customer, field) for field in CUSTOMER_CONTACT_FIELDS},
+        },
+    }
+
+
+def portal_customer(db: Session, context: PortalContext) -> Customer:
+    customer = db.scalar(select(Customer).where(Customer.id == context.customer_id, Customer.tenant_id == context.tenant_id))
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+
+@router.get("/portal/profile")
+def portal_profile(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    return portal_profile_dict(db.get(PortalAccount, context.account_id), portal_customer(db, context))
+
+
+@router.patch("/portal/profile")
+def portal_update_profile(payload: PortalProfileUpdate, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    account = db.get(PortalAccount, context.account_id)
+    customer = portal_customer(db, context)
+    data = payload.model_dump(exclude_unset=True)
+    if "full_name" in data:
+        if not (data["full_name"] or "").strip():
+            raise HTTPException(status_code=422, detail="Il nome è obbligatorio.")
+        account.full_name = data.pop("full_name").strip()
+    for field, value in data.items():
+        if isinstance(value, str):
+            value = value.strip() or None
+        if field in ("email", "pec") and value:
+            value = value.lower()
+        if field == "province" and value:
+            value = value.upper()
+        setattr(customer, field, value)
+    db.commit()
+    db.refresh(account)
+    db.refresh(customer)
+    return portal_profile_dict(account, customer)

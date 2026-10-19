@@ -1930,3 +1930,16 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 [data-theme="dark"] .status-chip.ok { background: #123b2c; color: #a0e4bd; }
 [data-theme="dark"] .portal-modal dl div { border-color: #34475c; }
 [data-theme="dark"] .portal-page .tracking-workshop { border-color: #34475c; color: #adbed1; }
+
+/* Customer portal: profile. */
+.portal-add-form h3, .portal-add-form .wide { grid-column: 1 / -1; margin: 0; }
+.portal-add-form + .portal-add-form { border-top: 1px solid #e3e7ec; padding-top: 14px; }
+.portal-add-form .record-form-actions .portal-success, .portal-add-form .record-form-actions .hint { margin-right: auto; align-self: center; }
+.portal-profile-tax { border: 1px solid #e3e7ec; border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; background: #f7f9fb; }
+.portal-profile-tax h3, .portal-profile-tax p { margin: 0; }
+.portal-profile-tax dl { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; }
+.portal-profile-tax dt { font-size: 12px; color: #62666d; }
+.portal-profile-tax dd { margin: 0; font-weight: 700; }
+[data-theme="dark"] .portal-profile-tax { background: #142538; border-color: #34475c; }
+[data-theme="dark"] .portal-profile-tax dt { color: #adbed1; }
+[data-theme="dark"] .portal-add-form + .portal-add-form { border-color: #34475c; }
