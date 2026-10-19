@@ -151,6 +151,21 @@ export function formatMoney(value: string | number | null | undefined) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(value || 0));
 }
 
+/** Estimate at a glance: accepted (green), rejected (red) or still to be evaluated (orange). */
+export type EstimateTone = "accepted" | "rejected" | "pending";
+const toneLabels: Record<EstimateTone, string> = { accepted: "Accettato", rejected: "Rifiutato", pending: "Da valutare" };
+
+export function estimateTone(status: string | null | undefined): EstimateTone | null {
+  if (status === "APPROVED") return "accepted";
+  if (status === "REJECTED") return "rejected";
+  if (status && ["DRAFT", "READY", "SENT", "VIEWED"].includes(status)) return "pending";
+  return null;
+}
+
+export function estimateToneLabel(tone: EstimateTone) {
+  return toneLabels[tone];
+}
+
 export function customerLabel(customer: { company_name?: string | null; first_name?: string | null; last_name?: string | null }) {
   return customer.company_name || [customer.first_name, customer.last_name].filter(Boolean).join(" ");
 }

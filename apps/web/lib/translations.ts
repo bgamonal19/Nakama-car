@@ -1,6 +1,9 @@
 export type Language = "it" | "es";
 
 export const spanish: Record<string, string> = {
+  "Accettato": "Aceptado",
+  "Da valutare": "Por evaluar",
+  "Segnare il preventivo come accettato? Il lavoro passa in officina e il preventivo non sarà più modificabile.": "¿Marcar el presupuesto como aceptado? El trabajo pasa al taller y el presupuesto ya no se podrá modificar.",
   "Provincia": "Provincia",
   "Password attuale": "Contraseña actual",
   "Password non aggiornata.": "Contraseña no actualizada.",
