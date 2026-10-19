@@ -60,6 +60,7 @@ export default function LoginPage() {
           {error && <div className="auth-error">{t(error)}</div>}
           <button className="primary auth-submit" disabled={loading}>{loading ? t("Accesso…") : t("Accedi")}</button>
         </form>
+        <p className="auth-foot"><a href="/portale/login">{t("Sei un cliente? Accedi al portale")}</a></p>
         <p className="auth-foot">{t("Primo avvio? Utilizza la pagina di inizializzazione riservata all'amministratore.")}</p>
       </div>
     </main>

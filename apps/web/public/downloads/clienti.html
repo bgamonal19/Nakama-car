@@ -1,0 +1,38 @@
+<!doctype html><html lang="it"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NAKAMA CAR · App e portale clienti</title><meta name="description" content="Scarica l'app NAKAMA CAR e accedi al portale clienti."><meta name="theme-color" content="#0b233a"><link rel="icon" href="/brand/icon-192.png"><style>body{margin:0;background:#f5f7f9;color:#0b233a;font:16px/1.65 system-ui,sans-serif}main{max-width:560px;margin:5vh auto;padding:24px}header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}img{width:140px;border-radius:12px}h1{line-height:1.2;font-size:28px;margin:18px 0 6px}h2{font-size:19px;margin:0 0 6px}.card{background:white;border:1px solid #e1e6eb;border-radius:12px;padding:18px 20px;margin:16px 0}.btn{display:inline-block;padding:12px 22px;background:#0b233a;color:white;border-radius:8px;text-decoration:none;font-weight:600}.btn.alt{background:white;color:#0b233a;border:1px solid #0b233a}small{display:block;color:#5a6b79;margin:10px 0 0}li{margin:8px 0}a{color:#0b5d8e}.link{word-break:break-all;font-size:14px;color:#5a6b79}.lang button{border:1px solid #c9d1d8;background:white;color:#0b233a;border-radius:6px;padding:4px 9px;cursor:pointer;font:600 13px system-ui}.lang button[aria-pressed=true]{background:#0b233a;color:white;border-color:#0b233a}[data-l]{display:none}html[lang=it] [data-l=it],html[lang=es] [data-l=es]{display:revert}html[lang=it] small[data-l=it],html[lang=es] small[data-l=es]{display:block}</style>
+<main>
+<header><img src="/brand/nakama-logo.webp" alt="NAKAMA CAR"><div class="lang" role="group" aria-label="Lingua / Idioma"><button type="button" data-set="it">IT</button> <button type="button" data-set="es">ES</button></div></header>
+
+<h1 data-l="it">Segui il tuo veicolo con NAKAMA CAR</h1>
+<h1 data-l="es">Sigue tu vehículo con NAKAMA CAR</h1>
+<p data-l="it">Dal portale clienti vedi i tuoi veicoli, i lavori in officina, i preventivi da approvare, le fatture e puoi scriverci in chat.</p>
+<p data-l="es">Desde el portal de clientes ves tus vehículos, los trabajos en el taller, los presupuestos por aprobar, las facturas y puedes escribirnos por chat.</p>
+
+<section class="card">
+<h2 data-l="it">1 · Portale clienti</h2><h2 data-l="es">1 · Portal de clientes</h2>
+<p data-l="it">Funziona da qualsiasi telefono, tablet o computer. Entra con l'email e la password che ti ha dato l'officina.</p>
+<p data-l="es">Funciona desde cualquier teléfono, tablet u ordenador. Entra con el email y la contraseña que te dio el taller.</p>
+<a class="btn" href="/portale/login"><span data-l="it">Apri il portale</span><span data-l="es">Abrir el portal</span></a>
+<small class="link">nakama-car-web-production.up.railway.app/portale/login</small>
+</section>
+
+<section class="card">
+<h2 data-l="it">2 · App per Android</h2><h2 data-l="es">2 · App para Android</h2>
+<a class="btn" href="https://github.com/bgamonal19/Nakama-car/releases/download/android-v1.2.0/NAKAMA-CAR-1.2.0.apk"><span data-l="it">Scarica APK · v1.2.0</span><span data-l="es">Descargar APK · v1.2.0</span></a>
+<small data-l="it">Android 8.0 o superiore · Serve la connessione a internet.</small>
+<small data-l="es">Android 8.0 o superior · Necesita conexión a internet.</small>
+<ol data-l="it"><li>Scarica il file dal telefono o tablet Android.</li><li>Apri l'APK e tocca Installa. Se Android lo chiede, consenti l'installazione dal browser che hai usato.</li><li>Apri NAKAMA CAR e tocca <b>Sei un cliente? Accedi al portale</b>, poi entra con i tuoi dati.</li></ol>
+<ol data-l="es"><li>Descarga el archivo desde tu teléfono o tablet Android.</li><li>Abre el APK y toca Instalar. Si Android lo pide, autoriza la instalación desde el navegador que usaste.</li><li>Abre NAKAMA CAR y toca <b>¿Eres cliente? Entra al portal</b>, luego inicia sesión con tus datos.</li></ol>
+</section>
+
+<section class="card">
+<h2 data-l="it">3 · iPhone e iPad</h2><h2 data-l="es">3 · iPhone y iPad</h2>
+<ol data-l="it"><li>Apri il portale con Safari.</li><li>Tocca il pulsante Condividi e scegli <b>Aggiungi alla schermata Home</b>.</li><li>Troverai l'icona NAKAMA CAR insieme alle altre app.</li></ol>
+<ol data-l="es"><li>Abre el portal con Safari.</li><li>Toca el botón Compartir y elige <b>Añadir a pantalla de inicio</b>.</li><li>Tendrás el icono de NAKAMA CAR junto a tus otras apps.</li></ol>
+<a class="btn alt" href="/portale/login"><span data-l="it">Apri il portale</span><span data-l="es">Abrir el portal</span></a>
+</section>
+
+<p data-l="it"><small>Non hai ancora le credenziali? Chiedile all'officina NAKAMA CAR.</small></p>
+<p data-l="es"><small>¿Aún no tienes tus datos de acceso? Pídelos al taller NAKAMA CAR.</small></p>
+</main>
+<script>(function(){var root=document.documentElement,q=new URLSearchParams(location.search).get("lang");var l=q==="es"||q==="it"?q:((navigator.language||"").toLowerCase().indexOf("es")===0?"es":"it");function set(v){root.lang=v;document.querySelectorAll(".lang button").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.set===v))});}document.querySelectorAll(".lang button").forEach(function(b){b.addEventListener("click",function(){set(b.dataset.set)})});set(l);})();</script>
+</html>
