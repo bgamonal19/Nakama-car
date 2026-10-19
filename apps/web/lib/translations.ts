@@ -119,6 +119,7 @@ export const spanish: Record<string, string> = {
   "16:00 · Consegna preventivo": "16:00 · Entrega del presupuesto",
   "ACCESSO OPERATORE": "ACCESO DEL PERSONAL",
   "Accedi": "Iniciar sesión",
+  "Sei un cliente? Accedi al portale": "¿Eres cliente? Entra al portal",
   "Accedi alla carrozzeria": "Accede al taller",
   "Accedi come amministratore per gestire i lavoratori.": "Inicia sesión como administrador para gestionar a los trabajadores.",
   "Accedi come amministratore.": "Inicia sesión como administrador.",

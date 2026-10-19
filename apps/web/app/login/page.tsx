@@ -8,6 +8,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
+import { savePortalToken } from "../../lib/portal";
 
 export default function LoginPage() {
   const { t } = useLanguage();
@@ -38,6 +39,21 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await r.json();
+      if (r.status === 401) {
+        // Customers often type their portal access here: log them into the portal instead.
+        const portal = await fetch(`${API_URL}/portal/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const account = await portal.json().catch(() => ({}));
+        if (portal.ok && account.access_token) {
+          savePortalToken(account.access_token);
+          window.location.assign("/portale");
+          return;
+        }
+        throw new Error("Email o password non corretti.");
+      }
       if (!r.ok) throw new Error(data.detail || "Accesso non riuscito");
       saveSession(data);
       router.push(next);
@@ -60,6 +76,7 @@ export default function LoginPage() {
           {error && <div className="auth-error">{t(error)}</div>}
           <button className="primary auth-submit" disabled={loading}>{loading ? t("Accesso…") : t("Accedi")}</button>
         </form>
+        <p className="auth-foot"><a href="/portale/login">{t("Sei un cliente? Accedi al portale")}</a></p>
         <p className="auth-foot">{t("Primo avvio? Utilizza la pagina di inizializzazione riservata all'amministratore.")}</p>
       </div>
     </main>
