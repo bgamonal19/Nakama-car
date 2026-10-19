@@ -11,7 +11,7 @@ import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../compon
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import type { PlateSpots } from "../../lib/plateSpots";
 import { FleetProfile } from "../../components/FleetProfile";
-import { PortalAddVehicle, PortalChat, PortalEstimates, PortalInvoices, PortalSection, PortalSidebar } from "../../components/PortalSections";
+import { PortalAddVehicle, PortalChat, PortalEstimates, PortalInvoices, PortalProfile, PortalSection, PortalSidebar } from "../../components/PortalSections";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
 type Maintenance = {
@@ -372,6 +372,8 @@ export default function PortalPage() {
           <PortalInvoices />
         ) : section === "chat" ? (
           <PortalChat presence={me?.workshop.chat_status} onUnread={refreshMe} />
+        ) : section === "profile" ? (
+          <PortalProfile onSaved={refreshMe} />
         ) : (
           <PortalAddVehicle onAdded={() => { loadAll(); }} />
         )}

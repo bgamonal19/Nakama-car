@@ -6,9 +6,10 @@ import { ThemeToggle } from "./ThemeProvider";
 import { LanguageSwitcher } from "./LanguageProvider";
 import { NavIcon } from "./NavIcon";
 import { ChatMessage, ChatPresence, ChatThread } from "./ChatThread";
-import { portalError, portalFetch } from "../lib/portal";
+import { PasswordInput } from "./PasswordInput";
+import { portalError, portalFetch, savePortalToken } from "../lib/portal";
 
-export type PortalSection = "fleet" | "shop" | "pickup" | "estimates" | "invoices" | "chat" | "add";
+export type PortalSection = "fleet" | "shop" | "pickup" | "estimates" | "invoices" | "chat" | "add" | "profile";
 
 // [section, label, icon]
 const sections: [PortalSection, string, string][] = [
@@ -19,6 +20,7 @@ const sections: [PortalSection, string, string][] = [
   ["invoices", "Fatture", "invoice"],
   ["chat", "Chat", "chat"],
   ["add", "Aggiungi veicolo", "plus"],
+  ["profile", "Il mio profilo", "profile"],
 ];
 
 function day(value?: string | null) {
@@ -345,5 +347,128 @@ export function PortalAddVehicle({ onAdded }: { onAdded: (id: string) => void })
         </div>
       </div>
     </div>}
+  </section>;
+}
+
+type Profile = {
+  account: { full_name: string; email: string; last_login_at?: string | null };
+  customer: {
+    display_name: string; customer_type: string; company_name?: string | null; first_name?: string | null; last_name?: string | null;
+    vat_number?: string | null; tax_code?: string | null; sdi?: string | null;
+    phone?: string | null; email?: string | null; pec?: string | null; address?: string | null; city?: string | null; province?: string | null; postal_code?: string | null;
+  };
+};
+const contactFields = ["phone", "email", "pec", "address", "city", "province", "postal_code"] as const;
+type ContactForm = Record<"full_name" | (typeof contactFields)[number], string>;
+
+function toForm(profile: Profile): ContactForm {
+  const form = { full_name: profile.account.full_name } as ContactForm;
+  contactFields.forEach((field) => { form[field] = profile.customer[field] || ""; });
+  return form;
+}
+
+/** The customer sees its data and keeps contacts and password up to date; tax data is changed by the workshop. */
+export function PortalProfile({ onSaved }: { onSaved: () => void }) {
+  const { t } = useLanguage();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [form, setForm] = useState<ContactForm | null>(null);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [passwords, setPasswords] = useState({ current: "", next: "" });
+  const [passwordNotice, setPasswordNotice] = useState("");
+
+  useEffect(() => {
+    portalFetch("/portal/profile").then(async (response) => {
+      if (!response.ok) { setError(await portalError(response, "Impossibile caricare il profilo.")); return; }
+      const data: Profile = await response.json();
+      setProfile(data);
+      setForm(toForm(data));
+    }).catch(() => setError("Impossibile caricare il profilo."));
+  }, []);
+
+  const dirty = Boolean(profile && form && JSON.stringify(form) !== JSON.stringify(toForm(profile)));
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  const set = (field: keyof ContactForm) => (event: { target: { value: string } }) => form && setForm({ ...form, [field]: event.target.value });
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    if (!form) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    const payload = Object.fromEntries(Object.entries(form).map(([key, value]) => [key, key === "full_name" ? value : value.trim() || null]));
+    const response = await portalFetch("/portal/profile", { method: "PATCH", body: JSON.stringify(payload) });
+    setSaving(false);
+    if (!response.ok) { setError(await portalError(response, "Profilo non salvato: controlla i dati.")); return; }
+    const data: Profile = await response.json();
+    setProfile(data);
+    setForm(toForm(data));
+    setNotice("Dati salvati.");
+    onSaved();
+  }
+
+  async function changePassword(event: FormEvent) {
+    event.preventDefault();
+    setPasswordNotice("");
+    const response = await portalFetch("/portal/password", { method: "POST", body: JSON.stringify({ current_password: passwords.current, new_password: passwords.next }) });
+    if (!response.ok) { setPasswordNotice(await portalError(response, "Password non aggiornata.")); return; }
+    savePortalToken((await response.json()).access_token);
+    setPasswords({ current: "", next: "" });
+    setPasswordNotice("Password aggiornata.");
+    onSaved();
+  }
+
+  const c = profile?.customer;
+  const company = c?.customer_type === "COMPANY";
+  const taxData: [string, string | null | undefined][] = c ? [
+    [company ? "Ragione sociale" : "Nome e cognome", company ? c.company_name : [c.first_name, c.last_name].filter(Boolean).join(" ")],
+    ["Partita IVA", c.vat_number], ["Codice fiscale", c.tax_code], ["Codice SDI", c.sdi],
+  ] : [];
+
+  return <section className="panel portal-section">
+    <h2>{t("Il mio profilo")}</h2>
+    {error && <p className="record-error" role="alert">{t(error)}</p>}
+    {profile && form && <>
+      <div className="portal-profile-tax">
+        <h3>{t("Dati fiscali")}</h3>
+        <dl>{taxData.map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || "—"}</dd></div>)}</dl>
+        <p className="hint">{t("Per modificare i dati fiscali contatta l'officina.")}</p>
+      </div>
+
+      <form className="record-form portal-add-form" onSubmit={save}>
+        <h3>{t("Dati di contatto")}</h3>
+        <label>{t("Referente")} *<input required minLength={2} maxLength={160} value={form.full_name} onChange={set("full_name")} /></label>
+        <label>{t("Telefono")}<input type="tel" maxLength={32} value={form.phone} onChange={set("phone")} /></label>
+        <label>{t("Email")}<input type="email" maxLength={255} value={form.email} onChange={set("email")} /></label>
+        <label>{t("PEC")}<input type="email" maxLength={255} value={form.pec} onChange={set("pec")} /></label>
+        <label className="wide">{t("Indirizzo")}<input maxLength={255} value={form.address} onChange={set("address")} /></label>
+        <label>{t("Città")}<input maxLength={120} value={form.city} onChange={set("city")} /></label>
+        <label>{t("CAP")}<input maxLength={16} value={form.postal_code} onChange={set("postal_code")} /></label>
+        <label>{t("Provincia")}<input maxLength={8} value={form.province} onChange={set("province")} /></label>
+        <div className="record-form-actions">
+          {notice && <span className="portal-success" role="status">✓ {t(notice)}</span>}
+          <button type="button" className="ghost" disabled={!dirty} onClick={() => setForm(toForm(profile))}>{t("Annulla modifiche")}</button>
+          <button className="primary" disabled={!dirty || saving}>{saving ? t("Salvataggio…") : t("Salva dati")}</button>
+        </div>
+      </form>
+
+      <form className="record-form portal-add-form" onSubmit={changePassword}>
+        <h3>{t("Accesso al portale")}</h3>
+        <p className="hint wide">{t("Email di accesso")}: <strong>{profile.account.email}</strong></p>
+        <label>{t("Password attuale")}<PasswordInput required autoComplete="current-password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} /></label>
+        <label>{t("Nuova password")}<PasswordInput required minLength={10} autoComplete="new-password" value={passwords.next} onChange={(e) => setPasswords({ ...passwords, next: e.target.value })} /></label>
+        <div className="record-form-actions">
+          {passwordNotice && <span className="hint" role="status">{t(passwordNotice)}</span>}
+          <button className="primary">{t("Cambia password")}</button>
+        </div>
+      </form>
+    </>}
   </section>;
 }
