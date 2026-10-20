@@ -1803,7 +1803,11 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .record-fleet h3 { margin: 0 0 12px; }
 .fleet-profile { display: grid; gap: 12px; }
 .fleet-totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.fleet-totals div { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; background: var(--soft); }
+.fleet-totals :is(div, button) { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; background: var(--soft); }
+.fleet-totals button { font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.fleet-totals button:hover { border-color: #0b2a4a; }
+.fleet-totals button.active { border-color: #0b2a4a; box-shadow: inset 0 0 0 1px #0b2a4a; }
+.fleet-vehicle-open { display: flex; justify-content: flex-end; padding: 0 12px 12px; }
 .fleet-totals strong { font-size: 22px; }
 .fleet-totals span { font-size: 12px; color: var(--muted); }
 .fleet-totals .soon strong { color: var(--warning); }
@@ -1851,7 +1855,7 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 
 /* Customer portal: side menu with the portal sections. */
 .portal-shell { display: grid; grid-template-columns: 250px minmax(0, 1fr); align-items: start; }
-.portal-shell .portal-body { width: min(1100px, 100%); }
+.portal-shell .portal-body { width: 100%; padding: 18px 24px 40px; }
 .portal-sidebar { position: sticky; top: 0; height: calc(100vh - 60px); overflow-y: auto; background: #0b2a4a; color: #fff; padding: 16px 10px; display: flex; flex-direction: column; gap: 12px; }
 .portal-sidebar nav { display: grid; gap: 4px; }
 .portal-nav-item, .portal-sidebar .nav-item { display: flex; align-items: center; gap: 10px; width: 100%; background: transparent; border: 0; border-radius: 10px; padding: 11px 12px; color: rgba(255,255,255,.88); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
@@ -1961,3 +1965,18 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 .tone-button.rejected { color:#b42318; border-color:#f1b5ae; }
 .tone-button.pending { color:#b85c00; border-color:#f5c98f; }
 .record-row small .status-chip { margin-left:4px; }
+
+/* Customer portal: header name centred, clickable summary cards. */
+.portal-top { position: relative; }
+.portal-top > .portal-identity { justify-items: center; text-align: center; min-width: 0; }
+.portal-top > .portal-identity strong { line-height: 1.2; }
+.portal-top > .ghost { margin-left: auto; }
+@media (min-width: 901px) {
+  .portal-top > .portal-identity :is(strong, small) { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .portal-top > .portal-identity { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 50%; }
+}
+.portal-summary button:hover { border-color: #0b2a4a; }
+.portal-summary button.active { border-color: #0b2a4a; box-shadow: inset 0 0 0 1px #0b2a4a; }
+.portal-filter { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+[data-theme="dark"] :is(.portal-summary button, .fleet-totals button):is(:hover, .active) { border-color: #9cc3ff; box-shadow: inset 0 0 0 1px #9cc3ff; }
+@media (max-width: 900px) { .portal-shell .portal-body { padding: 14px 12px 32px; } }

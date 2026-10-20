@@ -86,6 +86,8 @@ export default function PortalPage() {
   const [passwords, setPasswords] = useState({ current: "", next: "" });
   const [passwordNotice, setPasswordNotice] = useState("");
   const [section, setSection] = useState<PortalSection>("fleet");
+  const [stateFilter, setStateFilter] = useState<"SOON" | "DUE" | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -129,6 +131,7 @@ export default function PortalPage() {
 
   function selectSection(next: PortalSection) {
     setSection(next);
+    setStateFilter(null);
     setSelected(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -176,6 +179,7 @@ export default function PortalPage() {
     const text = `${vehicle.license_plate} ${vehicle.fleet_number || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.toLowerCase();
     return text.includes(query.trim().toLowerCase());
   });
+  const fleetShown = stateFilter ? filtered.filter((vehicle) => vehicle.maintenance.state === stateFilter) : filtered;
   const inShop = vehicles.filter((vehicle) => vehicle.current_case).length;
   const toPickUp = filtered.filter((vehicle) => vehicle.current_case?.status === "READY");
   const inRepair = filtered.filter((vehicle) => vehicle.current_case && vehicle.current_case.status !== "READY");
@@ -202,6 +206,12 @@ export default function PortalPage() {
   const due = vehicles.filter((vehicle) => vehicle.maintenance.state === "DUE").length;
   const soon = vehicles.filter((vehicle) => vehicle.maintenance.state === "SOON").length;
 
+  function showFleet(filter: "SOON" | "DUE" | null) {
+    setStateFilter(filter);
+    setQuery("");
+    window.setTimeout(() => gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
   return (
     <main className="portal-page">
       <header className="portal-top">
@@ -213,7 +223,7 @@ export default function PortalPage() {
         </button>
         <NakamaLogo />
         {openCase && <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} presence={me?.workshop.chat_status} />}
-        <div>
+        <div className="portal-identity">
           <strong>{me?.customer_name}</strong>
           <small>{me?.full_name}</small>
         </div>
@@ -337,22 +347,28 @@ export default function PortalPage() {
         ) : section === "fleet" ? (
           <>
             <div className="portal-summary">
-              <div><strong>{vehicles.length}</strong><span>{t("Veicoli")}</span></div>
+              <button type="button" className={stateFilter === null ? "active" : ""} onClick={() => showFleet(null)}><strong>{vehicles.length}</strong><span>{t("Veicoli")}</span></button>
               <button type="button" onClick={() => selectSection("shop")}><strong>{inShop}</strong><span>{t("In officina")}</span></button>
-              <div className={soon ? "soon" : ""}><strong>{soon}</strong><span>{t("Manutenzione vicina")}</span></div>
-              <div className={due ? "due" : ""}><strong>{due}</strong><span>{t("Manutenzione scaduta")}</span></div>
+              <button type="button" className={`${soon ? "soon" : ""}${stateFilter === "SOON" ? " active" : ""}`} aria-pressed={stateFilter === "SOON"} onClick={() => showFleet(stateFilter === "SOON" ? null : "SOON")}><strong>{soon}</strong><span>{t("Manutenzione vicina")}</span></button>
+              <button type="button" className={`${due ? "due" : ""}${stateFilter === "DUE" ? " active" : ""}`} aria-pressed={stateFilter === "DUE"} onClick={() => showFleet(stateFilter === "DUE" ? null : "DUE")}><strong>{due}</strong><span>{t("Manutenzione scaduta")}</span></button>
             </div>
             {me && me.unread > 0 && <button type="button" className="portal-unread" onClick={() => selectSection("chat")}>{t("Hai nuovi messaggi dall'officina.")}</button>}
             {search}
-            <div className="portal-grid">
-              {filtered.map(card)}
-              {vehicles.length > 0 && filtered.length === 0 && <p className="hint">{t("Nessun veicolo trovato.")}</p>}
+            {stateFilter && (
+              <p className="portal-filter">
+                {t("Filtro")}: <strong>{t(stateLabel[stateFilter])}</strong>
+                <button type="button" className="ghost" onClick={() => setStateFilter(null)}>{t("Mostra tutti")}</button>
+              </p>
+            )}
+            <div className="portal-grid" ref={gridRef}>
+              {fleetShown.map(card)}
+              {vehicles.length > 0 && fleetShown.length === 0 && <p className="hint">{t("Nessun veicolo trovato.")}</p>}
               {me && vehicles.length === 0 && <p className="hint">{t("Nessun veicolo registrato: aggiungilo dal menu o contatta l'officina.")}</p>}
             </div>
             {me && vehicles.length > 0 && (
               <section className="panel portal-fleet-jobs">
                 <h2>{t("Lavori per targa")}</h2>
-                <FleetProfile mode="portal" query={query} />
+                <FleetProfile mode="portal" query={query} onOpenVehicle={openVehicle} />
               </section>
             )}
           </>
