@@ -33,13 +33,14 @@ function km(value?: number | null) {
  * Fleet of a customer, plate by plate, with jobs to do and jobs done.
  * Staff mode adds the import from the customer's Excel file; portal mode is read-only.
  */
-export function FleetProfile({ mode, customerId, query: externalQuery }: { mode: "staff" | "portal"; customerId?: string; query?: string }) {
+export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVehicle }: { mode: "staff" | "portal"; customerId?: string; query?: string; onOpenVehicle?: (id: string) => void }) {
   const { t } = useLanguage();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [ownQuery, setOwnQuery] = useState("");
   const [onlyTodo, setOnlyTodo] = useState(false);
+  const [expand, setExpand] = useState<"todo" | "done" | null>(null);
   const [canImport, setCanImport] = useState(false);
   const [pending, setPending] = useState<{ file: File; result: ImportResult } | null>(null);
   const [importing, setImporting] = useState(false);
@@ -113,10 +114,10 @@ export function FleetProfile({ mode, customerId, query: externalQuery }: { mode:
     <div className="fleet-profile">
       {profile && (
         <div className="fleet-totals">
-          <div><strong>{profile.totals.vehicles}</strong><span>{t("Veicoli")}</span></div>
-          <div className={profile.totals.with_todo ? "soon" : ""}><strong>{profile.totals.with_todo}</strong><span>{t("Con lavori da fare")}</span></div>
-          <div><strong>{profile.totals.todo}</strong><span>{t("Lavori da fare")}</span></div>
-          <div><strong>{profile.totals.done}</strong><span>{t("Lavori fatti")}</span></div>
+          <button type="button" className={!onlyTodo && !expand ? "active" : ""} onClick={() => { setOnlyTodo(false); setExpand(null); }}><strong>{profile.totals.vehicles}</strong><span>{t("Veicoli")}</span></button>
+          <button type="button" className={`${profile.totals.with_todo ? "soon" : ""}${onlyTodo && !expand ? " active" : ""}`} onClick={() => { setOnlyTodo(true); setExpand(null); }}><strong>{profile.totals.with_todo}</strong><span>{t("Con lavori da fare")}</span></button>
+          <button type="button" className={expand === "todo" ? "active" : ""} onClick={() => { setOnlyTodo(true); setExpand("todo"); }}><strong>{profile.totals.todo}</strong><span>{t("Lavori da fare")}</span></button>
+          <button type="button" className={expand === "done" ? "active" : ""} onClick={() => { setOnlyTodo(false); setExpand("done"); }}><strong>{profile.totals.done}</strong><span>{t("Lavori fatti")}</span></button>
         </div>
       )}
 
@@ -130,14 +131,14 @@ export function FleetProfile({ mode, customerId, query: externalQuery }: { mode:
             </>
           )}
           {externalQuery === undefined && <input type="search" aria-label={t("Cerca targa")} placeholder={t("Cerca targa, numero flotta o modello")} value={ownQuery} onChange={(e) => setOwnQuery(e.target.value)} />}
-          <label className="fleet-only-todo"><input type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} /> {t("Solo con lavori da fare")}</label>
+          <label className="fleet-only-todo"><input type="checkbox" checked={onlyTodo} onChange={(e) => { setOnlyTodo(e.target.checked); setExpand(null); }} /> {t("Solo con lavori da fare")}</label>
         </div>
       )}
       {mode === "staff" && canImport && !pending && (
         <p className="hint">{t("Colonne lette dal file: Targa (obbligatoria), N. flotta, Marca, Modello, Versione, Anno, Telaio, Km, Tipo, Alimentazione, Colore, Tagliando ogni km, Tagliando ogni mesi, Ultimo tagliando, Km ultimo tagliando. Formati: .xlsx o .csv.")}</p>
       )}
       {mode === "portal" && (profile?.totals.with_todo || 0) > 0 && (
-        <label className="fleet-only-todo"><input type="checkbox" checked={onlyTodo} onChange={(e) => setOnlyTodo(e.target.checked)} /> {t("Solo con lavori da fare")}</label>
+        <label className="fleet-only-todo"><input type="checkbox" checked={onlyTodo} onChange={(e) => { setOnlyTodo(e.target.checked); setExpand(null); }} /> {t("Solo con lavori da fare")}</label>
       )}
 
       {error && <p className="record-error" role="alert">{t(error)}</p>}
@@ -176,7 +177,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery }: { mode:
 
       <div className="fleet-vehicles">
         {vehicles.map((vehicle) => (
-          <details key={vehicle.id} className="fleet-vehicle" open={vehicles.length === 1 || (!!needle && vehicles.length <= 3)}>
+          <details key={vehicle.id} className="fleet-vehicle" open={vehicles.length === 1 || (!!needle && vehicles.length <= 3) || (expand === "todo" && vehicle.todo.length > 0) || (expand === "done" && vehicle.done.length > 0)}>
             <summary>
               <span className="plate-chip">{vehicle.license_plate}</span>
               <span className="fleet-vehicle-name">
@@ -203,6 +204,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery }: { mode:
               </section>
             </div>
             {(vehicle.vin || vehicle.version || vehicle.fuel_type) && <p className="hint fleet-vehicle-specs">{[vehicle.version, vehicle.fuel_type, vehicle.vin && `${t("Telaio")} ${vehicle.vin}`].filter(Boolean).join(" · ")}</p>}
+            {onOpenVehicle && <div className="fleet-vehicle-open"><button type="button" className="secondary" onClick={() => onOpenVehicle(vehicle.id)}>{t("Apri scheda veicolo")} →</button></div>}
           </details>
         ))}
       </div>
