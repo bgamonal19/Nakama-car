@@ -4,7 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { useLanguage } from "../../../components/LanguageProvider";
 import { NakamaLogo } from "../../../components/NakamaLogo";
 import { PasswordInput } from "../../../components/PasswordInput";
-import { API_URL } from "../../../lib/api";
+import { API_URL, saveSession } from "../../../lib/api";
+import { signIn } from "../../../lib/signin";
 import { savePortalToken } from "../../../lib/portal";
 
 export default function PortalLoginPage() {
@@ -24,14 +25,15 @@ export default function PortalLoginPage() {
     setError("");
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/portal/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(typeof data.detail === "string" ? data.detail : "Accesso non riuscito");
-      savePortalToken(data.access_token);
+      const result = await signIn(API_URL, email, password, "portal");
+      if (result.kind === "error") throw new Error(result.message);
+      if (result.kind === "staff") {
+        // Workshop staff (admin, mechanics…) who typed their access here go to the workshop app.
+        saveSession(result.session);
+        window.location.assign("/");
+        return;
+      }
+      savePortalToken(result.token);
       window.location.assign("/portale");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Accesso non riuscito");

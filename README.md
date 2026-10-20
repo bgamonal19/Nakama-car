@@ -141,6 +141,18 @@ Because this variable is public by design, it must contain only the API base URL
 6. Rotate or remove `BOOTSTRAP_TOKEN` in Railway after the first administrator has been created.
 7. Use `/login` for normal operator access.
 
+## Locked out of a workshop account
+
+Both login pages (`/login` for the workshop, `/portale/login` for customers) accept any account: a worker who
+types their access on the customer page lands in the workshop app, and vice versa. If an admin or mechanic still
+cannot get in, reset the password from a shell that has the API's `DATABASE_URL` (Railway shell, or locally):
+
+```bash
+cd apps/api
+python -m app.cli list-staff                                  # email, status and roles of every worker
+python -m app.cli reset-password admin@example.com 'NewPassword2026!'   # also reactivates the account
+```
+
 ## External data providers
 
 The product intentionally does **not** invent OEM part codes, OEM prices, repair times or vehicle identification data. Those values remain manual until a licensed provider such as DAT or GT Motive is integrated.
