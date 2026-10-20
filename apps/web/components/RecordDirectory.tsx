@@ -8,6 +8,7 @@ import { CaseExtras } from "./CaseExtras";
 import { FleetProfile } from "./FleetProfile";
 import { PortalAccess } from "./PortalAccess";
 import { EstimateChip } from "./EstimateChip";
+import { deleteCaseWithConfirm, typedConfirm } from "../lib/caseDeletion";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
 type Field = { key: string; it: string; es: string; type?: string; required?: boolean; max?: number; min?: number; options?: string[]; readOnly?: boolean; editable?: boolean };
@@ -163,24 +164,12 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     if(response.status===403)throw new Error(words("Solo un amministratore può eliminarlo.","Solo un administrador puede eliminarlo."));
     if(!response.ok&&response.status!==404)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
   }
-  // Records with history need the word typed in, so a slip of the finger never removes them.
-  const typedConfirm=()=>window.prompt(words("Per confermare scrivi ELIMINA","Para confirmar escribe ELIMINA"))?.trim().toUpperCase()==="ELIMINA";
   const counted=(items:[unknown,string,string][])=>items.filter(([n])=>Number(n)>0).map(([n,it,es])=>`${n} ${words(it,es)}`).join(", ");
   async function removeCase() {
     if(!selected?.id||!canCreate||kind!=="cases")return;
     setSaving(true);setError("");setNotice("");
     try {
-      const path=`/cases/${selected.id}`;
-      const plan=await deletionPlan(path);
-      if(plan.blocked)throw new Error(words("Questa pratica ha fatture: le fatture emesse restano in archivio, quindi la pratica non si può eliminare.","Este expediente tiene facturas: las facturas emitidas se conservan, así que el expediente no se puede eliminar."));
-      const force=Boolean(plan.work_started);
-      if(force&&!isAdmin)throw new Error(words("I lavori di questa pratica sono già iniziati: solo un amministratore può eliminarla.","Los trabajos de este expediente ya empezaron: solo un administrador puede eliminarlo."));
-      const parts=counted([[plan.estimates,"preventivi","presupuestos"],[plan.work_orders,"ordini di lavoro","órdenes de trabajo"],[plan.started_tasks,"lavorazioni iniziate o fatte","tareas empezadas o hechas"],[plan.photos,"foto","fotos"],[plan.messages,"messaggi","mensajes"]]);
-      const text=words(
-        `Eliminare la pratica ${label(selected)}?${force?" I lavori sono già iniziati.":""}\n\nSi elimina anche: ${parts||"nient'altro"}.\nCliente e veicolo restano.\n\nL'operazione non si può annullare.`,
-        `¿Eliminar el expediente ${label(selected)}?${force?" Los trabajos ya empezaron.":""}\n\nTambién se elimina: ${parts||"nada más"}.\nEl cliente y el vehículo se quedan.\n\nNo se puede deshacer.`);
-      if(!window.confirm(text)||(force&&!typedConfirm()))return;
-      await sendDelete(path,force);
+      if(!await deleteCaseWithConfirm(String(selected.id),label(selected),words))return;
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Pratica eliminata.","Expediente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
@@ -197,7 +186,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       const text=words(
         `Eliminare il cliente "${label(selected)}"?\n\nSi elimina anche: ${parts||"nient'altro"}.${Number(plan.vehicles)?`\nI suoi ${plan.vehicles} veicoli restano in archivio senza cliente.`:""}\n\nL'operazione non si può annullare.`,
         `¿Eliminar el cliente "${label(selected)}"?\n\nTambién se elimina: ${parts||"nada más"}.${Number(plan.vehicles)?`\nSus ${plan.vehicles} vehículos se quedan guardados sin cliente.`:""}\n\nNo se puede deshacer.`);
-      if(!window.confirm(text)||(force&&!typedConfirm()))return;
+      if(!window.confirm(text)||(force&&!typedConfirm(words)))return;
       await sendDelete(path,force);
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Cliente eliminato.","Cliente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}

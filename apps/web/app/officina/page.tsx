@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
 import { DamageMarker, DamagePhotoMap, MarkerView } from "../../components/DamagePhotoMap";
-import { apiError, apiFetch, getAccessToken, sessionUser } from "../../lib/api";
+import { apiError, apiFetch, getAccessToken, hasPermission, sessionUser } from "../../lib/api";
+import { deleteCaseWithConfirm } from "../../lib/caseDeletion";
 import { PlateSpots } from "../../lib/plateSpots";
 
 type Task = {
@@ -47,13 +48,17 @@ function time(value: string | null) {
  * pending job of the workshop, split into mechanics and body shop.
  */
 export default function OfficinaPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const words = (it: string, es: string) => language === "es" ? es : it;
   const [data, setData] = useState<MyWork | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [signedIn, setSignedIn] = useState(true);
   const [isManager, setIsManager] = useState(false);
+  const [canDeliver, setCanDeliver] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
     const response = await apiFetch("/my-work");
@@ -66,6 +71,9 @@ export default function OfficinaPage() {
   useEffect(() => {
     if (!getAccessToken()) { setSignedIn(false); return; }
     setIsManager(Boolean(sessionUser()?.permissions.includes("estimate.create")));
+    // The office closes and removes jobs; workers only tick their tasks.
+    setCanDeliver(hasPermission("estimate.create") && hasPermission("work_order.update_status"));
+    setCanDelete(hasPermission("case.create"));
     const opened = new URLSearchParams(window.location.search).get("odl");
     if (opened) setOpenId(opened);
     void load();
@@ -106,6 +114,42 @@ export default function OfficinaPage() {
     return true;
   }
 
+  async function deliver(item: Job) {
+    if (busy) return;
+    const missing = item.total - item.done;
+    const question = missing > 0
+      ? words(`${item.plate}: mancano ancora ${missing} lavori su ${item.total}. Segnare comunque il veicolo come consegnato al cliente? Esce da «Lavori in corso».`, `${item.plate}: aún faltan ${missing} de ${item.total} trabajos. ¿Marcar igualmente el vehículo como entregado al cliente? Sale de «Trabajos en curso».`)
+      : words(`Segnare ${item.plate} come consegnato al cliente? Esce da «Lavori in corso» e resta nello storico della pratica.`, `¿Marcar ${item.plate} como entregado al cliente? Sale de «Trabajos en curso» y queda en el historial del expediente.`);
+    if (!window.confirm(question)) return;
+    setBusy(item.work_order_id); setError(""); setNotice("");
+    try {
+      const response = await apiFetch(`/work-orders/${item.work_order_id}/status`, { method: "PATCH", body: JSON.stringify({ status: "DELIVERED" }) });
+      if (!response.ok) { setError(await apiError(response, words("Impossibile segnare come consegnato.", "No se pudo marcar como entregado."))); return; }
+      if (openId === item.work_order_id) open(null);
+      setNotice(words(`${item.plate} consegnato.`, `${item.plate} entregado.`));
+      await load();
+    } finally { setBusy(null); }
+  }
+
+  async function removeCase(caseId: string, label: string, workOrderId?: string) {
+    if (busy) return;
+    setBusy(caseId); setError(""); setNotice("");
+    try {
+      if (!await deleteCaseWithConfirm(caseId, label, words)) return;
+      if (workOrderId && openId === workOrderId) open(null);
+      setNotice(words(`Pratica ${label} eliminata.`, `Expediente ${label} eliminado.`));
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : words("Errore di connessione.", "Error de conexión.")); }
+    finally { setBusy(null); }
+  }
+
+  const officeActions = (item: Job) => (canDeliver || canDelete) && (
+    <div className="job-actions">
+      {canDeliver && <button type="button" className={item.total > 0 && item.done === item.total ? "primary" : "secondary"} disabled={!!busy} onClick={() => deliver(item)}>✔ {words("Consegnato", "Entregado")}</button>}
+      {canDelete && <button type="button" className="secondary record-delete" disabled={!!busy} onClick={() => removeCase(item.repair_case_id, `${item.case_number} · ${item.plate}`, item.work_order_id)}>{words("Elimina", "Eliminar")}</button>}
+    </div>
+  );
+
   const allAreas = !data?.work_area;
   const title = allAreas ? "Lavori in corso" : "Il mio lavoro";
   const job = data?.jobs.find((item) => item.work_order_id === openId) || null;
@@ -115,7 +159,8 @@ export default function OfficinaPage() {
   const card = (item: Job) => {
     const finished = item.total > 0 && item.done === item.total;
     return (
-      <button key={item.work_order_id} type="button" className={`job-card${item.priority === "HIGH" ? " urgent" : ""}${item.is_new ? " fresh" : ""}${finished ? " finished" : ""}`} onClick={() => open(item.work_order_id)}>
+      <div key={item.work_order_id} className="job-card-wrap">
+      <button type="button" className={`job-card${item.priority === "HIGH" ? " urgent" : ""}${item.is_new ? " fresh" : ""}${finished ? " finished" : ""}`} onClick={() => open(item.work_order_id)}>
         {item.is_new && <span className="new-tag">{t("NUOVO · da iniziare")}</span>}
         {finished && <span className="new-tag done-tag">✔ {t("Tutto fatto · da consegnare")}</span>}
         <strong className="reg-plate">{item.plate}</strong>
@@ -125,6 +170,8 @@ export default function OfficinaPage() {
         <span className="job-progress"><span style={{ width: `${item.total ? (item.done / item.total) * 100 : 0}%` }} /></span>
         <small>{item.done}/{item.total} {t("completati")}</small>
       </button>
+      {officeActions(item)}
+      </div>
     );
   };
 
@@ -135,8 +182,9 @@ export default function OfficinaPage() {
       actions={!isManager && <a className="primary link-button" href="/diagnosi">✚ {t("Nuova diagnosi")}</a>}
     >
       {error && <div className="record-error" role="alert">{t(error)}</div>}
+      {notice && <p role="status">{notice}</p>}
       {!data ? <div className="empty-state">{t("Caricamento…")}</div> : job ? (
-        <JobDetail job={job} busy={busy} onBack={() => open(null)} onToggle={toggle} onSaveNote={saveNote} />
+        <JobDetail job={job} busy={busy} onBack={() => open(null)} onToggle={toggle} onSaveNote={saveNote} actions={officeActions(job)} />
       ) : (
         <>
           {data.new_jobs > 0 && (
@@ -188,6 +236,10 @@ export default function OfficinaPage() {
                     <span className="job-vehicle">{item.vehicle || t("Veicolo")}</span>
                     <small>{item.case_number} · {item.estimate_number}</small>
                     <span className="stage-line">{stageNames[item.stage][0]} {t(stageNames[item.stage][1])}</span>
+                    {canDelete && <div className="job-actions">
+                      <a className="secondary link-button" href={`/pratiche?q=${encodeURIComponent(item.case_number)}`}>{words("Apri pratica", "Abrir expediente")}</a>
+                      <button type="button" className="secondary record-delete" disabled={!!busy} onClick={() => removeCase(item.repair_case_id, `${item.case_number} · ${item.plate}`)}>{words("Elimina", "Eliminar")}</button>
+                    </div>}
                   </div>
                 ))}
               </div>
@@ -200,8 +252,8 @@ export default function OfficinaPage() {
 }
 
 /** One vehicle: the whole car with its damages/parts, its data, and every job as a button with a note. */
-function JobDetail({ job, busy, onBack, onToggle, onSaveNote }: {
-  job: Job; busy: string | null; onBack: () => void;
+function JobDetail({ job, busy, onBack, onToggle, onSaveNote, actions }: {
+  job: Job; busy: string | null; onBack: () => void; actions?: ReactNode;
   onToggle: (job: Job, task: Task) => void;
   onSaveNote: (job: Job, task: Task, note: string) => Promise<boolean>;
 }) {
@@ -281,6 +333,7 @@ function JobDetail({ job, busy, onBack, onToggle, onSaveNote }: {
         {job.tasks.length === 0 && <div className="empty-state">{t("Nessun lavoro della tua area su questo veicolo.")}</div>}
       </div>
       <a className="secondary link-button" href={`/diagnosi?targa=${encodeURIComponent(job.plate)}`}>✚ {t("Segnala un lavoro in più (diagnosi)")}</a>
+      {actions}
     </section>
   );
 }
