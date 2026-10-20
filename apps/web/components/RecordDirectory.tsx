@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState, useRef } from "react";
 import { SectionShell } from "./SectionShell";
 import { useLanguage } from "./LanguageProvider";
-import { apiFetch, getAccessToken } from "../lib/api";
+import { apiError, apiFetch, getAccessToken, hasPermission } from "../lib/api";
 import { CaseExtras } from "./CaseExtras";
 import { FleetProfile } from "./FleetProfile";
 import { PortalAccess } from "./PortalAccess";
@@ -47,6 +47,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
   const [signedIn,setSignedIn] = useState(false);
   const [canCreate,setCanCreate] = useState(false);
   const [canWrite,setCanWrite] = useState(false);
+  const [isAdmin,setIsAdmin] = useState(false);
   const [items,setItems] = useState<RecordData[]>([]);
   const [query,setQuery] = useState("");
   const [search,setSearch] = useState("");
@@ -80,6 +81,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     const initialQuery=new URLSearchParams(window.location.search).get("q")||"";
     setQuery(initialQuery);setSearch(initialQuery);
     setSignedIn(!!getAccessToken());
+    setIsAdmin(hasPermission("users.manage"));
     try {const permissions=JSON.parse(localStorage.getItem("nakama_user")||"{}").permissions||[];setCanWrite(permissions.includes(definition.permission));setCanCreate(permissions.includes(kind==="cases"?"case.create":definition.permission));} catch {setCanWrite(false);}
   },[definition.permission]);
   useEffect(() => {
@@ -146,29 +148,57 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Salvato correttamente.","Guardado correctamente."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
+  // Asks the API what goes with the record, so the confirmation says it plainly; admins can also remove records with history.
+  async function deletionPlan(path:string):Promise<Record<string,string|number|boolean|null>> {
+    const response=await apiFetch(`${path}/deletion`);
+    if(response.status===401)throw new Error(words("Sessione scaduta. Accedi di nuovo.","Sesión vencida. Inicia sesión de nuevo."));
+    if(response.status===403)throw new Error(words("Il tuo profilo non consente questa operazione.","Tu perfil no permite esta operación."));
+    if(!response.ok)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+    return response.json();
+  }
+  async function sendDelete(path:string,force:boolean) {
+    const response=await apiFetch(`${path}${force?"?force=true":""}`,{method:"DELETE"});
+    if(response.status===409)throw new Error(await apiError(response,words("Non si può eliminare.","No se puede eliminar.")));
+    if(response.status===401)throw new Error(words("Sessione scaduta. Accedi di nuovo.","Sesión vencida. Inicia sesión de nuevo."));
+    if(response.status===403)throw new Error(words("Solo un amministratore può eliminarlo.","Solo un administrador puede eliminarlo."));
+    if(!response.ok&&response.status!==404)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+  }
+  // Records with history need the word typed in, so a slip of the finger never removes them.
+  const typedConfirm=()=>window.prompt(words("Per confermare scrivi ELIMINA","Para confirmar escribe ELIMINA"))?.trim().toUpperCase()==="ELIMINA";
+  const counted=(items:[unknown,string,string][])=>items.filter(([n])=>Number(n)>0).map(([n,it,es])=>`${n} ${words(it,es)}`).join(", ");
   async function removeCase() {
     if(!selected?.id||!canCreate||kind!=="cases")return;
-    if(!window.confirm(words(`Eliminare la pratica ${label(selected)}? Si eliminano anche i suoi preventivi, foto e messaggi. L'operazione non si può annullare. Cliente e veicolo restano.`,`¿Eliminar el expediente ${label(selected)}? También se eliminan sus presupuestos, fotos y mensajes. No se puede deshacer. El cliente y el vehículo se quedan.`)))return;
     setSaving(true);setError("");setNotice("");
     try {
-      const response=await apiFetch(`/cases/${selected.id}`,{method:"DELETE"});
-      if(response.status===409)throw new Error(words("Questa pratica ha già lavori eseguiti o fatture: non si può eliminare.","Este expediente ya tiene trabajos ejecutados o facturas: no se puede eliminar."));
-      if(response.status===401)throw new Error(words("Sessione scaduta. Accedi di nuovo.","Sesión vencida. Inicia sesión de nuevo."));
-      if(response.status===403)throw new Error(words("Il tuo profilo non consente questa operazione.","Tu perfil no permite esta operación."));
-      if(!response.ok&&response.status!==404)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+      const path=`/cases/${selected.id}`;
+      const plan=await deletionPlan(path);
+      if(plan.blocked)throw new Error(words("Questa pratica ha fatture: le fatture emesse restano in archivio, quindi la pratica non si può eliminare.","Este expediente tiene facturas: las facturas emitidas se conservan, así que el expediente no se puede eliminar."));
+      const force=Boolean(plan.work_started);
+      if(force&&!isAdmin)throw new Error(words("I lavori di questa pratica sono già iniziati: solo un amministratore può eliminarla.","Los trabajos de este expediente ya empezaron: solo un administrador puede eliminarlo."));
+      const parts=counted([[plan.estimates,"preventivi","presupuestos"],[plan.work_orders,"ordini di lavoro","órdenes de trabajo"],[plan.started_tasks,"lavorazioni iniziate o fatte","tareas empezadas o hechas"],[plan.photos,"foto","fotos"],[plan.messages,"messaggi","mensajes"]]);
+      const text=words(
+        `Eliminare la pratica ${label(selected)}?${force?" I lavori sono già iniziati.":""}\n\nSi elimina anche: ${parts||"nient'altro"}.\nCliente e veicolo restano.\n\nL'operazione non si può annullare.`,
+        `¿Eliminar el expediente ${label(selected)}?${force?" Los trabajos ya empezaron.":""}\n\nTambién se elimina: ${parts||"nada más"}.\nEl cliente y el vehículo se quedan.\n\nNo se puede deshacer.`);
+      if(!window.confirm(text)||(force&&!typedConfirm()))return;
+      await sendDelete(path,force);
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Pratica eliminata.","Expediente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
   async function remove() {
     if(!selected?.id||!canWrite||kind!=="customers")return;
-    if(!window.confirm(words(`Eliminare il cliente "${label(selected)}"? L'operazione non si può annullare. I suoi veicoli restano in archivio senza cliente.`,`¿Eliminar el cliente "${label(selected)}"? No se puede deshacer. Sus vehículos se quedan guardados sin cliente.`)))return;
     setSaving(true);setError("");setNotice("");
     try {
-      const response=await apiFetch(`/customers/${selected.id}`,{method:"DELETE"});
-      if(response.status===409)throw new Error(words("Questo cliente ha già pratiche, contratti o fatture: non si può eliminare.","Este cliente ya tiene expedientes, contratos o facturas: no se puede eliminar."));
-      if(response.status===401)throw new Error(words("Sessione scaduta. Accedi di nuovo.","Sesión vencida. Inicia sesión de nuevo."));
-      if(response.status===403)throw new Error(words("Il tuo profilo non consente questa operazione.","Tu perfil no permite esta operación."));
-      if(!response.ok&&response.status!==404)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+      const path=`/customers/${selected.id}`;
+      const plan=await deletionPlan(path);
+      if(plan.blocked)throw new Error(words(`Questo cliente ha ${plan.invoices} fatture: le fatture emesse restano in archivio, quindi il cliente non si può eliminare.`,`Este cliente tiene ${plan.invoices} facturas: las facturas emitidas se conservan, así que el cliente no se puede eliminar.`));
+      const force=Boolean(plan.has_history);
+      if(force&&!isAdmin)throw new Error(words("Questo cliente ha pratiche o contratti: solo un amministratore può eliminarlo.","Este cliente tiene expedientes o contratos: solo un administrador puede eliminarlo."));
+      const parts=counted([[plan.cases,"pratiche (con preventivi, lavori, foto e chat)","expedientes (con presupuestos, trabajos, fotos y chat)"],[plan.contracts,"contratti","contratos"],[plan.portal_accounts,"accessi al portale","accesos al portal"]]);
+      const text=words(
+        `Eliminare il cliente "${label(selected)}"?\n\nSi elimina anche: ${parts||"nient'altro"}.${Number(plan.vehicles)?`\nI suoi ${plan.vehicles} veicoli restano in archivio senza cliente.`:""}\n\nL'operazione non si può annullare.`,
+        `¿Eliminar el cliente "${label(selected)}"?\n\nTambién se elimina: ${parts||"nada más"}.${Number(plan.vehicles)?`\nSus ${plan.vehicles} vehículos se quedan guardados sin cliente.`:""}\n\nNo se puede deshacer.`);
+      if(!window.confirm(text)||(force&&!typedConfirm()))return;
+      await sendDelete(path,force);
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Cliente eliminato.","Cliente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }

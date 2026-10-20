@@ -10,7 +10,7 @@ from app.models.contracts import ServiceContract
 from app.models.garage import Customer, RepairCase, Vehicle
 from app.models.portal import PortalAccount
 from app.schemas.garage import CustomerCreate, CustomerRead, CustomerUpdate
-from app.security.context import AuthContext, require_permission
+from app.security.context import AuthContext, is_admin, require_permission
 from app.services.audit import record_audit
 from app.services.tracking import customer_display_name
 
@@ -92,39 +92,86 @@ def update_customer(
     return customer
 
 
-@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_customer(
+def customer_deletion(db: Session, customer: Customer) -> dict:
+    """What deleting the customer takes with it, and what stops it.
+
+    Invoices (the customer's or its cases') always stop it. Repair cases and contracts need an
+    administrator and ``force``; vehicles stay in the archive without an owner.
+    """
+    def count(model, *where) -> int:
+        return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
+
+    case_ids = select(RepairCase.id).where(RepairCase.customer_id == customer.id)
+    invoices = count(Invoice, or_(Invoice.customer_id == customer.id, Invoice.repair_case_id.in_(case_ids)))
+    cases = count(RepairCase, RepairCase.customer_id == customer.id)
+    contracts = count(ServiceContract, ServiceContract.customer_id == customer.id)
+    return {
+        "name": customer_display_name(customer),
+        "cases": cases,
+        "contracts": contracts,
+        "portal_accounts": count(PortalAccount, PortalAccount.customer_id == customer.id),
+        "vehicles": count(Vehicle, Vehicle.customer_id == customer.id),
+        "invoices": invoices,
+        "has_history": bool(cases or contracts),
+        "blocked": f"Impossibile eliminare il cliente: ha {invoices} fatture, che restano in archivio." if invoices else None,
+    }
+
+
+def tenant_customer(db: Session, auth: AuthContext, customer_id: UUID) -> Customer:
+    customer = db.scalar(select(Customer).where(Customer.id == customer_id, Customer.tenant_id == auth.tenant_id))
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+
+@router.get("/{customer_id}/deletion")
+def preview_customer_deletion(
     customer_id: UUID,
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("customer.write")),
 ):
-    """Remove a customer created by mistake.
+    return customer_deletion(db, tenant_customer(db, auth, customer_id))
 
-    Refused while the customer has repair cases, contracts or invoices (that history
-    must stay). Its vehicles are kept without an owner and its portal logins are removed.
+
+@router.delete("/{customer_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_customer(
+    customer_id: UUID,
+    force: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.write")),
+):
+    """Remove a customer created by mistake, or (administrator, ``force``) one with history.
+
+    Invoices always refuse it. With ``force`` its repair cases (and what hangs from them) and its
+    contracts go too. Its vehicles are kept without an owner and its portal logins are removed.
     """
-    customer = db.scalar(
-        select(Customer).where(
-            Customer.id == customer_id,
-            Customer.tenant_id == auth.tenant_id,
-        )
-    )
-    if customer is None:
-        raise HTTPException(status_code=404, detail="Customer not found")
-    history = [
-        (label, db.scalar(select(func.count()).select_from(model).where(model.customer_id == customer.id)))
-        for label, model in (("pratiche", RepairCase), ("contratti", ServiceContract), ("fatture", Invoice))
-    ]
-    blocking = [f"{count} {label}" for label, count in history if count]
-    if blocking:
-        raise HTTPException(
-            status_code=409,
-            detail="Impossibile eliminare il cliente: ha " + ", ".join(blocking) + ".",
-        )
+    from app.api.v1.cases import case_deletion, remove_case
+
+    customer = tenant_customer(db, auth, customer_id)
+    impact = customer_deletion(db, customer)
+    if impact["blocked"]:
+        raise HTTPException(status_code=409, detail=impact["blocked"])
+    if impact["has_history"]:
+        if not force:
+            blocking = [f"{count} {label}" for count, label in ((impact["cases"], "pratiche"), (impact["contracts"], "contratti")) if count]
+            raise HTTPException(
+                status_code=409,
+                detail="Impossibile eliminare il cliente: ha " + ", ".join(blocking) + ".",
+            )
+        if not is_admin(auth):
+            raise HTTPException(status_code=403, detail="Solo un amministratore può eliminare un cliente con pratiche o contratti.")
+    for case in db.scalars(select(RepairCase).where(RepairCase.customer_id == customer.id)).all():
+        if case_deletion(db, case)["blocked"]:
+            raise HTTPException(status_code=409, detail="Impossibile eliminare il cliente: una pratica ha fatture.")
+        remove_case(db, case, auth, forced=True)
+    for contract in db.scalars(select(ServiceContract).where(ServiceContract.customer_id == customer.id)).all():
+        db.delete(contract)
+    db.flush()
     db.execute(update(Vehicle).where(Vehicle.customer_id == customer.id).values(customer_id=None))
     for account in db.scalars(select(PortalAccount).where(PortalAccount.customer_id == customer.id)).all():
         db.delete(account)
+    db.flush()
     record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="customer", entity_id=customer.id,
-                 action="deleted", old_value={"name": customer_display_name(customer)})
+                 action="deleted", old_value={"name": impact["name"], "cases": impact["cases"], "contracts": impact["contracts"]})
     db.delete(customer)
     db.commit()

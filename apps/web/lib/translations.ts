@@ -1663,6 +1663,23 @@ Object.assign(spanish, {
   "Punteggio guida": "Puntuación de conducción"
 });
 
+// Deleting cases, customers and accounts.
+Object.assign(spanish, {
+  "Eliminare l'accesso di": "¿Eliminar el acceso de",
+  "Il cliente non potrà più entrare nel portale con questa email. I suoi dati restano. L'operazione non si può annullare.": "El cliente ya no podrá entrar en el portal con este correo. Sus datos se quedan. No se puede deshacer.",
+  "Impossibile eliminare l'accesso.": "No se pudo eliminar el acceso.",
+  "Accesso eliminato.": "Acceso eliminado.",
+  "Eliminare l’account di": "¿Eliminar la cuenta de",
+  "Non potrà più accedere. Il lavoro già registrato resta. L’operazione non si può annullare.": "Ya no podrá entrar. El trabajo ya registrado se queda. No se puede deshacer.",
+  "Impossibile eliminare l’account.": "No se pudo eliminar la cuenta.",
+  "Non puoi eliminare il tuo stesso account": "No puedes eliminar tu propia cuenta",
+  "Impossibile eliminare la pratica: ha già fatture, che restano in archivio.": "No se puede eliminar el expediente: ya tiene facturas, que se conservan.",
+  "Impossibile eliminare la pratica: i lavori sono già iniziati.": "No se puede eliminar el expediente: los trabajos ya empezaron.",
+  "Solo un amministratore può eliminare una pratica con lavori iniziati.": "Solo un administrador puede eliminar un expediente con trabajos empezados.",
+  "Solo un amministratore può eliminare un cliente con pratiche o contratti.": "Solo un administrador puede eliminar un cliente con expedientes o contratos.",
+  "Impossibile eliminare il cliente: una pratica ha fatture.": "No se puede eliminar el cliente: un expediente tiene facturas."
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;

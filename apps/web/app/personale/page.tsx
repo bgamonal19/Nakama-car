@@ -8,7 +8,7 @@ import { PasswordInput } from "../../components/PasswordInput";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
-import { apiFetch, getAccessToken } from "../../lib/api";
+import { apiError, apiFetch, getAccessToken, sessionUser } from "../../lib/api";
 
 type Worker = { id: string; email: string; first_name: string; last_name: string; status: string; role_codes: string[]; work_area?: string | null };
 type StaffProfile = { profile: Record<string, string | null> };
@@ -35,6 +35,9 @@ export default function PersonalePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [search, setSearch] = useState("");
+  const [listError, setListError] = useState("");
+  const [me, setMe] = useState<string | undefined>();
+  useEffect(() => { setMe(sessionUser()?.id); }, []);
   const load = useCallback(async () => {
     if (!getAccessToken()) { setAccess("login"); return; }
     try {
@@ -83,6 +86,15 @@ export default function PersonalePage() {
     const response = await apiFetch(`/users/${user.id}/profile`);
     if (response.ok) setSheet(await response.json());
   }
+  async function removeWorker(user: Worker) {
+    const name = `${user.first_name} ${user.last_name}`.trim();
+    if (!window.confirm(`${t("Eliminare l’account di")} ${name} (${user.email})? ${t("Non potrà più accedere. Il lavoro già registrato resta. L’operazione non si può annullare.")}`)) return;
+    setListError("");
+    const response = await apiFetch(`/users/${user.id}`, { method: "DELETE" });
+    if (!response.ok && response.status !== 404) { setListError(await apiError(response, "Impossibile eliminare l’account.")); return; }
+    setUsers(previous => previous.filter(item => item.id !== user.id));
+    if (opened === user.id) setOpened(null);
+  }
   const isWorkshop = (user: Worker) => user.role_codes.some(code => ["MECHANIC", "BODYSHOP", "PAINTER"].includes(code));
   const filtered = users.filter(user => `${user.first_name} ${user.last_name} ${user.email}`.toLowerCase().includes(search.toLowerCase()));
   return <SectionShell title={t("Personale")} eyebrow={t("ACCOUNT E PROFILI DI ACCESSO")}>
@@ -107,9 +119,11 @@ export default function PersonalePage() {
         <section className="panel settings-card"><div className="panel-head"><div><h2>{t("Profili disponibili")}</h2><p>{t("Ogni lavoratore accede con i permessi del profilo assegnato.")}</p></div></div><div className="settings-body staff-profiles">{profiles.map(p => <div key={p.code} className="staff-profile-item"><span className="staff-profile-icon"><ItemIcon name={p.code} /></span><div><strong>{t(p.name)}</strong><p>{t(p.description)}</p></div></div>)}</div></section>
       </div>
       <section className="panel settings-users"><div className="panel-head"><div><h2>{t("Lavoratori ·")} {users.length}</h2><p>{t("Account della tua carrozzeria.")}</p></div><label className="staff-search">{t("Cerca lavoratore")}<input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={t("Nome o email")} /></label></div>
+        {listError && <p className="auth-error" role="alert">{t(listError)}</p>}
         <div className="staff-list">{filtered.length === 0 ? <p className="empty-state">{t("Nessun lavoratore trovato.")}</p> : filtered.map(user => <article className="staff-row" key={user.id}><div><strong>{user.first_name} {user.last_name}</strong><p>{user.email}</p></div><span className="staff-role-list">{user.role_codes.map(code => <span className="staff-role" key={code}><ItemIcon name={code} /><span>{t(profiles.find(p => p.code === code)?.name || code)}</span></span>)}</span><span className="status-chip">{user.status === "ACTIVE" ? t("Attivo") : user.status === "DISABLED" ? t("Disabilitato") : t("Invitato")}</span>
           {isWorkshop(user) && <label className="staff-area">{t("Area")}<select value={user.work_area || "ALL"} onChange={e => changeArea(user, e.target.value)}><option value="MECHANICAL">{t("Meccanica")}</option><option value="BODY">{t("Carrozzeria")}</option><option value="ALL">{t("Entrambe")}</option></select></label>}
           <button type="button" className="ghost" aria-expanded={opened === user.id} onClick={() => openSheet(user)}>{t("Scheda")}</button>
+          {user.id !== me && <button type="button" className="ghost record-delete" onClick={() => removeWorker(user)}>{t("Elimina")}</button>}
           {opened === user.id && <div className="staff-sheet">{!sheet ? <p className="hint">{t("Caricamento…")}</p> : <dl>{profileLabels.map(([key, label]) => <div key={key}><dt>{t(label)}</dt><dd>{sheet.profile[key] || "—"}</dd></div>)}</dl>}</div>}
         </article>)}</div>
       </section>

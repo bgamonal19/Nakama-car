@@ -28,6 +28,7 @@ from app.models.tracking import CaseMessage
 from app.security.context import AuthContext, require_permission
 from app.security.passwords import hash_password, verify_password
 from app.services import fleet, tracking
+from app.services.audit import record_audit
 from app.services.pdf import build_invoice_pdf
 from app.services.integrations import latest_reading
 from app.services.maintenance import maintenance_status
@@ -233,6 +234,16 @@ def reset_portal_password(account_id: UUID, db: Session = Depends(get_db), auth:
     db.commit()
     db.refresh(account)
     return {**account_dict(account), "temporary_password": password}
+
+
+@router.delete("/portal-accounts/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_portal_account(account_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("users.manage"))):
+    """Remove a customer's portal login for good (administrators only); the customer and its data stay."""
+    account = staff_account(db, auth.tenant_id, account_id)
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="portal_account", entity_id=account.id,
+                 action="deleted", old_value={"email": account.email, "customer_id": str(account.customer_id)})
+    db.delete(account)
+    db.commit()
 
 
 @router.get("/customers/{customer_id}/fleet-vehicles")
