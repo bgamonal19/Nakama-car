@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
 import { savePortalToken } from "../../lib/portal";
+import { signIn } from "../../lib/signin";
 
 export default function LoginPage() {
   const { t } = useLanguage();
@@ -33,29 +34,15 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const r = await fetch(`${API_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await r.json();
-      if (r.status === 401) {
+      const result = await signIn(API_URL, email, password, "staff");
+      if (result.kind === "error") throw new Error(result.message);
+      if (result.kind === "portal") {
         // Customers often type their portal access here: log them into the portal instead.
-        const portal = await fetch(`${API_URL}/portal/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
-        const account = await portal.json().catch(() => ({}));
-        if (portal.ok && account.access_token) {
-          savePortalToken(account.access_token);
-          window.location.assign("/portale");
-          return;
-        }
-        throw new Error("Email o password non corretti.");
+        savePortalToken(result.token);
+        window.location.assign("/portale");
+        return;
       }
-      if (!r.ok) throw new Error(data.detail || "Accesso non riuscito");
-      saveSession(data);
+      saveSession(result.session);
       router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Accesso non riuscito");
@@ -70,8 +57,8 @@ export default function LoginPage() {
         <div className="public-brand nakama-auth-brand"><NakamaLogo /></div>
         <div className="auth-copy"><p className="eyebrow">{t("ACCESSO OPERATORE")}</p><h1>{t("Accedi alla carrozzeria")}</h1><p>{t("Gestisci pratiche, preventivi, lavorazioni e fatturazione.")}</p></div>
         <form onSubmit={submit} className="auth-form">
-          <label>{t("Email")}<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
-          <label>{t("Password")}<PasswordInput  required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+          <label>{t("Email")}<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
+          <label>{t("Password")}<PasswordInput required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
           {expired && !error && <div className="auth-error" role="status">{t("Sessione scaduta. Accedi di nuovo per continuare.")}</div>}
           {error && <div className="auth-error">{t(error)}</div>}
           <button className="primary auth-submit" disabled={loading}>{loading ? t("Accesso…") : t("Accedi")}</button>
