@@ -1982,3 +1982,10 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 @media (max-width: 900px) { .portal-shell .portal-body { padding: 14px 12px 32px; } }
 .table-actions .record-delete, .staff-row .record-delete { color:#b42318; }
 [data-theme="dark"] .table-actions .record-delete, [data-theme="dark"] .staff-row .record-delete { color:#ff9b8f; }
+.job-card-wrap { display: grid; gap: 8px; align-content: start; }
+.job-card-wrap > .job-card { height: 100%; }
+.job-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.job-actions > * { flex: 1 1 auto; justify-content: center; text-align: center; }
+.job-actions .record-delete { color:#b42318; }
+[data-theme="dark"] .job-actions .record-delete { color:#ff9b8f; }
+.job-detail > .job-actions { margin-top: 12px; }
