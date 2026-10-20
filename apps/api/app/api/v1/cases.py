@@ -8,10 +8,12 @@ from app.db.deps import get_db
 from app.models.billing import Invoice
 from app.models.estimating import Estimate, EstimateStatus
 from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
+from app.models.media import Media
+from app.models.tracking import CaseMessage
 from app.models.workshop import WorkOrder, WorkOrderTask, WorkTaskStatus
 from app.schemas.garage import RepairCaseCreate, RepairCaseListItem, RepairCaseRead, RepairCaseUpdate
 from app.services.audit import record_audit
-from app.security.context import AuthContext, require_permission
+from app.security.context import AuthContext, is_admin, require_permission
 
 
 def staff_area(db: Session, auth: AuthContext) -> str | None:
@@ -152,27 +154,70 @@ WORK_STARTED = {
 }
 
 
-@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_repair_case(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.create"))):
-    """Remove a case that was never carried out (opened by mistake, estimate refused, customer never came).
+def case_deletion(db: Session, case: RepairCase) -> dict:
+    """What deleting the case takes with it, and what stops it.
 
-    Refused once work has started on the vehicle or the case has invoices. Its estimates, work orders,
-    photos, damages and chat go with it; the customer and the vehicle stay.
+    Invoices always stop it: an issued invoice is a fiscal document and stays. Once work has started
+    only an administrator may delete the case (forced), e.g. a job opened on the wrong vehicle.
+    """
+    def count(model, *where) -> int:
+        return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
+
+    started_tasks = count(
+        WorkOrderTask,
+        WorkOrderTask.work_order_id.in_(select(WorkOrder.id).where(WorkOrder.repair_case_id == case.id)),
+        WorkOrderTask.status.in_((WorkTaskStatus.IN_PROGRESS, WorkTaskStatus.DONE)),
+    )
+    invoices = count(Invoice, Invoice.repair_case_id == case.id)
+    return {
+        "case_number": case.case_number,
+        "estimates": count(Estimate, Estimate.repair_case_id == case.id),
+        "work_orders": count(WorkOrder, WorkOrder.repair_case_id == case.id),
+        "started_tasks": started_tasks,
+        "photos": count(Media, Media.repair_case_id == case.id),
+        "messages": count(CaseMessage, CaseMessage.repair_case_id == case.id),
+        "invoices": invoices,
+        "work_started": case.status in WORK_STARTED or started_tasks > 0,
+        "blocked": "Impossibile eliminare la pratica: ha già fatture, che restano in archivio." if invoices else None,
+    }
+
+
+@router.get("/{case_id}/deletion")
+def preview_case_deletion(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.create"))):
+    case = db.scalar(select(RepairCase).where(RepairCase.id == case_id, RepairCase.tenant_id == auth.tenant_id))
+    if case is None:
+        raise HTTPException(status_code=404, detail="Repair case not found")
+    return case_deletion(db, case)
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_repair_case(
+    case_id: UUID,
+    force: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("case.create")),
+):
+    """Remove a case never carried out (opened by mistake, estimate refused, customer never came).
+
+    A case whose work has started needs an administrator and ``force``. Invoices always refuse it.
+    Its estimates, work orders, photos, damages and chat go with it; the customer and the vehicle stay.
     """
     case = db.scalar(select(RepairCase).where(RepairCase.id == case_id, RepairCase.tenant_id == auth.tenant_id))
     if case is None:
         raise HTTPException(status_code=404, detail="Repair case not found")
-    invoices = db.scalar(select(func.count()).select_from(Invoice).where(Invoice.repair_case_id == case.id)) or 0
-    if invoices:
-        raise HTTPException(status_code=409, detail="Impossibile eliminare la pratica: ha già fatture.")
-    done_tasks = db.scalar(
-        select(func.count()).select_from(WorkOrderTask)
-        .join(WorkOrder, WorkOrder.id == WorkOrderTask.work_order_id)
-        .where(WorkOrder.repair_case_id == case.id, WorkOrderTask.status.in_((WorkTaskStatus.IN_PROGRESS, WorkTaskStatus.DONE)))
-    ) or 0
-    if case.status in WORK_STARTED or done_tasks:
-        raise HTTPException(status_code=409, detail="Impossibile eliminare la pratica: i lavori sono già iniziati.")
-    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="repair_case", entity_id=case.id,
-                 action="deleted", old_value={"case_number": case.case_number, "status": case.status.value})
-    db.delete(case)
+    impact = case_deletion(db, case)
+    if impact["blocked"]:
+        raise HTTPException(status_code=409, detail=impact["blocked"])
+    if impact["work_started"]:
+        if not force:
+            raise HTTPException(status_code=409, detail="Impossibile eliminare la pratica: i lavori sono già iniziati.")
+        if not is_admin(auth):
+            raise HTTPException(status_code=403, detail="Solo un amministratore può eliminare una pratica con lavori iniziati.")
+    remove_case(db, case, auth, forced=impact["work_started"])
     db.commit()
+
+
+def remove_case(db: Session, case: RepairCase, auth: AuthContext, forced: bool = False) -> None:
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="repair_case", entity_id=case.id,
+                 action="deleted", old_value={"case_number": case.case_number, "status": case.status.value, "forced": forced})
+    db.delete(case)

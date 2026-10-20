@@ -14,6 +14,7 @@ export function PortalAccess({ customerId, customerName }: { customerId: string;
   const [issued, setIssued] = useState<Account | null>(null);
   const [message, setMessage] = useState("");
   const [canWrite, setCanWrite] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = useCallback(async () => {
     const response = await apiFetch(`/customers/${customerId}/portal-accounts`);
@@ -22,6 +23,7 @@ export function PortalAccess({ customerId, customerName }: { customerId: string;
 
   useEffect(() => {
     setCanWrite(hasPermission("customer.write"));
+    setIsAdmin(hasPermission("users.manage"));
     setIssued(null);
     setMessage("");
     load();
@@ -48,6 +50,16 @@ export function PortalAccess({ customerId, customerName }: { customerId: string;
   async function toggle(account: Account) {
     const response = await apiFetch(`/portal-accounts/${account.id}`, { method: "PATCH", body: JSON.stringify({ active: !account.active }) });
     if (response.ok) load();
+  }
+
+  async function remove(account: Account) {
+    if (!window.confirm(`${t("Eliminare l'accesso di")} ${account.email}? ${t("Il cliente non potrà più entrare nel portale con questa email. I suoi dati restano. L'operazione non si può annullare.")}`)) return;
+    setMessage("");
+    const response = await apiFetch(`/portal-accounts/${account.id}`, { method: "DELETE" });
+    if (!response.ok && response.status !== 404) { setMessage(await apiError(response, "Impossibile eliminare l'accesso.")); return; }
+    if (issued?.id === account.id) setIssued(null);
+    setMessage("Accesso eliminato.");
+    load();
   }
 
   const handoff = issued?.temporary_password
@@ -77,6 +89,7 @@ export function PortalAccess({ customerId, customerName }: { customerId: string;
               <span className="table-actions">
                 <button type="button" onClick={() => reset(account)}>{t("Nuova password")}</button>
                 <button type="button" onClick={() => toggle(account)}>{account.active ? t("Disattiva") : t("Riattiva")}</button>
+                {isAdmin && <button type="button" className="record-delete" onClick={() => remove(account)}>{t("Elimina")}</button>}
               </span>
             )}
           </li>

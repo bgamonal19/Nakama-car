@@ -48,3 +48,10 @@ def require_permission(permission: str):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
         return context
     return dependency
+
+# Only the ADMIN profile manages staff accounts, so this permission marks an administrator.
+ADMIN_PERMISSION = "users.manage"
+
+
+def is_admin(context: AuthContext) -> bool:
+    return ADMIN_PERMISSION in context.permissions

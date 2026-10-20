@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.deps import get_db
 from app.models.identity import Role, User, UserRole, UserStatus, UserTenant, Tenant
+from app.models.staff import UserProfile
 from app.schemas.users import UserCreate, UserRead, UserUpdate
 from app.security.context import AuthContext, require_permission
 from app.services.staff import user_area
@@ -151,3 +152,37 @@ def update_user(
         raise HTTPException(status_code=409, detail="Impossibile salvare: account già esistente o assegnazione non valida")
     db.refresh(user)
     return user_to_read(db, user, auth.tenant_id)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("users.manage")),
+):
+    """Remove a staff account for good. Its work history stays; only the login and profile go."""
+    db.scalar(select(Tenant).where(Tenant.id == auth.tenant_id).with_for_update())
+    user = db.scalar(select(User).join(UserTenant, UserTenant.user_id == User.id).where(
+        User.id == user_id, UserTenant.tenant_id == auth.tenant_id,
+    ).with_for_update())
+    if user is None:
+        raise HTTPException(status_code=404, detail="Utente non trovato")
+    if user_id == auth.user_id:
+        raise HTTPException(status_code=409, detail="Non puoi eliminare il tuo stesso account")
+    if db.scalar(select(func.count(UserTenant.id)).where(UserTenant.user_id == user_id)) != 1:
+        raise HTTPException(status_code=409, detail="Account condiviso tra aziende: contatta l’amministratore della piattaforma")
+    if "ADMIN" in user_to_read(db, user, auth.tenant_id).role_codes:
+        other_admin = db.scalar(select(User.id).join(UserRole, UserRole.user_id == User.id)
+            .join(Role, Role.id == UserRole.role_id).where(
+                User.id != user_id, User.status == UserStatus.ACTIVE,
+                UserRole.tenant_id == auth.tenant_id, Role.tenant_id == auth.tenant_id, Role.code == "ADMIN",
+            ).limit(1))
+        if other_admin is None:
+            raise HTTPException(status_code=409, detail="Deve rimanere almeno un amministratore attivo")
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="user", entity_id=user_id,
+                 action="DELETE", old_value={"email": user.email, "name": f"{user.first_name} {user.last_name}".strip()})
+    db.execute(delete(UserRole).where(UserRole.user_id == user_id))
+    db.execute(delete(UserTenant).where(UserTenant.user_id == user_id))
+    db.execute(delete(UserProfile).where(UserProfile.user_id == user_id))
+    db.delete(user)
+    db.commit()
