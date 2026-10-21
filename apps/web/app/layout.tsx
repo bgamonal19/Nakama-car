@@ -20,9 +20,14 @@ export const viewport = {
   themeColor: "#0b2a4a",
 };
 
+// Without a workshop session the app opens straight on the login screen, before any page is painted.
+// Customer and public pages (portal, shared estimates, tracking, first setup) stay reachable without it.
+const loginGate = `try{var p=location.pathname;if(!/^\\/(login|portale|public|segui|setup)(\\/|$)/.test(p)&&!localStorage.getItem("nakama_access_token")){var n=p+location.search;location.replace(n==="/"?"/login":"/login?next="+encodeURIComponent(n))}}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
+      <head><script dangerouslySetInnerHTML={{ __html: loginGate }} /></head>
       <body><LanguageProvider><ThemeProvider>{children}<UpdateWatcher /></ThemeProvider></LanguageProvider></body>
     </html>
   );
