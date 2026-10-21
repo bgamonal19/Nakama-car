@@ -4,6 +4,8 @@ import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, hasPermission } from "../lib/api";
 import { portalFetch } from "../lib/portal";
+import { deleteVehiclesWithConfirm } from "../lib/vehicleDeletion";
+import { VehicleProfile } from "./VehicleProfile";
 
 type Job = { kind: "TASK" | "REQUEST" | "MAINTENANCE"; description: string; status: string; case_number: string | null; case_id: string | null; date?: string | null; km?: number | null; note?: string | null };
 type Maintenance = { state: "OK" | "SOON" | "DUE" | "UNKNOWN"; next_service_date?: string | null; next_service_km?: number | null };
@@ -31,10 +33,12 @@ function km(value?: number | null) {
 
 /**
  * Fleet of a customer, plate by plate, with jobs to do and jobs done.
- * Staff mode adds the import from the customer's Excel file; portal mode is read-only.
+ * Staff mode adds the import from the customer's Excel file, selecting and deleting vehicles and
+ * the profile of each vehicle with its history; portal mode is read-only.
  */
 export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVehicle }: { mode: "staff" | "portal"; customerId?: string; query?: string; onOpenVehicle?: (id: string) => void }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const words = (it: string, es: string) => language === "es" ? es : it;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -44,6 +48,10 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
   const [canImport, setCanImport] = useState(false);
   const [pending, setPending] = useState<{ file: File; result: ImportResult } | null>(null);
   const [importing, setImporting] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const query = externalQuery ?? ownQuery;
 
@@ -56,6 +64,9 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
 
   useEffect(() => {
     setCanImport(mode === "staff" && hasPermission("vehicle.write"));
+    setCanDelete(mode === "staff" && hasPermission("vehicle.write"));
+    setSelected(new Set());
+    setProfileId(null);
     setPending(null);
     setNotice("");
     load().catch(() => setError("Errore di connessione."));
@@ -103,12 +114,36 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
     URL.revokeObjectURL(url);
   }
 
-  const needle = query.trim().toUpperCase().replace(/\s+/g, "");
+  async function removeSelected() {
+    setDeleting(true); setError(""); setNotice("");
+    try {
+      const result = await deleteVehiclesWithConfirm([...selected], words);
+      if (!result.deleted.length) return;
+      setSelected(new Set([...selected].filter((id) => !result.deleted.some((item) => item.id === id))));
+      setNotice(`${t("Veicoli eliminati")}: ${result.deleted.length}.${result.kept.length ? ` ${t("Non eliminati")}: ${result.kept.join(", ")}.` : ""}`);
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Errore di connessione."); } finally { setDeleting(false); }
+  }
+
+  function toggle(id: string, on: boolean) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (on) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
+  // Plate, fleet number, make, model, version or VIN; spaces and dashes are ignored ("ab 123-cd" finds AB123CD).
+  const squash = (value: string) => value.toUpperCase().replace(/[\s\-.]+/g, "");
+  const needle = squash(query.trim());
   const vehicles = (profile?.vehicles || []).filter((vehicle) => {
     if (onlyTodo && vehicle.todo.length === 0) return false;
     if (!needle) return true;
-    return [vehicle.license_plate, vehicle.fleet_number, vehicle.make, vehicle.model, vehicle.vin].some((value) => (value || "").toUpperCase().replace(/\s+/g, "").includes(needle));
+    return [vehicle.license_plate, vehicle.fleet_number, vehicle.make, vehicle.model, vehicle.version, vehicle.vin, [vehicle.make, vehicle.model].filter(Boolean).join("")]
+      .some((value) => squash(value || "").includes(needle));
   });
+  const allVisibleSelected = vehicles.length > 0 && vehicles.every((vehicle) => selected.has(vehicle.id));
+  const openVehicle = mode === "staff" ? (id: string) => setProfileId(id) : onOpenVehicle;
 
   return (
     <div className="fleet-profile">
@@ -130,12 +165,32 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
               <button type="button" className="secondary" onClick={() => downloadTemplate().catch(() => setError("Errore di connessione."))}>{t("Scarica modello Excel")}</button>
             </>
           )}
-          {externalQuery === undefined && <input type="search" aria-label={t("Cerca targa")} placeholder={t("Cerca targa, numero flotta o modello")} value={ownQuery} onChange={(e) => setOwnQuery(e.target.value)} />}
           <label className="fleet-only-todo"><input type="checkbox" checked={onlyTodo} onChange={(e) => { setOnlyTodo(e.target.checked); setExpand(null); }} /> {t("Solo con lavori da fare")}</label>
         </div>
       )}
       {mode === "staff" && canImport && !pending && (
         <p className="hint">{t("Colonne lette dal file: Targa (obbligatoria), N. flotta, Marca, Modello, Versione, Anno, Telaio, Km, Tipo, Alimentazione, Colore, Tagliando ogni km, Tagliando ogni mesi, Ultimo tagliando, Km ultimo tagliando. Formati: .xlsx o .csv.")}</p>
+      )}
+      {externalQuery === undefined && (profile?.vehicles.length || 0) > 0 && (
+        <div className="fleet-search">
+          <label>
+            <span aria-hidden="true">🔍</span>
+            <input type="search" aria-label={t("Cerca veicolo")} placeholder={t("Cerca veicolo: targa, n. flotta, marca, modello o telaio")} value={ownQuery} onChange={(e) => setOwnQuery(e.target.value)} />
+          </label>
+          {(needle || onlyTodo) && <small>{vehicles.length} {t("di")} {profile?.vehicles.length} {t("veicoli")}</small>}
+        </div>
+      )}
+      {canDelete && vehicles.length > 0 && (
+        <div className="fleet-selection">
+          <label><input type="checkbox" checked={allVisibleSelected} onChange={(e) => setSelected(e.target.checked ? new Set([...selected, ...vehicles.map((vehicle) => vehicle.id)]) : new Set([...selected].filter((id) => !vehicles.some((vehicle) => vehicle.id === id))))} /> {needle || onlyTodo ? t("Seleziona quelli trovati") : t("Seleziona tutti")}</label>
+          {selected.size > 0 && (
+            <>
+              <strong>{selected.size} {t("selezionati")}</strong>
+              <button type="button" className="secondary record-delete" disabled={deleting} onClick={removeSelected}>{deleting ? t("Eliminazione…") : t("Elimina selezionati")}</button>
+              <button type="button" className="ghost" disabled={deleting} onClick={() => setSelected(new Set())}>{t("Annulla selezione")}</button>
+            </>
+          )}
+        </div>
       )}
       {mode === "portal" && (profile?.totals.with_todo || 0) > 0 && (
         <label className="fleet-only-todo"><input type="checkbox" checked={onlyTodo} onChange={(e) => { setOnlyTodo(e.target.checked); setExpand(null); }} /> {t("Solo con lavori da fare")}</label>
@@ -177,8 +232,9 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
 
       <div className="fleet-vehicles">
         {vehicles.map((vehicle) => (
-          <details key={vehicle.id} className="fleet-vehicle" open={vehicles.length === 1 || (!!needle && vehicles.length <= 3) || (expand === "todo" && vehicle.todo.length > 0) || (expand === "done" && vehicle.done.length > 0)}>
+          <details key={vehicle.id} className={`fleet-vehicle${canDelete ? " selectable" : ""}${selected.has(vehicle.id) ? " selected" : ""}`} open={vehicles.length === 1 || (!!needle && vehicles.length <= 3) || (expand === "todo" && vehicle.todo.length > 0) || (expand === "done" && vehicle.done.length > 0)}>
             <summary>
+              {canDelete && <input type="checkbox" className="fleet-select" aria-label={`${t("Seleziona")} ${vehicle.license_plate}`} checked={selected.has(vehicle.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggle(vehicle.id, e.target.checked)} />}
               <span className="plate-chip">{vehicle.license_plate}</span>
               <span className="fleet-vehicle-name">
                 <strong>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || t("Veicolo")}</strong>
@@ -187,6 +243,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
               <span className={`fleet-count${vehicle.todo.length ? " todo" : ""}`}>{vehicle.todo.length} {t("da fare")}</span>
               <span className="fleet-count">{vehicle.done_total} {t("fatti")}</span>
               <span className={`maintenance-state ${vehicle.maintenance.state.toLowerCase()}`}>{t(stateLabel[vehicle.maintenance.state])}</span>
+              {mode === "staff" && <button type="button" className="secondary fleet-profile-button" onClick={(e) => { e.preventDefault(); setProfileId(vehicle.id); }}>{t("Profilo")}</button>}
             </summary>
             <div className="fleet-jobs">
               <section>
@@ -204,16 +261,18 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
               </section>
             </div>
             {(vehicle.vin || vehicle.version || vehicle.fuel_type) && <p className="hint fleet-vehicle-specs">{[vehicle.version, vehicle.fuel_type, vehicle.vin && `${t("Telaio")} ${vehicle.vin}`].filter(Boolean).join(" · ")}</p>}
-            {onOpenVehicle && <div className="fleet-vehicle-open"><button type="button" className="secondary" onClick={() => onOpenVehicle(vehicle.id)}>{t("Apri scheda veicolo")} →</button></div>}
+            {openVehicle && <div className="fleet-vehicle-open"><button type="button" className="secondary" onClick={() => openVehicle(vehicle.id)}>{mode === "staff" ? t("Profilo veicolo e storico") : t("Apri scheda veicolo")} →</button></div>}
           </details>
         ))}
       </div>
+      {profileId && <VehicleProfile vehicleId={profileId} onClose={() => setProfileId(null)} onChanged={() => { load().catch(() => setError("Errore di connessione.")); }} />}
     </div>
   );
 }
 
 function JobItem({ job, mode }: { job: Job; mode: "staff" | "portal" }) {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const words = (it: string, es: string) => language === "es" ? es : it;
   const status = job.kind === "MAINTENANCE" ? stateLabel[job.status as Maintenance["state"]] : job.kind === "REQUEST" ? "In attesa di lavorazione" : job.status;
   const when = [day(job.date), km(job.km)].filter(Boolean).join(" · ");
   return (

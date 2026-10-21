@@ -2,16 +2,21 @@ import re
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_, select
+from pydantic import BaseModel, Field
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.db.deps import get_db
-from app.models.garage import Customer, Vehicle
+from app.models.billing import Invoice
+from app.models.garage import Customer, RepairCase, Vehicle
+from app.models.integrations import VehicleTelemetry
 from app.models.lookup import VehicleLookup
+from app.models.staff import Diagnosis
 from app.providers import targa
 from app.schemas.garage import PlateLookupResult, VehicleCreate, VehicleRead, VehicleUpdate
-from app.security.context import AuthContext, require_permission
+from app.security.context import AuthContext, is_admin, require_permission
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
 
@@ -209,3 +214,125 @@ def update_vehicle(
     db.commit()
     db.refresh(vehicle)
     return vehicle
+
+
+def vehicle_deletion(db: Session, vehicle: Vehicle) -> dict:
+    """What deleting the vehicle takes with it, and what stops it (same rules as customers).
+
+    Invoices on its cases always stop it. Repair cases need an administrator and ``force``;
+    diagnoses stay without the vehicle and GPS readings go with it.
+    """
+    def count(model, *where) -> int:
+        return db.scalar(select(func.count()).select_from(model).where(*where)) or 0
+
+    case_ids = select(RepairCase.id).where(RepairCase.vehicle_id == vehicle.id)
+    invoices = count(Invoice, Invoice.repair_case_id.in_(case_ids))
+    cases = count(RepairCase, RepairCase.vehicle_id == vehicle.id)
+    return {
+        "id": str(vehicle.id),
+        "license_plate": vehicle.license_plate,
+        "cases": cases,
+        "telemetry": count(VehicleTelemetry, VehicleTelemetry.vehicle_id == vehicle.id),
+        "invoices": invoices,
+        "has_history": bool(cases),
+        "blocked": f"Impossibile eliminare il veicolo {vehicle.license_plate}: ha {invoices} fatture, che restano in archivio." if invoices else None,
+    }
+
+
+def deletion_refusal(impact: dict, force: bool, auth: AuthContext) -> tuple[int, str] | None:
+    if impact["blocked"]:
+        return 409, impact["blocked"]
+    if impact["has_history"]:
+        if not force:
+            return 409, f"Impossibile eliminare il veicolo {impact['license_plate']}: ha {impact['cases']} pratiche."
+        if not is_admin(auth):
+            return 403, f"Solo un amministratore può eliminare il veicolo {impact['license_plate']}, che ha pratiche."
+    return None
+
+
+def remove_vehicle(db: Session, vehicle: Vehicle, impact: dict, auth: AuthContext) -> None:
+    from app.api.v1.cases import remove_case
+
+    for case in db.scalars(select(RepairCase).where(RepairCase.vehicle_id == vehicle.id, RepairCase.tenant_id == auth.tenant_id)).all():
+        remove_case(db, case, auth, forced=True)
+    db.flush()
+    db.execute(update(Diagnosis).where(Diagnosis.vehicle_id == vehicle.id).values(vehicle_id=None))
+    for reading in db.scalars(select(VehicleTelemetry).where(VehicleTelemetry.vehicle_id == vehicle.id)).all():
+        db.delete(reading)
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="vehicle", entity_id=vehicle.id,
+                 action="deleted", old_value={"license_plate": vehicle.license_plate, "cases": impact["cases"], "customer_id": str(vehicle.customer_id) if vehicle.customer_id else None})
+    db.delete(vehicle)
+    db.flush()
+
+
+def tenant_vehicle(db: Session, auth: AuthContext, vehicle_id: UUID) -> Vehicle:
+    vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.tenant_id == auth.tenant_id))
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return vehicle
+
+
+@router.get("/{vehicle_id}/deletion")
+def preview_vehicle_deletion(vehicle_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("vehicle.write"))):
+    return vehicle_deletion(db, tenant_vehicle(db, auth, vehicle_id))
+
+
+@router.delete("/{vehicle_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_vehicle(
+    vehicle_id: UUID,
+    force: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.write")),
+):
+    """Remove a vehicle added by mistake or no longer in the fleet; with history only an administrator (``force``)."""
+    vehicle = tenant_vehicle(db, auth, vehicle_id)
+    impact = vehicle_deletion(db, vehicle)
+    refusal = deletion_refusal(impact, force, auth)
+    if refusal:
+        raise HTTPException(status_code=refusal[0], detail=refusal[1])
+    remove_vehicle(db, vehicle, impact, auth)
+    db.commit()
+
+
+class BulkDelete(BaseModel):
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+    force: bool = False
+
+
+@router.post("/bulk-delete")
+def bulk_delete_vehicles(
+    payload: BulkDelete,
+    dry_run: bool = False,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("vehicle.write")),
+):
+    """Delete the selected vehicles that can go and say why the others stay.
+
+    With ``dry_run`` nothing changes: the answer is the plan the confirmation shows.
+    """
+    vehicles = db.scalars(select(Vehicle).where(Vehicle.id.in_(set(payload.ids)), Vehicle.tenant_id == auth.tenant_id)).all()
+    deleted, refused, plans, cases = [], [], [], 0
+    for vehicle in sorted(vehicles, key=lambda item: item.license_plate):
+        impact = vehicle_deletion(db, vehicle)
+        plans.append(impact)
+        refusal = deletion_refusal(impact, payload.force, auth)
+        if refusal:
+            refused.append({"id": impact["id"], "license_plate": vehicle.license_plate, "reason": refusal[1]})
+            continue
+        if not dry_run:
+            remove_vehicle(db, vehicle, impact, auth)
+        deleted.append({"id": impact["id"], "license_plate": vehicle.license_plate})
+        cases += impact["cases"]
+    if dry_run:
+        db.rollback()
+    else:
+        db.commit()
+    return {
+        "dry_run": dry_run,
+        "deleted": deleted,
+        "refused": refused,
+        "cases": cases,  # the ones that go with the deleted vehicles
+        "with_history": [plan["license_plate"] for plan in plans if plan["has_history"] and not plan["blocked"]],
+        "blocked": [plan["license_plate"] for plan in plans if plan["blocked"]],
+        "is_admin": is_admin(auth),
+    }

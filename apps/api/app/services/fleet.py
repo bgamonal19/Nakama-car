@@ -9,6 +9,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.estimating import Estimate, EstimateStatus
 from app.models.garage import Customer, RepairCase, Vehicle
 from app.models.workshop import WorkOrder, WorkOrderTask, WorkTaskStatus
 from app.services import tracking
@@ -22,8 +23,11 @@ DONE_LIMIT = 50
 COLUMNS: dict[str, tuple[str, ...]] = {
     "license_plate": ("targa", "matricula", "placa", "plate", "licenseplate", "patente"),
     "fleet_number": ("nflotta", "numeroflotta", "flotta", "ninterno", "interno", "nflota", "numeroflota", "flota", "fleetnumber", "fleet", "codice"),
-    "make": ("marca", "make", "brand"),
-    "model": ("modello", "modelo", "model"),
+    "make": ("marca", "make", "brand", "marcaveicolo", "costruttore", "casacostruttrice", "fabbricante", "produttore", "fabricante"),
+    "model": ("modello", "modelo", "model", "modelloveicolo", "modeloveiculo", "modelovehiculo"),
+    # "Fiat Ducato 2.3" in one cell: split into make and model when those columns are missing.
+    "description": ("marcaemodello", "marcamodello", "marcaymodelo", "veicolo", "vehiculo", "descrizione", "descrizioneveicolo",
+                    "descripcion", "mezzo", "automezzo", "denominazione", "makemodel", "vehicle", "description"),
     "version": ("versione", "version", "allestimento"),
     "year": ("anno", "ano", "year", "annoimmatricolazione", "immatricolazione"),
     "vin": ("telaio", "vin", "bastidor", "ntelaio", "chassis"),
@@ -58,7 +62,9 @@ CATEGORIES = {
     "MOTORCYCLE": ("motorcycle", "moto", "motociclo", "scooter", "ciclomotore"),
     "OTHER": ("other", "altro", "otro"),
 }
-TEXT_LIMITS = {"fleet_number": 40, "vin": 32, "fuel_type": 40, "engine_size": 20, "make": 120, "model": 120, "version": 160, "color_name": 120}
+# Headers that start with these words are read even when the rest differs ("Marca veicolo", "Modello / versione").
+PREFIXES = (("targa", "license_plate"), ("matricola", "license_plate"), ("marca", "make"), ("modell", "model"), ("telaio", "vin"))
+TEXT_LIMITS = {"description": 280, "fleet_number": 40, "vin": 32, "fuel_type": 40, "engine_size": 20, "make": 120, "model": 120, "version": 160, "color_name": 120}
 INT_RANGES = {
     "year": (1886, 2100), "mileage": (0, 10_000_000), "power_kw": (0, 2000),
     "service_interval_km": (0, 500_000), "service_interval_months": (0, 120), "last_service_km": (0, 10_000_000),
@@ -153,6 +159,78 @@ def fleet_profile(db: Session, customer: Customer) -> dict:
     }
 
 
+# Words that mark a case as routine maintenance rather than a repair (checked in requests and tasks).
+MAINTENANCE_WORDS = (
+    "tagliando", "manutenzione", "revisione", "cambioolio", "olio", "filtri", "filtro", "service",
+    "mantenimiento", "revision", "aceite", "pneumatic", "gomme", "cambiogomme", "neumatic",
+)
+
+
+def case_kind(case: RepairCase, descriptions: list[str]) -> str:
+    """MAINTENANCE for services (tagliando, oil, filters, tyres), otherwise REPAIR."""
+    text = key(" ".join([case.customer_notes or "", *descriptions]))
+    return "MAINTENANCE" if any(word in text for word in MAINTENANCE_WORDS) else "REPAIR"
+
+
+def vehicle_profile(db: Session, vehicle: Vehicle) -> dict:
+    """Card of one vehicle: its data, maintenance plan and every case with the work done, newest first."""
+    tenant_id = vehicle.tenant_id
+    customer = db.get(Customer, vehicle.customer_id) if vehicle.customer_id else None
+    cases = db.scalars(
+        select(RepairCase)
+        .where(RepairCase.vehicle_id == vehicle.id, RepairCase.tenant_id == tenant_id)
+        .order_by(RepairCase.created_at.desc())
+    ).all()
+    tasks: dict = {case.id: [] for case in cases}
+    if cases:
+        for task, case_id in db.execute(
+            select(WorkOrderTask, WorkOrder.repair_case_id)
+            .join(WorkOrder, WorkOrder.id == WorkOrderTask.work_order_id)
+            .where(WorkOrder.repair_case_id.in_(list(tasks)), WorkOrder.tenant_id == tenant_id, WorkOrderTask.tenant_id == tenant_id)
+            .order_by(WorkOrder.created_at, WorkOrderTask.sort_order, WorkOrderTask.created_at)
+        ).all():
+            tasks[case_id].append(task)
+    totals: dict = {}
+    if cases:
+        for estimate in db.scalars(
+            select(Estimate)
+            .where(Estimate.repair_case_id.in_(list(tasks)), Estimate.tenant_id == tenant_id,
+                   Estimate.status.not_in([EstimateStatus.DRAFT, EstimateStatus.SUPERSEDED]))
+            .order_by(Estimate.created_at)
+        ).all():
+            totals[estimate.repair_case_id] = str(estimate.total)  # the latest one wins
+    history = []
+    for case in cases:
+        items = tasks[case.id]
+        history.append({
+            "id": str(case.id), "case_number": case.case_number, "status": case.status.value,
+            "work_type": case.work_type or "BODY", "kind": case_kind(case, [task.description for task in items]),
+            "closed": tracking.is_closed(case), "opened_at": case.opened_at or case.created_at,
+            "mileage": case.mileage, "customer_notes": case.customer_notes, "estimate_total": totals.get(case.id),
+            "tasks": [
+                {"description": task.description, "status": task.status.value, "note": task.note, "completed_at": task.completed_at}
+                for task in items
+            ],
+        })
+    return {
+        "id": str(vehicle.id), "license_plate": vehicle.license_plate, "fleet_number": vehicle.fleet_number,
+        "make": vehicle.make, "model": vehicle.model, "version": vehicle.version, "year": vehicle.year,
+        "vin": vehicle.vin, "mileage": vehicle.mileage, "vehicle_category": vehicle.vehicle_category,
+        "fuel_type": vehicle.fuel_type, "engine_size": vehicle.engine_size, "power_kw": vehicle.power_kw,
+        "color_name": vehicle.color_name,
+        "customer_id": str(customer.id) if customer else None,
+        "customer_name": tracking.customer_display_name(customer) if customer else None,
+        "maintenance": maintenance_status(vehicle),
+        "totals": {
+            "cases": len(history),
+            "repairs": sum(1 for item in history if item["kind"] == "REPAIR"),
+            "maintenance": sum(1 for item in history if item["kind"] == "MAINTENANCE"),
+            "open": sum(1 for item in history if not item["closed"]),
+        },
+        "history": history,
+    }
+
+
 # ---------- import ----------
 
 def read_table(content: bytes, filename: str) -> list[list[object]]:
@@ -189,7 +267,8 @@ def find_header(table: list[list[object]]) -> tuple[int, dict[int, str]]:
     for index, row in enumerate(table[:15]):
         mapping: dict[int, str] = {}
         for column, cell in enumerate(row):
-            field = lookup.get(key(cell))
+            header = key(cell)
+            field = lookup.get(header) or next((name for prefix, name in PREFIXES if header.startswith(prefix)), None)
             if field and field not in mapping.values():
                 mapping[column] = field
         if "license_plate" in mapping.values():
@@ -270,6 +349,19 @@ def clean_row(row: list[object], mapping: dict[int, str]) -> tuple[dict, list[st
     return data, warnings
 
 
+def split_description(data: dict) -> None:
+    """Fill make and model from a single "vehicle" text when the file has no separate columns."""
+    words = (data.pop("description", "") or "").split()
+    if not words:
+        return
+    if not data.get("make"):
+        data["make"] = words.pop(0)[:TEXT_LIMITS["make"]]
+    elif words and key(words[0]) == key(data["make"]):
+        words.pop(0)
+    if words and not data.get("model"):
+        data["model"] = " ".join(words)[:TEXT_LIMITS["model"]]
+
+
 def import_fleet(db: Session, customer: Customer, content: bytes, filename: str, dry_run: bool) -> dict:
     """Create or update the customer's vehicles from the file; with dry_run nothing is saved."""
     table = read_table(content, filename)
@@ -290,9 +382,11 @@ def import_fleet(db: Session, customer: Customer, content: bytes, filename: str,
     counts = {"created": 0, "updated": 0, "skipped": 0}
     for number, row in body:
         data, warnings = clean_row(row, mapping)
+        split_description(data)
         plate = data.pop("license_plate", "")
         result = {"row": number, "license_plate": plate, "warnings": warnings}
-        if not 2 <= len(plate) <= 20:
+        # A plate always has a digit: rows like "AZIENDA" or "TOTALE" are titles or notes, not vehicles.
+        if not 2 <= len(plate) <= 20 or not any(char.isdigit() for char in plate):
             results.append({**result, "action": "skipped", "message": "Targa mancante o non valida"})
             counts["skipped"] += 1
             continue
