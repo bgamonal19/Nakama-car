@@ -1,4 +1,4 @@
-"""Customer fleet profile and fleet import from Excel/CSV."""
+"""Customer fleet profile, vehicle profile and fleet import from Excel/CSV."""
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.garage import Customer
+from app.models.garage import Customer, Vehicle
 from app.security.context import AuthContext, require_permission
 from app.services import fleet
 
@@ -23,6 +23,14 @@ def tenant_customer(db: Session, tenant_id: UUID, customer_id: UUID) -> Customer
 @router.get("/customers/{customer_id}/fleet")
 def customer_fleet(customer_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("vehicle.read"))):
     return fleet.fleet_profile(db, tenant_customer(db, auth.tenant_id, customer_id))
+
+
+@router.get("/vehicles/{vehicle_id}/profile")
+def vehicle_profile(vehicle_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("vehicle.read"))):
+    vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.tenant_id == auth.tenant_id))
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    return fleet.vehicle_profile(db, vehicle)
 
 
 @router.post("/customers/{customer_id}/fleet/import")

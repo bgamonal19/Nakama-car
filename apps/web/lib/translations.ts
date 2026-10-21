@@ -1680,6 +1680,55 @@ Object.assign(spanish, {
   "Impossibile eliminare il cliente: una pratica ha fatture.": "No se puede eliminar el cliente: un expediente tiene facturas."
 });
 
+// Fleet: search, selecting and deleting vehicles, vehicle profile with its history.
+Object.assign(spanish, {
+  "Annulla selezione": "Quitar selección",
+  "Cerca veicolo": "Buscar vehículo",
+  "Cerca veicolo: targa, n. flotta, marca, modello o telaio": "Buscar vehículo: matrícula, n.º de flota, marca, modelo o bastidor",
+  "Dati del veicolo": "Datos del vehículo",
+  "Dati del veicolo aggiornati dalla targa.": "Datos del vehículo actualizados desde la matrícula.",
+  "Elimina selezionati": "Eliminar seleccionados",
+  "Elimina veicolo": "Eliminar vehículo",
+  "Eliminazione…": "Eliminando…",
+  "Filtra storico": "Filtrar historial",
+  "Impossibile caricare il veicolo.": "No se pudo cargar el vehículo.",
+  "Imposta l'intervallo e l'ultimo tagliando per avere gli avvisi di manutenzione.": "Indica el intervalo y la última revisión para recibir los avisos de mantenimiento.",
+  "Km ultimo tagliando": "Km última revisión",
+  "Limite mensile di ricerche per targa raggiunto.": "Se alcanzó el límite mensual de búsquedas por matrícula.",
+  "Manutenzioni": "Mantenimientos",
+  "Marca e modello non indicati": "Marca y modelo sin indicar",
+  "Modifica dati": "Editar datos",
+  "Modifica piano": "Editar plan",
+  "Nessun intervento registrato per questo veicolo.": "No hay intervenciones registradas para este vehículo.",
+  "Non eliminati": "No eliminados",
+  "Piano di manutenzione salvato.": "Plan de mantenimiento guardado.",
+  "Profilo veicolo": "Perfil del vehículo",
+  "Profilo veicolo e storico": "Perfil del vehículo e historial",
+  "Prossimo tagliando": "Próxima revisión",
+  "Prossimo tagliando (data fissa)": "Próxima revisión (fecha fija)",
+  "Prossimo tagliando (km fissi)": "Próxima revisión (km fijos)",
+  "Prossimo tagliando a": "Próxima revisión a los",
+  "Recupera marca e modello dalla targa": "Obtener marca y modelo desde la matrícula",
+  "Ricerca per targa non configurata.": "La búsqueda por matrícula no está configurada.",
+  "Ricerca per targa non riuscita.": "La búsqueda por matrícula falló.",
+  "Riparazione": "Reparación",
+  "Riparazioni": "Reparaciones",
+  "Seleziona": "Seleccionar",
+  "Seleziona quelli trovati": "Seleccionar los encontrados",
+  "Seleziona tutti": "Seleccionar todos",
+  "Storico riparazioni e manutenzioni": "Historial de reparaciones y mantenimientos",
+  "Tagliando ogni km": "Revisión cada km",
+  "Tagliando ogni mesi": "Revisión cada meses",
+  "Targa non trovata nella banca dati.": "Matrícula no encontrada en la base de datos.",
+  "Tutto": "Todo",
+  "Veicoli eliminati": "Vehículos eliminados",
+  "mancano": "faltan",
+  "scaduto da": "vencido hace",
+  "superato di": "superado en",
+  "selezionati": "seleccionados",
+  "veicoli": "vehículos"
+});
+
 export function translate(text: string, language: Language): string {
   if (Object.prototype.hasOwnProperty.call(codes, text)) return codes[text][language === "es" ? 1 : 0];
   return language === "es" && Object.prototype.hasOwnProperty.call(spanish, text) ? spanish[text] : text;
