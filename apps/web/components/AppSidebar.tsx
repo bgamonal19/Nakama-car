@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { LanguageSwitcher, useLanguage } from "./LanguageProvider";
 import { ThemeToggle } from "./ThemeProvider";
+import { UpdateAppButton } from "./UpdateWatcher";
 import { NakamaLogo } from "./NakamaLogo";
 import { NavIcon } from "./NavIcon";
 import { ChatBubble } from "./ChatBubble";
@@ -140,7 +141,7 @@ export function AppSidebar() {
     <div className="sidebar-bottom">
       <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.filter(allowed).map(link)}</nav>
       {user?.work_area && <p className="sidebar-area">{t("Area")}: <strong>{t(areaNames[user.work_area])}</strong></p>}
-      <div className="sidebar-preferences"><LanguageSwitcher /><ThemeToggle /></div>
+      <div className="sidebar-preferences"><LanguageSwitcher /><ThemeToggle /><UpdateAppButton /></div>
       <div className="nakama-location"><strong>NAKAMA CAR</strong><span>Bussnago · Lombardia</span><i><b></b><b></b><b></b></i></div>
     </div>
   </aside>

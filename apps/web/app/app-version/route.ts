@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 const STARTED = String(Date.now());
-const BUILD = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || STARTED;
+const BUILD = process.env.RAILWAY_GIT_COMMIT_SHA || process.env.VERCEL_GIT_COMMIT_SHA || process.env.RAILWAY_DEPLOYMENT_ID || STARTED;
 
 export function GET() {
   return Response.json({ build: BUILD }, { headers: { "Cache-Control": "no-store, max-age=0" } });
