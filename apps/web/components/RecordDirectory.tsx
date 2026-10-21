@@ -65,6 +65,10 @@ export function RecordDirectory({kind}: {kind: Kind}) {
   const [historyOffset,setHistoryOffset] = useState(0);
   const [historyBusy,setHistoryBusy] = useState(false);
   const [historyError,setHistoryError] = useState("");
+  // The record opens above the list: bring it into view, wherever the user clicked "Apri scheda".
+  const editorRef=useRef<HTMLElement|null>(null);
+  const [opened,setOpened]=useState(0);
+  useEffect(()=>{if(opened)editorRef.current?.scrollIntoView({behavior:"smooth",block:"start"});},[opened]);
 
   async function read<T>(path:string,init?:RequestInit):Promise<T> {
     const response = await apiFetch(path,init);
@@ -127,12 +131,12 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     setOpening(true);setError("");setNotice("");
     try {
       const data=kind==="cases"?await read<RecordData>(`/cases/${item.id}`):item;
-      setSelected({...item,...data});setHistoryOffset(0);
+      setSelected({...item,...data});setHistoryOffset(0);setOpened(n=>n+1);
       setDraft(Object.fromEntries(definition.fields.map(f=>[f.key,String(data[f.key]??"")])));
     } catch(e){setError(message(e));}finally{setOpening(false);}
   }
   function create() {
-    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);
+    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);
   }
   async function save(event:FormEvent) {
     event.preventDefault();if(!selected||!canWrite)return;
@@ -199,7 +203,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       </form>
       {error&&<div className="record-error" role="alert">{t(error)} <a href="/login">{words("Accedi","Iniciar sesión")}</a> <button className="ghost" onClick={()=>setRefresh(n=>n+1)}>{words("Riprova","Reintentar")}</button></div>}
       {notice&&<p role="status">{notice}</p>}
-      {selected&&<section className="panel record-editor" aria-label={words("Scheda","Ficha")}>
+      {selected&&<section ref={editorRef} className="panel record-editor" aria-label={words("Scheda","Ficha")}>
         <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
         {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} workType={selected.work_type?String(selected.work_type):undefined} />}
