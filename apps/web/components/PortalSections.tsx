@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { ThemeToggle } from "./ThemeProvider";
+import { UpdateAppButton } from "./UpdateWatcher";
 import { LanguageSwitcher } from "./LanguageProvider";
 import { NavIcon } from "./NavIcon";
 import { ChatMessage, ChatPresence, ChatThread } from "./ChatThread";
@@ -64,6 +65,7 @@ export function PortalSidebar({ active, onSelect, open, onClose, counts }: {
       <div className="portal-sidebar-bottom">
         <LanguageSwitcher />
         <ThemeToggle />
+        <UpdateAppButton />
       </div>
     </aside>
   </>;

@@ -2046,3 +2046,8 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
   .fleet-vehicle.selectable summary, .fleet-vehicle summary:has(.fleet-profile-button) { grid-template-columns: auto auto 1fr; }
   .fleet-vehicle.selectable summary :is(.fleet-count, .maintenance-state, .fleet-profile-button) { grid-column: span 1; }
 }
+
+/* Side-menu button that loads the latest version of the app, with the version in use */
+.update-app-button span { display: grid; text-align: left; line-height: 1.2; }
+.update-app-button small { font-size: 11px; opacity: .65; font-weight: 400; }
+.update-app-button:disabled { opacity: .6; cursor: progress; }
