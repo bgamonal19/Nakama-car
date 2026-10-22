@@ -5,7 +5,7 @@ from datetime import date
 from app.models.garage import Vehicle
 
 SOON_DAYS = 30
-SOON_KM = 1500
+SOON_KM = 5000
 
 
 def add_months(start: date, months: int) -> date:

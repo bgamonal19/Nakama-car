@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.estimating import Estimate, EstimateStatus
-from app.models.garage import Customer, RepairCase, Vehicle
+from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
 from app.models.workshop import WorkOrder, WorkOrderTask, WorkTaskStatus
 from app.services import tracking
 from app.services.maintenance import maintenance_status
@@ -128,7 +128,9 @@ def vehicle_jobs(db: Session, vehicle: Vehicle) -> dict:
         elif not tracking.is_closed(case):
             todo.append({**item, "date": case.opened_at or case.created_at})
     done.sort(key=lambda item: str(item["date"] or ""), reverse=True)
-    return {"todo": todo, "done": done[:DONE_LIMIT], "done_total": len(done)}
+    # In the workshop: an open case not yet ready for pick-up (same rule as the portal's "In officina").
+    in_workshop = any(not tracking.is_closed(case) and case.status != RepairCaseStatus.READY for case in cases)
+    return {"todo": todo, "done": done[:DONE_LIMIT], "done_total": len(done), "in_workshop": in_workshop}
 
 
 def fleet_profile(db: Session, customer: Customer) -> dict:
