@@ -59,6 +59,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
+  const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
   const query = externalQuery ?? ownQuery;
 
@@ -260,11 +261,25 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
                 )}
               </section>
               <section>
-                <h4>{t("Lavori fatti")}</h4>
-                {vehicle.done.length === 0 ? <p className="hint">{t("Nessun lavoro registrato.")}</p> : (
-                  <ul>{vehicle.done.map((job, index) => <JobItem key={index} job={job} mode={mode} />)}</ul>
-                )}
-                {vehicle.done_total > vehicle.done.length && <p className="hint">{t("Mostrati gli ultimi")} {vehicle.done.length} {t("di")} {vehicle.done_total}.</p>}
+                {(() => {
+                  // The history of done jobs stays collapsed until opened (or the "done" total was clicked).
+                  const historyOpen = expand === "done" || openHistory.has(vehicle.id);
+                  return <>
+                    <div className="fleet-history-head">
+                      <h4>{t("Lavori fatti")}</h4>
+                      {vehicle.done.length > 0 && expand !== "done" && (
+                        <button type="button" className="secondary fleet-history-toggle" aria-expanded={historyOpen} onClick={() => setOpenHistory((current) => {
+                          const next = new Set(current);
+                          if (next.has(vehicle.id)) next.delete(vehicle.id); else next.add(vehicle.id);
+                          return next;
+                        })}>{historyOpen ? `▴ ${t("Nascondi storico")}` : `▾ ${t("Mostra storico")} (${vehicle.done_total})`}</button>
+                      )}
+                    </div>
+                    {vehicle.done.length === 0 && <p className="hint">{t("Nessun lavoro registrato.")}</p>}
+                    {vehicle.done.length > 0 && historyOpen && <ul>{vehicle.done.map((job, index) => <JobItem key={index} job={job} mode={mode} />)}</ul>}
+                    {historyOpen && vehicle.done_total > vehicle.done.length && <p className="hint">{t("Mostrati gli ultimi")} {vehicle.done.length} {t("di")} {vehicle.done_total}.</p>}
+                  </>;
+                })()}
               </section>
             </div>
             {(vehicle.vin || vehicle.version || vehicle.fuel_type) && <p className="hint fleet-vehicle-specs">{[vehicle.version, vehicle.fuel_type, vehicle.vin && `${t("Telaio")} ${vehicle.vin}`].filter(Boolean).join(" · ")}</p>}
