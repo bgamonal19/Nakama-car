@@ -12,13 +12,20 @@ type Maintenance = { state: "OK" | "SOON" | "DUE" | "UNKNOWN"; next_service_date
 type FleetVehicle = {
   id: string; license_plate: string; fleet_number?: string | null; make?: string | null; model?: string | null; version?: string | null;
   year?: number | null; vin?: string | null; mileage?: number | null; vehicle_category: string; fuel_type?: string | null;
-  maintenance: Maintenance; todo: Job[]; done: Job[]; done_total: number;
+  maintenance: Maintenance; todo: Job[]; done: Job[]; done_total: number; in_workshop?: boolean;
 };
 type Profile = { customer_name: string; totals: { vehicles: number; with_todo: number; todo: number; done: number }; vehicles: FleetVehicle[] };
 type ImportRow = { row: number; license_plate: string; action: "created" | "updated" | "skipped"; message: string | null; warnings: string[] };
 type ImportResult = { dry_run: boolean; created: number; updated: number; skipped: number; rows: ImportRow[] };
 
 const stateLabel: Record<Maintenance["state"], string> = { OK: "In regola", SOON: "Manutenzione vicina", DUE: "Manutenzione scaduta", UNKNOWN: "Piano non impostato" };
+
+// Row colour: red when the service is overdue or the vehicle is in the workshop, orange when it is close, green when in order.
+function rowTone(vehicle: FleetVehicle): string {
+  if (vehicle.in_workshop || vehicle.maintenance.state === "DUE") return " tone-due";
+  if (vehicle.maintenance.state === "SOON") return " tone-soon";
+  return vehicle.maintenance.state === "OK" ? " tone-ok" : "";
+}
 const actionLabel: Record<ImportRow["action"], string> = { created: "Nuovo", updated: "Aggiornato", skipped: "Scartato" };
 
 function day(value?: string | null) {
@@ -232,7 +239,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
 
       <div className="fleet-vehicles">
         {vehicles.map((vehicle) => (
-          <details key={vehicle.id} className={`fleet-vehicle${canDelete ? " selectable" : ""}${selected.has(vehicle.id) ? " selected" : ""}`} open={vehicles.length === 1 || (!!needle && vehicles.length <= 3) || (expand === "todo" && vehicle.todo.length > 0) || (expand === "done" && vehicle.done.length > 0)}>
+          <details key={vehicle.id} className={`fleet-vehicle${rowTone(vehicle)}${canDelete ? " selectable" : ""}${selected.has(vehicle.id) ? " selected" : ""}`} open={vehicles.length === 1 || (!!needle && vehicles.length <= 3) || (expand === "todo" && vehicle.todo.length > 0) || (expand === "done" && vehicle.done.length > 0)}>
             <summary>
               {canDelete && <input type="checkbox" className="fleet-select" aria-label={`${t("Seleziona")} ${vehicle.license_plate}`} checked={selected.has(vehicle.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggle(vehicle.id, e.target.checked)} />}
               <span className="plate-chip">{vehicle.license_plate}</span>
@@ -242,7 +249,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
               </span>
               <span className={`fleet-count${vehicle.todo.length ? " todo" : ""}`}>{vehicle.todo.length} {t("da fare")}</span>
               <span className="fleet-count">{vehicle.done_total} {t("fatti")}</span>
-              <span className={`maintenance-state ${vehicle.maintenance.state.toLowerCase()}`}>{t(stateLabel[vehicle.maintenance.state])}</span>
+              <span className={`maintenance-state ${vehicle.maintenance.state.toLowerCase()}`}>{t(stateLabel[vehicle.maintenance.state])}{vehicle.in_workshop && <em className="fleet-in-workshop">{t("In officina")}</em>}</span>
               {mode === "staff" && <button type="button" className="secondary fleet-profile-button" onClick={(e) => { e.preventDefault(); setProfileId(vehicle.id); }}>{t("Profilo")}</button>}
             </summary>
             <div className="fleet-jobs">

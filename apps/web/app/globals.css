@@ -2003,6 +2003,14 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 .fleet-vehicle.selectable summary { grid-template-columns: auto auto 1fr auto auto auto auto; }
 .fleet-vehicle summary:has(.fleet-profile-button):not(:has(.fleet-select)) { grid-template-columns: auto 1fr auto auto auto auto; }
 .fleet-vehicle.selected { border-color: #1f4aa0; box-shadow: inset 0 0 0 1px #1f4aa0; }
+.fleet-vehicle.tone-due { background: #fdeceb; border-color: #e8a5a2; border-left: 6px solid #b3322e; }
+.fleet-vehicle.tone-soon { background: #fff4e2; border-color: #efc684; border-left: 6px solid #d9861a; }
+.fleet-vehicle.tone-ok { background: #eaf6ee; border-color: #a9d7b8; border-left: 6px solid #1d6b3a; }
+.fleet-in-workshop { color: #b3322e; font-style: normal; }
+[data-theme="dark"] .fleet-vehicle.tone-due { background: #3a1d1f; border-color: #7a3431; border-left-color: #e0625d; }
+[data-theme="dark"] .fleet-vehicle.tone-soon { background: #3a2c14; border-color: #7a5a22; border-left-color: #f0a640; }
+[data-theme="dark"] .fleet-vehicle.tone-ok { background: #14311f; border-color: #2e6a43; border-left-color: #4cc27a; }
+[data-theme="dark"] .fleet-in-workshop { color: #f08a85; }
 .fleet-select { width: 18px; height: 18px; margin: 0; cursor: pointer; }
 .fleet-profile-button { padding: 4px 10px; font-size: 13px; }
 .vehicle-profile { width: min(980px, 100%); max-height: calc(100vh - 36px); overflow: auto; padding: 18px; display: grid; gap: 14px; align-content: start; }
@@ -2051,3 +2059,6 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 .update-app-button span { display: grid; text-align: left; line-height: 1.2; }
 .update-app-button small { font-size: 11px; opacity: .65; font-weight: 400; }
 .update-app-button:disabled { opacity: .6; cursor: progress; }
+[data-theme="dark"] .fleet-vehicle:is(.tone-due, .tone-soon, .tone-ok) .maintenance-state.due { color: #f08a85; }
+[data-theme="dark"] .fleet-vehicle:is(.tone-due, .tone-soon, .tone-ok) .maintenance-state.soon { color: #f5b860; }
+[data-theme="dark"] .fleet-vehicle:is(.tone-due, .tone-soon, .tone-ok) .maintenance-state.ok { color: #6fd398; }

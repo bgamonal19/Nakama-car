@@ -42,6 +42,8 @@ def test_fleet_profile_lists_jobs_to_do_and_done_by_plate(client):
     van = by_plate["GH456JK"]
     assert {job["kind"] for job in van["todo"]} == {"REQUEST", "MAINTENANCE"}
     assert any(job["description"] == "Spia motore accesa" for job in van["todo"])
+    # Both have an open case, so both are in the workshop (red row in the list).
+    assert truck["in_workshop"] and van["in_workshop"]
 
     # The customer sees the same profile from the portal.
     account = c.post(f"/api/v1/customers/{customer['id']}/portal-accounts", json={"email": "flotta@univex.example.com", "full_name": "Ufficio flotta"}).json()
@@ -103,3 +105,16 @@ def test_fleet_import_csv_template_and_errors(client):
     assert headers[0] == "Targa"
     reimport = c.post(url + "?filename=modello.xlsx&dry_run=true", content=template.content).json()
     assert reimport["created"] == 1 and not reimport["rows"][0]["warnings"]
+
+
+def test_maintenance_is_soon_within_5000_km():
+    from app.models.garage import Vehicle
+    from app.services.maintenance import maintenance_status
+
+    def state(mileage):
+        vehicle = Vehicle(mileage=mileage, last_service_km=100000, service_interval_km=20000)
+        return maintenance_status(vehicle)["state"]
+
+    assert state(114999) == "OK"
+    assert state(115000) == "SOON"
+    assert state(120000) == "DUE"
