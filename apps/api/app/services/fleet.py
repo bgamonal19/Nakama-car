@@ -127,6 +127,8 @@ def vehicle_jobs(db: Session, vehicle: Vehicle) -> dict:
             done.append({**item, "date": task.completed_at or task.updated_at})
         elif not tracking.is_closed(case):
             todo.append({**item, "date": case.opened_at or case.created_at})
+    # Newest first in both lists.
+    todo.sort(key=lambda item: str(item["date"] or ""), reverse=True)
     done.sort(key=lambda item: str(item["date"] or ""), reverse=True)
     # In the workshop: an open case not yet ready for pick-up (same rule as the portal's "In officina").
     in_workshop = any(not tracking.is_closed(case) and case.status != RepairCaseStatus.READY for case in cases)

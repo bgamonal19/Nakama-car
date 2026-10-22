@@ -71,6 +71,8 @@ export const spanish: Record<string, string> = {
   "scartati": "descartados",
   "Con lavori da fare": "Con trabajos pendientes",
   "Lavori fatti": "Trabajos hechos",
+  "Mostra storico": "Ver historial",
+  "Nascondi storico": "Ocultar historial",
   "Lettura del file…": "Leyendo el archivo…",
   "Importa flotta da Excel": "Importar flota desde Excel",
   "Scarica modello Excel": "Descargar plantilla Excel",

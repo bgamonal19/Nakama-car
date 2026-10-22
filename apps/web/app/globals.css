@@ -1832,6 +1832,9 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .fleet-count.todo { color: var(--warning); }
 .fleet-jobs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
 .fleet-jobs h4 { margin: 0 0 6px; font-size: 13px; }
+.fleet-history-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.fleet-history-head h4 { margin: 0; }
+.fleet-history-toggle { padding: 4px 10px; font-size: 12px; }
 .fleet-jobs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .fleet-job { display: grid; gap: 2px; padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13px; border-left: 3px solid var(--line); }
 .fleet-job small { color: var(--muted); }
