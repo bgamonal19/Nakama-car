@@ -1,5 +1,5 @@
 """Workshop staff: my profile, quick diagnoses for the office, my work (tasks as buttons)."""
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID, uuid4
@@ -44,12 +44,9 @@ ESTIMATE_STAGE = {
 # ---------- my profile ----------
 
 class ProfileUpdate(BaseModel):
+    # Only what the workshop needs to work with someone (GDPR data minimisation): birth date, tax code
+    # and home address are kept by payroll, not here.
     phone: str | None = Field(default=None, max_length=32)
-    birth_date: date | None = None
-    tax_code: str | None = Field(default=None, max_length=32)
-    address: str | None = Field(default=None, max_length=255)
-    city: str | None = Field(default=None, max_length=120)
-    postal_code: str | None = Field(default=None, max_length=16)
     emergency_contact: str | None = Field(default=None, max_length=160)
     emergency_phone: str | None = Field(default=None, max_length=32)
     skills: str | None = Field(default=None, max_length=2000)

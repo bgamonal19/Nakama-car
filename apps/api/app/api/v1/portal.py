@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.responses import Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -27,7 +27,8 @@ from app.models.portal import PortalAccount
 from app.models.tracking import CaseMessage
 from app.security.context import AuthContext, require_permission
 from app.security.passwords import hash_password, verify_password
-from app.services import fleet, tracking
+from app.schemas.auth import LegalAcceptance
+from app.services import access, fleet, tracking
 from app.services.audit import record_audit
 from app.services.pdf import build_invoice_pdf
 from app.services.integrations import latest_reading
@@ -323,17 +324,34 @@ def portal_case(db: Session, context: PortalContext, case_id: UUID) -> RepairCas
 
 
 @router.post("/portal/auth/login")
-def portal_login(payload: PortalLogin, db: Session = Depends(get_db)):
+def portal_login(payload: PortalLogin, request: Request, db: Session = Depends(get_db)):
     account = db.scalar(select(PortalAccount).where(func.lower(PortalAccount.email) == payload.email.lower()))
     if account is None or not account.active or not verify_password(account.password_hash, payload.password):
+        if account is not None:
+            access.record_access(db, request, tenant_id=account.tenant_id, portal_account_id=account.id, email=account.email, event="LOGIN_FAILED")
+            db.commit()
         raise HTTPException(status_code=401, detail="Email o password non corretti.")
     account.last_login_at = datetime.now(timezone.utc)
+    access.record_access(db, request, tenant_id=account.tenant_id, portal_account_id=account.id, email=account.email, event="LOGIN_OK")
     db.commit()
-    return {"access_token": portal_token(account), "full_name": account.full_name, "must_change_password": account.must_change_password}
+    return {
+        "access_token": portal_token(account), "full_name": account.full_name,
+        "must_change_password": account.must_change_password, "legal_required": access.legal_required(account),
+    }
+
+
+@router.post("/portal/legal")
+def portal_accept_legal(payload: LegalAcceptance, request: Request, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    """The customer ticked both boxes (terms, privacy notice) of the current version."""
+    account = db.get(PortalAccount, context.account_id)
+    access.accept_legal(account)
+    access.record_access(db, request, tenant_id=account.tenant_id, portal_account_id=account.id, email=account.email, event="LEGAL_ACCEPTED")
+    db.commit()
+    return {"legal_version": account.legal_version, "terms_accepted_at": account.terms_accepted_at, "privacy_accepted_at": account.privacy_accepted_at}
 
 
 @router.post("/portal/password")
-def portal_change_password(payload: PasswordChange, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+def portal_change_password(payload: PasswordChange, request: Request, db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
     account = db.get(PortalAccount, context.account_id)
     if not verify_password(account.password_hash, payload.current_password):
         raise HTTPException(status_code=400, detail="La password attuale non è corretta.")
@@ -342,6 +360,7 @@ def portal_change_password(payload: PasswordChange, db: Session = Depends(get_db
     account.password_hash = hash_password(payload.new_password)
     account.must_change_password = False
     account.auth_version += 1
+    access.record_access(db, request, tenant_id=account.tenant_id, portal_account_id=account.id, email=account.email, event="PASSWORD_CHANGED")
     db.commit()
     db.refresh(account)
     return {"access_token": portal_token(account), "full_name": account.full_name, "must_change_password": False}

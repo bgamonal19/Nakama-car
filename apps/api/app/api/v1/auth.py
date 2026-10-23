@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -15,9 +15,11 @@ from app.models.identity import (
     UserStatus,
     UserTenant,
 )
-from app.schemas.auth import BootstrapRequest, LoginRequest, LoginResponse
+from app.schemas.auth import BootstrapRequest, LegalAcceptance, LoginRequest, LoginResponse
+from app.security.context import AuthContext, get_auth_context
 from app.security.passwords import hash_password, verify_password
 from app.security.tokens import create_access_token
+from app.services import access
 
 router = APIRouter(tags=["auth"])
 settings = get_settings()
@@ -76,18 +78,24 @@ def effective_permissions(db: Session, user_id, tenant_id) -> list[str]:
 
 
 @router.post("/auth/login", response_model=LoginResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(func.lower(User.email) == payload.email.lower()))
-    if user is None or user.status != UserStatus.ACTIVE or not verify_password(user.password_hash, payload.password):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
-    membership = db.scalar(
+    membership = None if user is None else db.scalar(
         select(UserTenant)
         .where(UserTenant.user_id == user.id)
         .order_by(UserTenant.is_default.desc(), UserTenant.created_at.asc())
     )
+    if user is None or user.status != UserStatus.ACTIVE or not verify_password(user.password_hash, payload.password):
+        # Failed attempts on a real account are logged (unknown emails are not: nothing to protect, less data).
+        if membership is not None:
+            access.record_access(db, request, tenant_id=membership.tenant_id, user_id=user.id, email=user.email, event="LOGIN_FAILED")
+            db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
     if membership is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tenant membership")
+    access.record_access(db, request, tenant_id=membership.tenant_id, user_id=user.id, email=user.email, event="LOGIN_OK")
+    db.commit()
 
     permissions = effective_permissions(db, user.id, membership.tenant_id)
     token = create_access_token(
@@ -103,8 +111,19 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         first_name=user.first_name,
         last_name=user.last_name,
         permissions=permissions,
+        legal_required=access.legal_required(user),
         **session_extras(db, user.id, membership.tenant_id),
     )
+
+
+@router.post("/auth/legal")
+def accept_legal(payload: LegalAcceptance, request: Request, db: Session = Depends(get_db), auth: AuthContext = Depends(get_auth_context)):
+    """The worker ticked both boxes (terms, privacy notice) of the current version."""
+    user = db.get(User, auth.user_id)
+    access.accept_legal(user)
+    access.record_access(db, request, tenant_id=auth.tenant_id, user_id=user.id, email=user.email, event="LEGAL_ACCEPTED")
+    db.commit()
+    return {"legal_version": user.legal_version, "terms_accepted_at": user.terms_accepted_at, "privacy_accepted_at": user.privacy_accepted_at}
 
 
 @router.post("/setup/bootstrap", response_model=LoginResponse)
@@ -164,6 +183,8 @@ def bootstrap(
         last_name=payload.last_name,
         status=UserStatus.ACTIVE,
     )
+    if payload.accept_terms and payload.accept_privacy:
+        access.accept_legal(user)
     db.add(user)
     db.flush()
     db.add(UserTenant(user_id=user.id, tenant_id=tenant.id, is_default=True))
@@ -179,4 +200,5 @@ def bootstrap(
         first_name=user.first_name,
         last_name=user.last_name,
         permissions=permissions,
+        legal_required=access.legal_required(user),
     )

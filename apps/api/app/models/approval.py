@@ -21,3 +21,7 @@ class EstimateApproval(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMix
     ip_address: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(512))
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Boxes ticked by the customer with the answer: terms (to accept) and privacy notice read.
+    legal_version: Mapped[str | None] = mapped_column(String(20))
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    privacy_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

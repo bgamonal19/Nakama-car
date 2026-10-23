@@ -6,8 +6,7 @@ import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, clearSession, getAccessToken } from "../../lib/api";
 
 type Profile = {
-  phone: string | null; birth_date: string | null; tax_code: string | null; address: string | null; city: string | null;
-  postal_code: string | null; emergency_contact: string | null; emergency_phone: string | null; skills: string | null; notes: string | null;
+  phone: string | null; emergency_contact: string | null; emergency_phone: string | null; skills: string | null; notes: string | null;
 };
 type Me = { first_name: string; last_name: string; email: string; roles: string[]; work_area: string | null; profile: Profile };
 
@@ -15,7 +14,7 @@ const roleNames: Record<string, string> = {
   ADMIN: "Amministrazione", RECEPTION: "Accettazione", BODYSHOP: "Carrozzeria", PAINTER: "Verniciatura", MECHANIC: "Meccanica", ACCOUNTING: "Contabilità",
 };
 const areaNames: Record<string, string> = { MECHANICAL: "Meccanica", BODY: "Carrozzeria" };
-const empty: Profile = { phone: "", birth_date: "", tax_code: "", address: "", city: "", postal_code: "", emergency_contact: "", emergency_phone: "", skills: "", notes: "" };
+const empty: Profile = { phone: "", emergency_contact: "", emergency_phone: "", skills: "", notes: "" };
 
 /** Each user keeps their own personal details up to date. */
 export default function ProfiloPage() {
@@ -70,11 +69,6 @@ export default function ProfiloPage() {
           <form className="panel record-form profile-form" onSubmit={save}>
             <h2 className="span-2">{t("Dati personali")}</h2>
             {field("phone", "Telefono", { type: "tel", autoComplete: "tel", inputMode: "tel" })}
-            {field("birth_date", "Data di nascita", { type: "date" })}
-            {field("tax_code", "Codice fiscale", { autoCapitalize: "characters" })}
-            {field("address", "Indirizzo", { autoComplete: "street-address" })}
-            {field("city", "Città", { autoComplete: "address-level2" })}
-            {field("postal_code", "CAP", { autoComplete: "postal-code", inputMode: "numeric" })}
             <h2 className="span-2">{t("Contatto di emergenza")}</h2>
             {field("emergency_contact", "Nome")}
             {field("emergency_phone", "Telefono", { type: "tel", inputMode: "tel" })}

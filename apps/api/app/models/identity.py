@@ -1,6 +1,6 @@
 import enum
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, JSON, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -57,6 +57,10 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     first_name: Mapped[str] = mapped_column(String(120), nullable=False)
     last_name: Mapped[str] = mapped_column(String(120), nullable=False)
     status: Mapped[UserStatus] = mapped_column(Enum(UserStatus, name="user_status"), nullable=False, default=UserStatus.ACTIVE)
+    # Version of terms + privacy notice accepted (two separate boxes) and when; empty = must accept at next login.
+    legal_version: Mapped[str | None] = mapped_column(String(20))
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    privacy_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Role(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -110,3 +114,26 @@ class AuditLog(Base, UUIDPrimaryKeyMixin):
     ip_address: Mapped[str | None] = mapped_column(String(64))
     user_agent: Mapped[str | None] = mapped_column(String(512))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class AccessLog(Base, UUIDPrimaryKeyMixin):
+    """Who entered the app, when and how (kept 12 months, see services/access.py)."""
+
+    __tablename__ = "access_logs"
+    tenant_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    # STAFF (workshop user) or PORTAL (customer access); the matching id is set.
+    account_type: Mapped[str] = mapped_column(String(12), nullable=False)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    portal_account_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=False)
+    # LOGIN_OK, LOGIN_FAILED (wrong password), LEGAL_ACCEPTED, PASSWORD_CHANGED.
+    event: Mapped[str] = mapped_column(String(32), nullable=False)
+    # How: password login from the web, the Android app or the Mac app.
+    method: Mapped[str] = mapped_column(String(32), nullable=False, default="password")
+    client: Mapped[str] = mapped_column(String(16), nullable=False, default="WEB")
+    ip_address: Mapped[str | None] = mapped_column(String(64))
+    user_agent: Mapped[str | None] = mapped_column(String(512))
+    # Set here (microseconds), so events of the same second keep their order.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), default=lambda: datetime.now(timezone.utc), index=True,
+    )
