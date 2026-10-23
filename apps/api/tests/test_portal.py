@@ -159,3 +159,26 @@ def test_portal_profile_edits_contact_data_but_not_tax_data(client):
     assert portal.patch("/api/v1/portal/profile", json={"email": "non-una-email"}).status_code == 422
     assert portal.patch("/api/v1/portal/profile", json={"full_name": "  "}).status_code == 422
     assert c.get("/api/v1/portal/profile").status_code == 401
+
+
+def test_portal_vehicle_profile_holds_jobs_estimates_and_invoices(client):
+    c, _, _ = client
+    customer, contract, vehicle, case = fleet.create_fleet_case(c)
+    order = tracking_tests.open_work_order(c, case)
+    c.patch(f"/api/v1/work-orders/{order['id']}/status", json={"status": "IN_REPAIR"})
+    estimate = c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json()
+    c.post(f"/api/v1/estimates/{estimate['id']}/lines", json=fleet.mechanical_line())
+    c.patch(f"/api/v1/estimates/{estimate['id']}/status", json={"status": "SENT"})
+    invoice = c.post("/api/v1/invoices", json={"estimate_id": estimate["id"]}).json()
+    portal = portal_client(c, customer)
+
+    detail = portal.get(f"/api/v1/portal/vehicles/{vehicle['id']}").json()
+    assert detail["todo"] and detail["todo"][0]["case_number"] == case["case_number"]
+    assert detail["in_workshop"] is True and detail["done_total"] == 0
+    assert detail["history"][0]["kind"] in ("REPAIR", "MAINTENANCE")
+    assert detail["history"][0]["estimate"]["estimate_number"]
+    # Draft invoices stay with the workshop; issued ones join the vehicle's profile.
+    assert detail["invoices"] == []
+    c.patch(f"/api/v1/invoices/{invoice['id']}/status", json={"status": "ISSUED"})
+    invoices = portal.get(f"/api/v1/portal/vehicles/{vehicle['id']}").json()["invoices"]
+    assert invoices[0]["invoice_number"] == invoice["invoice_number"] and invoices[0]["case_number"] == case["case_number"]
