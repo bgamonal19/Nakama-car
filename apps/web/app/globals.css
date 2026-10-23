@@ -2065,3 +2065,25 @@ button.portal-unread { width: 100%; text-align: left; border: 0; font: inherit; 
 [data-theme="dark"] .fleet-vehicle:is(.tone-due, .tone-soon, .tone-ok) .maintenance-state.due { color: #f08a85; }
 [data-theme="dark"] .fleet-vehicle:is(.tone-due, .tone-soon, .tone-ok) .maintenance-state.soon { color: #f5b860; }
 [data-theme="dark"] .fleet-vehicle:is(.tone-due, .tone-soon, .tone-ok) .maintenance-state.ok { color: #6fd398; }
+
+/* Portal fleet: one row per plate that opens the vehicle's profile (with its whole history). */
+.portal-fleet-list { margin-top: 12px; }
+button.fleet-vehicle-link { width: 100%; display: grid; grid-template-columns: auto 1fr auto auto auto auto; gap: 10px; align-items: center; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.fleet-vehicle-link:hover { box-shadow: 0 2px 10px rgba(11, 42, 74, .12); }
+button.fleet-vehicle-link .plate-chip { justify-self: start; }
+.fleet-vehicle-go { font-size: 22px; line-height: 1; color: var(--muted); }
+.portal-jobs { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.portal-history-tasks { list-style: none; margin: 2px 0; padding: 0; display: grid; gap: 3px; }
+.portal-history .portal-history-tasks li { display: flex; gap: 8px; align-items: center; border: 0; padding: 0; border-radius: 0; background: none; }
+.portal-history-tasks i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; background: #eef1f4; color: #8a8f95; flex: 0 0 18px; }
+.portal-history-tasks li.done i { background: #1fa855; color: #fff; }
+.portal-history-tasks li.in_progress i { background: #0b2a4a; color: #fff; }
+.portal-kind { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #eef1f4; }
+.portal-kind.maintenance { background: #e6f0fb; color: #1257a0; }
+.portal-kind.repair { background: #fff4e2; color: #8a5410; }
+.portal-inline-pdf { padding: 0 6px; min-height: 0; font-size: 12px; }
+[data-theme="dark"] :is(.portal-kind, .portal-history-tasks i) { background: #24384e; color: #cfe0f2; }
+@media (max-width: 700px) {
+  button.fleet-vehicle-link { grid-template-columns: auto 1fr auto; }
+  button.fleet-vehicle-link .fleet-vehicle-go { display: none; }
+}

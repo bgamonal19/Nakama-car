@@ -10,8 +10,8 @@ import { TelemetryBadge, TelemetryCard, TelemetryReading } from "../../component
 import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../components/DamagePhotoMap";
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import type { PlateSpots } from "../../lib/plateSpots";
-import { FleetProfile } from "../../components/FleetProfile";
-import { PortalAddVehicle, PortalChat, PortalEstimates, PortalInvoices, PortalProfile, PortalSection, PortalSidebar } from "../../components/PortalSections";
+import { FleetProfile, Job, JobItem } from "../../components/FleetProfile";
+import { openInvoicePdf, PortalAddVehicle, PortalChat, PortalEstimates, PortalInvoices, PortalProfile, PortalSection, PortalSidebar } from "../../components/PortalSections";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
 type Maintenance = {
@@ -32,10 +32,14 @@ type FleetVehicle = {
 };
 type HistoryItem = {
   id: string; case_number: string; status: string; status_text: string; closed: boolean; opened_at?: string | null; updated_at: string;
-  mileage?: number | null; customer_notes?: string | null; tasks: { description: string; status: string }[];
+  mileage?: number | null; customer_notes?: string | null; kind?: "REPAIR" | "MAINTENANCE"; tasks: { description: string; status: string }[];
   estimate: { estimate_number: string; status: string; total: string } | null;
 };
-type VehicleDetail = FleetVehicle & { vin?: string | null; fuel_type?: string | null; history: HistoryItem[] };
+type VehicleInvoice = { id: string; invoice_number: string; status: string; issue_date?: string | null; due_date?: string | null; total: string; case_number?: string | null };
+type VehicleDetail = FleetVehicle & {
+  vin?: string | null; fuel_type?: string | null; history: HistoryItem[];
+  todo?: Job[]; done?: Job[]; done_total?: number; invoices?: VehicleInvoice[];
+};
 type Me = {
   full_name: string; email: string; must_change_password: boolean; customer_name: string; unread: number;
   contract: { name: string; start_date: string; end_date?: string | null; labor_included: boolean } | null;
@@ -45,6 +49,7 @@ type Step = { code: string; label: string; done: boolean; current: boolean };
 type CaseProgress = { case_number: string; status_text: string; steps: Step[]; closed: boolean; tasks: { description: string; status: string }[]; tasks_done: number; tasks_total: number; vehicle?: { plate_spots?: PlateSpots }; parts?: { id: string; label: string }[]; work_type?: string };
 
 const POLL_MS = 20000;
+const estimateLabel: Record<string, string> = { SENT: "Da approvare", VIEWED: "Da approvare", APPROVED: "Approvato", REJECTED: "Rifiutato" };
 const stateLabel: Record<Maintenance["state"], string> = { OK: "In regola", SOON: "Manutenzione vicina", DUE: "Manutenzione scaduta", UNKNOWN: "Piano non impostato" };
 
 function day(value?: string | null) {
@@ -179,7 +184,6 @@ export default function PortalPage() {
     const text = `${vehicle.license_plate} ${vehicle.fleet_number || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.toLowerCase();
     return text.includes(query.trim().toLowerCase());
   });
-  const fleetShown = stateFilter ? filtered.filter((vehicle) => vehicle.maintenance.state === stateFilter) : filtered;
   const inShop = vehicles.filter((vehicle) => vehicle.current_case).length;
   const toPickUp = filtered.filter((vehicle) => vehicle.current_case?.status === "READY");
   const inRepair = filtered.filter((vehicle) => vehicle.current_case && vehicle.current_case.status !== "READY");
@@ -203,6 +207,18 @@ export default function PortalPage() {
     </button>
   );
   const search = <input className="portal-search" type="search" placeholder={t("Cerca targa, numero flotta o modello")} value={query} onChange={(e) => setQuery(e.target.value)} />;
+  // Plate search ignores spaces and dashes ("ab 123-cd" finds AB123CD); Enter opens the profile when one vehicle matches.
+  const squash = (value: string) => value.toUpperCase().replace(/[\s\-.]+/g, "");
+  const plateMatches = vehicles.filter((vehicle) => {
+    const needle = squash(query.trim());
+    return needle && [vehicle.license_plate, vehicle.fleet_number, vehicle.make, vehicle.model, [vehicle.make, vehicle.model].filter(Boolean).join("")]
+      .some((value) => squash(value || "").includes(needle));
+  });
+  const plateSearch = (
+    <input className="portal-search" type="search" autoComplete="off" placeholder={t("Cerca la targa per vedere tutto lo storico del veicolo")} value={query}
+      onChange={(e) => setQuery(e.target.value)}
+      onKeyDown={(e) => { if (e.key === "Enter" && plateMatches.length === 1) openVehicle(plateMatches[0].id); }} />
+  );
   const due = vehicles.filter((vehicle) => vehicle.maintenance.state === "DUE").length;
   const soon = vehicles.filter((vehicle) => vehicle.maintenance.state === "SOON").length;
 
@@ -326,6 +342,11 @@ export default function PortalPage() {
               </div>
             )}
 
+            <h3>{t("Lavori da fare")}</h3>
+            {(selected.todo || []).length === 0 ? <p className="hint">{t("Nessun lavoro in sospeso.")}</p> : (
+              <ul className="portal-jobs">{selected.todo!.map((job, index) => <JobItem key={index} job={job} mode="portal" />)}</ul>
+            )}
+
             <h3>{t("Storico interventi")}</h3>
             {selected.history.length === 0 ? <p className="hint">{t("Nessun intervento registrato.")}</p> : (
               <ul className="portal-history">
@@ -333,12 +354,22 @@ export default function PortalPage() {
                   <li key={item.id}>
                     <div className="portal-history-head">
                       <strong>{item.case_number}</strong>
+                      {item.kind && <span className={`portal-kind ${item.kind.toLowerCase()}`}>{item.kind === "MAINTENANCE" ? `🛠 ${t("Manutenzione")}` : `🔧 ${t("Riparazione")}`}</span>}
                       <span className={`status-chip${item.closed ? " ok" : ""}`}>{t(item.status_text)}</span>
                       <small>{day(item.opened_at || item.updated_at)}{item.mileage ? ` · ${km(item.mileage)}` : ""}</small>
                     </div>
                     {item.customer_notes && <p className="hint">{item.customer_notes}</p>}
-                    {item.tasks.length > 0 && <p>{item.tasks.map((task) => task.description).join(" · ")}</p>}
-                    {item.estimate && <small>{t("Preventivo")} {item.estimate.estimate_number} · {money(item.estimate.total)}</small>}
+                    {item.tasks.length > 0 && (
+                      <ul className="portal-history-tasks">
+                        {item.tasks.map((task, index) => <li key={index} className={task.status.toLowerCase()}><i>{task.status === "DONE" ? "✓" : task.status === "IN_PROGRESS" ? "●" : "○"}</i>{task.description}</li>)}
+                      </ul>
+                    )}
+                    {item.estimate && <small>{t("Preventivo")} {item.estimate.estimate_number} · {money(item.estimate.total)}{estimateLabel[item.estimate.status] ? ` · ${t(estimateLabel[item.estimate.status])}` : ""}</small>}
+                    {(selected.invoices || []).filter((invoice) => invoice.case_number === item.case_number).map((invoice) => (
+                      <small key={invoice.id}>{t("Fattura")} {invoice.invoice_number} · {money(invoice.total)} · {t(invoice.status === "PAID" ? "Pagata" : "Da pagare")}{" "}
+                        <button type="button" className="ghost portal-inline-pdf" onClick={() => openInvoicePdf(invoice.id).then((message) => message && setError(message))}>PDF</button>
+                      </small>
+                    ))}
                   </li>
                 ))}
               </ul>
@@ -353,24 +384,17 @@ export default function PortalPage() {
               <button type="button" className={`${due ? "due" : ""}${stateFilter === "DUE" ? " active" : ""}`} aria-pressed={stateFilter === "DUE"} onClick={() => showFleet(stateFilter === "DUE" ? null : "DUE")}><strong>{due}</strong><span>{t("Manutenzione scaduta")}</span></button>
             </div>
             {me && me.unread > 0 && <button type="button" className="portal-unread" onClick={() => selectSection("chat")}>{t("Hai nuovi messaggi dall'officina.")}</button>}
-            {search}
+            {plateSearch}
             {stateFilter && (
               <p className="portal-filter">
                 {t("Filtro")}: <strong>{t(stateLabel[stateFilter])}</strong>
                 <button type="button" className="ghost" onClick={() => setStateFilter(null)}>{t("Mostra tutti")}</button>
               </p>
             )}
-            <div className="portal-grid" ref={gridRef}>
-              {fleetShown.map(card)}
-              {vehicles.length > 0 && fleetShown.length === 0 && <p className="hint">{t("Nessun veicolo trovato.")}</p>}
+            <div className="portal-fleet-list" ref={gridRef}>
               {me && vehicles.length === 0 && <p className="hint">{t("Nessun veicolo registrato: aggiungilo dal menu o contatta l'officina.")}</p>}
+              {me && vehicles.length > 0 && <FleetProfile mode="portal" query={query} stateFilter={stateFilter} onOpenVehicle={openVehicle} />}
             </div>
-            {me && vehicles.length > 0 && (
-              <section className="panel portal-fleet-jobs">
-                <h2>{t("Lavori per targa")}</h2>
-                <FleetProfile mode="portal" query={query} onOpenVehicle={openVehicle} />
-              </section>
-            )}
           </>
         ) : section === "shop" || section === "pickup" ? (
           <section className="portal-section-plain">

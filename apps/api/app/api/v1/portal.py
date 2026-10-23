@@ -416,10 +416,28 @@ def portal_vehicle_detail(vehicle_id: UUID, db: Session = Depends(get_db), conte
             "updated_at": progress["updated_at"],
             "mileage": case.mileage,
             "customer_notes": case.customer_notes,
+            "kind": fleet.case_kind(case, [task["description"] for task in progress["tasks"]]),
             "tasks": progress["tasks"],
             "estimate": progress["estimate"],
         })
-    return {**vehicle_summary(db, vehicle), "vin": vehicle.vin, "fuel_type": vehicle.fuel_type, "history": history}
+    # Issued invoices of this vehicle's repairs, so its profile holds the whole history.
+    invoices = db.scalars(
+        portal_invoice_query(context).where(Invoice.repair_case_id.in_([case.id for case in cases]))
+        .order_by(Invoice.issue_date.desc(), Invoice.created_at.desc())
+    ).all() if cases else []
+    numbers = {case.id: case.case_number for case in cases}
+    return {
+        **vehicle_summary(db, vehicle), "vin": vehicle.vin, "fuel_type": vehicle.fuel_type, "history": history,
+        **fleet.vehicle_jobs(db, vehicle),
+        "invoices": [
+            {
+                "id": str(invoice.id), "invoice_number": invoice.invoice_number, "status": invoice.status.value,
+                "issue_date": invoice.issue_date, "due_date": invoice.due_date, "total": str(invoice.total),
+                "case_number": numbers.get(invoice.repair_case_id),
+            }
+            for invoice in invoices
+        ],
+    }
 
 
 @router.get("/portal/cases/{case_id}")

@@ -116,6 +116,19 @@ type PortalInvoice = {
   issue_date?: string | null; due_date?: string | null; paid_at?: string | null; total: string; license_plate?: string | null;
 };
 
+/** Opens an issued invoice's PDF in a new tab; returns the error to show, if any. */
+export async function openInvoicePdf(id: string): Promise<string | null> {
+  // Open the tab now: browsers block pop-ups opened after an await.
+  const tab = window.open("", "_blank");
+  const response = await portalFetch(`/portal/invoices/${id}/pdf`);
+  if (!response.ok) { tab?.close(); return portalError(response, "PDF non disponibile."); }
+  const url = URL.createObjectURL(await response.blob());
+  if (tab) tab.location.href = url;
+  else window.location.assign(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  return null;
+}
+
 export function PortalInvoices() {
   const { t } = useLanguage();
   const [items, setItems] = useState<PortalInvoice[] | null>(null);
@@ -131,15 +144,8 @@ export function PortalInvoices() {
   async function openPdf(invoice: PortalInvoice) {
     setBusy(invoice.id);
     setError("");
-    // Open the tab now: browsers block pop-ups opened after an await.
-    const tab = window.open("", "_blank");
     try {
-      const response = await portalFetch(`/portal/invoices/${invoice.id}/pdf`);
-      if (!response.ok) { tab?.close(); setError(await portalError(response, "PDF non disponibile.")); return; }
-      const url = URL.createObjectURL(await response.blob());
-      if (tab) tab.location.href = url;
-      else window.location.assign(url);
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      setError(await openInvoicePdf(invoice.id) || "");
     } finally {
       setBusy("");
     }

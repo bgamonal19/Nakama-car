@@ -1376,6 +1376,7 @@ Object.assign(spanish, {
   "In officina": "En el taller",
   "Hai nuovi messaggi dall'officina.": "Tienes nuevos mensajes del taller.",
   "Cerca targa, numero flotta o modello": "Busca matrícula, número de flota o modelo",
+  "Cerca la targa per vedere tutto lo storico del veicolo": "Busca la matrícula para ver todo el historial del vehículo",
   "Non in officina": "No está en el taller",
   "Nessun veicolo trovato.": "Ningún vehículo encontrado.",
   "Nessun veicolo registrato: contatta l'officina.": "Ningún vehículo registrado: contacta con el taller.",

@@ -7,7 +7,7 @@ import { portalFetch } from "../lib/portal";
 import { deleteVehiclesWithConfirm } from "../lib/vehicleDeletion";
 import { VehicleProfile } from "./VehicleProfile";
 
-type Job = { kind: "TASK" | "REQUEST" | "MAINTENANCE"; description: string; status: string; case_number: string | null; case_id: string | null; date?: string | null; km?: number | null; note?: string | null };
+export type Job = { kind: "TASK" | "REQUEST" | "MAINTENANCE"; description: string; status: string; case_number: string | null; case_id: string | null; date?: string | null; km?: number | null; note?: string | null };
 type Maintenance = { state: "OK" | "SOON" | "DUE" | "UNKNOWN"; next_service_date?: string | null; next_service_km?: number | null };
 type FleetVehicle = {
   id: string; license_plate: string; fleet_number?: string | null; make?: string | null; model?: string | null; version?: string | null;
@@ -41,9 +41,12 @@ function km(value?: number | null) {
 /**
  * Fleet of a customer, plate by plate, with jobs to do and jobs done.
  * Staff mode adds the import from the customer's Excel file, selecting and deleting vehicles and
- * the profile of each vehicle with its history; portal mode is read-only.
+ * the profile of each vehicle with its history; portal mode is read-only: one row per plate that opens
+ * the vehicle's profile, filtered by the portal's search box and maintenance tiles.
  */
-export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVehicle }: { mode: "staff" | "portal"; customerId?: string; query?: string; onOpenVehicle?: (id: string) => void }) {
+export function FleetProfile({ mode, customerId, query: externalQuery, stateFilter, onOpenVehicle }: {
+  mode: "staff" | "portal"; customerId?: string; query?: string; stateFilter?: "SOON" | "DUE" | null; onOpenVehicle?: (id: string) => void;
+}) {
   const { language, t } = useLanguage();
   const words = (it: string, es: string) => language === "es" ? es : it;
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -146,6 +149,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
   const needle = squash(query.trim());
   const vehicles = (profile?.vehicles || []).filter((vehicle) => {
     if (onlyTodo && vehicle.todo.length === 0) return false;
+    if (stateFilter && vehicle.maintenance.state !== stateFilter) return false;
     if (!needle) return true;
     return [vehicle.license_plate, vehicle.fleet_number, vehicle.make, vehicle.model, vehicle.version, vehicle.vin, [vehicle.make, vehicle.model].filter(Boolean).join("")]
       .some((value) => squash(value || "").includes(needle));
@@ -155,7 +159,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
 
   return (
     <div className="fleet-profile">
-      {profile && (
+      {profile && mode === "staff" && (
         <div className="fleet-totals">
           <button type="button" className={!onlyTodo && !expand ? "active" : ""} onClick={() => { setOnlyTodo(false); setExpand(null); }}><strong>{profile.totals.vehicles}</strong><span>{t("Veicoli")}</span></button>
           <button type="button" className={`${profile.totals.with_todo ? "soon" : ""}${onlyTodo && !expand ? " active" : ""}`} onClick={() => { setOnlyTodo(true); setExpand(null); }}><strong>{profile.totals.with_todo}</strong><span>{t("Con lavori da fare")}</span></button>
@@ -239,7 +243,20 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
       {profile && profile.vehicles.length > 0 && vehicles.length === 0 && <p className="hint">{t("Nessun veicolo trovato.")}</p>}
 
       <div className="fleet-vehicles">
-        {vehicles.map((vehicle) => (
+        {mode === "portal" && vehicles.map((vehicle) => (
+          <button type="button" key={vehicle.id} className={`fleet-vehicle fleet-vehicle-link${rowTone(vehicle)}`} onClick={() => onOpenVehicle?.(vehicle.id)}>
+            <span className="plate-chip">{vehicle.license_plate}</span>
+            <span className="fleet-vehicle-name">
+              <strong>{[vehicle.make, vehicle.model].filter(Boolean).join(" ") || t("Veicolo")}</strong>
+              <small>{[vehicle.fleet_number && `#${vehicle.fleet_number}`, vehicle.vehicle_category !== "CAR" ? t(vehicle.vehicle_category) : null, vehicle.year, km(vehicle.mileage)].filter(Boolean).join(" · ")}</small>
+            </span>
+            <span className={`fleet-count${vehicle.todo.length ? " todo" : ""}`}>{vehicle.todo.length} {t("da fare")}</span>
+            <span className="fleet-count">{vehicle.done_total} {t("fatti")}</span>
+            <span className={`maintenance-state ${vehicle.maintenance.state.toLowerCase()}`}>{t(stateLabel[vehicle.maintenance.state])}{vehicle.in_workshop && <em className="fleet-in-workshop">{t("In officina")}</em>}</span>
+            <span className="fleet-vehicle-go" aria-hidden="true">›</span>
+          </button>
+        ))}
+        {mode === "staff" && vehicles.map((vehicle) => (
           <details key={vehicle.id} className={`fleet-vehicle${rowTone(vehicle)}${canDelete ? " selectable" : ""}${selected.has(vehicle.id) ? " selected" : ""}`} open={vehicles.length === 1 || (!!needle && vehicles.length <= 3) || (expand === "todo" && vehicle.todo.length > 0) || (expand === "done" && vehicle.done.length > 0)}>
             <summary>
               {canDelete && <input type="checkbox" className="fleet-select" aria-label={`${t("Seleziona")} ${vehicle.license_plate}`} checked={selected.has(vehicle.id)} onClick={(e) => e.stopPropagation()} onChange={(e) => toggle(vehicle.id, e.target.checked)} />}
@@ -292,7 +309,7 @@ export function FleetProfile({ mode, customerId, query: externalQuery, onOpenVeh
   );
 }
 
-function JobItem({ job, mode }: { job: Job; mode: "staff" | "portal" }) {
+export function JobItem({ job, mode }: { job: Job; mode: "staff" | "portal" }) {
   const { language, t } = useLanguage();
   const words = (it: string, es: string) => language === "es" ? es : it;
   const status = job.kind === "MAINTENANCE" ? stateLabel[job.status as Maintenance["state"]] : job.kind === "REQUEST" ? "In attesa di lavorazione" : job.status;
