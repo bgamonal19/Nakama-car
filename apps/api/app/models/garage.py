@@ -2,8 +2,8 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, Uuid
+from sqlalchemy.orm import Mapped, deferred, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -48,6 +48,9 @@ class Customer(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
     pec: Mapped[str | None] = mapped_column(String(255))
     sdi: Mapped[str | None] = mapped_column(String(16))
     notes: Mapped[str | None] = mapped_column(Text)
+    # Company logo (WebP), shown on the customer's record and in its portal; the date doubles as cache key.
+    logo: Mapped[bytes | None] = deferred(mapped_column(LargeBinary, nullable=True))
+    logo_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Vehicle(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):

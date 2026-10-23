@@ -1732,7 +1732,15 @@ Object.assign(spanish, {
   "scaduto da": "vencido hace",
   "superato di": "superado en",
   "selezionati": "seleccionados",
-  "veicoli": "vehículos"
+  "veicoli": "vehículos",
+  "Ordina per": "Ordenar por",
+  "Condizione": "Condición",
+  "Targa (A-Z)": "Matrícula (A-Z)",
+  "Ultimo ingresso in officina": "Último ingreso en el taller",
+  "Condizione (prima i rossi)": "Condición (primero los rojos)",
+  "Nome veicolo (marca e modello)": "Nombre del vehículo (marca y modelo)",
+  "Chilometri (più alti prima)": "Kilómetros (más altos primero)",
+  "Scaduta o in officina": "Vencido o en el taller"
 });
 
 export function translate(text: string, language: Language): string {

@@ -8,6 +8,7 @@ import { CaseExtras } from "./CaseExtras";
 import { FleetProfile } from "./FleetProfile";
 import { PortalAccess } from "./PortalAccess";
 import { EstimateChip } from "./EstimateChip";
+import { CustomerLogo } from "./CustomerLogo";
 import { deleteCaseWithConfirm, typedConfirm } from "../lib/caseDeletion";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
@@ -62,6 +63,10 @@ export function RecordDirectory({kind}: {kind: Kind}) {
   const [opening,setOpening] = useState(false);
   const [notice,setNotice] = useState("");
   const [history,setHistory] = useState<RecordData[]>([]);
+  // A customer opens as a profile (logo, name and vehicles); its data form unfolds on a click.
+  const [showData,setShowData] = useState(false);
+  const [logoBusy,setLogoBusy] = useState(false);
+  const logoInput=useRef<HTMLInputElement|null>(null);
   const [historyOffset,setHistoryOffset] = useState(0);
   const [historyBusy,setHistoryBusy] = useState(false);
   const [historyError,setHistoryError] = useState("");
@@ -131,12 +136,12 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     setOpening(true);setError("");setNotice("");
     try {
       const data=kind==="cases"?await read<RecordData>(`/cases/${item.id}`):item;
-      setSelected({...item,...data});setHistoryOffset(0);setOpened(n=>n+1);
+      setSelected({...item,...data});setHistoryOffset(0);setOpened(n=>n+1);setShowData(false);
       setDraft(Object.fromEntries(definition.fields.map(f=>[f.key,String(data[f.key]??"")])));
     } catch(e){setError(message(e));}finally{setOpening(false);}
   }
   function create() {
-    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);
+    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);setShowData(true);
   }
   async function save(event:FormEvent) {
     event.preventDefault();if(!selected||!canWrite)return;
@@ -149,9 +154,25 @@ export function RecordDirectory({kind}: {kind: Kind}) {
         const value=(draft[f.key]||(f.options?f.options[0]:"")).trim();
         return [f.key,value===""?null:f.type==="number"?Number(value):f.key==="country"?value.toUpperCase():value];
       }));
-      await read(`/${kind}${selected.id?`/${selected.id}`:""}`,{method:selected.id?"PATCH":"POST",body:JSON.stringify(payload)});
-      setSelected(null);setRefresh(n=>n+1);setNotice(words("Salvato correttamente.","Guardado correctamente."));
+      const saved=await read<RecordData>(`/${kind}${selected.id?`/${selected.id}`:""}`,{method:selected.id?"PATCH":"POST",body:JSON.stringify(payload)});
+      // A customer's profile stays open after saving its data, with the data folded again.
+      if(kind==="customers"&&selected.id){setSelected({...selected,...saved});setShowData(false);}else setSelected(null);
+      setRefresh(n=>n+1);setNotice(words("Salvato correttamente.","Guardado correctamente."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
+  }
+  async function changeLogo(file:File|null) {
+    if(!selected?.id||!canWrite||kind!=="customers")return;
+    setLogoBusy(true);setError("");setNotice("");
+    try {
+      const response=await apiFetch(`/customers/${selected.id}/logo`,file?{method:"PUT",body:file,headers:{"Content-Type":"application/octet-stream"}}:{method:"DELETE"});
+      if(response.status===413)throw new Error(words("Immagine troppo grande (max 15 MB).","Imagen demasiado grande (máx. 15 MB)."));
+      if(response.status===422)throw new Error(words("Il file non è un'immagine valida.","El archivo no es una imagen válida."));
+      if(!response.ok)throw new Error(words("Operazione non riuscita. Riprova.","La operación falló. Inténtalo de nuevo."));
+      const saved:RecordData=await response.json();
+      setSelected(current=>current&&current.id===saved.id?{...current,logo_updated_at:saved.logo_updated_at}:current);
+      setItems(list=>list.map(item=>item.id===saved.id?{...item,logo_updated_at:saved.logo_updated_at}:item));
+      setNotice(file?words("Logo aggiornato.","Logo actualizado."):words("Logo rimosso.","Logo eliminado."));
+    }catch(e){setError(message(e));}finally{setLogoBusy(false);}
   }
   // Asks the API what goes with the record, so the confirmation says it plainly; admins can also remove records with history.
   async function deletionPlan(path:string):Promise<Record<string,string|number|boolean|null>> {
@@ -195,38 +216,54 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Cliente eliminato.","Cliente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
+  const customerOpen=kind==="customers"&&!!selected?.id;
   return <SectionShell title={words(definition.it,definition.es)} actions={signedIn&&canCreate&&(kind==="cases"?<a className="primary link-button" href="/?new=practice">{words("Nuova pratica","Nuevo expediente")}</a>:<button className="primary" onClick={create} disabled={saving||opening}>{words("Aggiungi","Añadir")}</button>)}>
     {!signedIn?<div className="empty-state">{words("Accedi per consultare i dati della tua officina.","Inicia sesión para consultar los datos de tu taller.")} <a href="/login">{words("Accedi","Iniciar sesión")}</a></div>:<>
-      <form className="record-search" onSubmit={e=>{e.preventDefault();setSearch(query.trim());setOffset(0);setRefresh(n=>n+1);}}>
+      {!customerOpen&&<form className="record-search" onSubmit={e=>{e.preventDefault();setSearch(query.trim());setOffset(0);setRefresh(n=>n+1);}}>
         <label>{words("Cerca","Buscar")}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} /></label>
         <button className="secondary">{words("Cerca","Buscar")}</button>
-      </form>
+      </form>}
       {error&&<div className="record-error" role="alert">{t(error)} <a href="/login">{words("Accedi","Iniciar sesión")}</a> <button className="ghost" onClick={()=>setRefresh(n=>n+1)}>{words("Riprova","Reintentar")}</button></div>}
       {notice&&<p role="status">{notice}</p>}
       {selected&&<section ref={editorRef} className="panel record-editor" aria-label={words("Scheda","Ficha")}>
-        <div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>
+        {customerOpen?<>
+          <button type="button" className="ghost customer-profile-back" onClick={()=>setSelected(null)}>← {words("Tutti i clienti","Todos los clientes")}</button>
+          <button type="button" className="customer-profile-head" aria-expanded={showData} onClick={()=>setShowData(v=>!v)}>
+            <CustomerLogo name={label(selected)} version={selected.logo_updated_at?String(selected.logo_updated_at):null} load={()=>apiFetch(`/customers/${selected.id}/logo`)} size={84}/>
+            <span><strong>{label(selected)}</strong><small>{[selected.phone,selected.email].filter(Boolean).join(" · ")}</small><em>{showData?`▴ ${words("Nascondi dati del cliente","Ocultar datos del cliente")}`:`▾ ${words("Dati del cliente","Datos del cliente")}`}</em></span>
+          </button>
+        </>:<div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>}
         {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} workType={selected.work_type?String(selected.work_type):undefined} />}
+        {(!customerOpen||showData)&&<>
+        {customerOpen&&canWrite&&<div className="customer-logo-edit">
+          <input ref={logoInput} type="file" hidden accept="image/*" onChange={e=>{const file=e.target.files?.[0]||null;e.target.value="";if(file)changeLogo(file);}}/>
+          <span>{words("Logo o immagine dell'azienda: si vede qui e nel portale del cliente.","Logo o imagen de la empresa: se ve aquí y en el portal del cliente.")}</span>
+          <button type="button" className="secondary" disabled={logoBusy} onClick={()=>logoInput.current?.click()}>{logoBusy?words("Caricamento…","Subiendo…"):selected.logo_updated_at?words("Cambia logo","Cambiar logo"):words("Carica logo","Subir logo")}</button>
+          {selected.logo_updated_at&&<button type="button" className="ghost" disabled={logoBusy} onClick={()=>changeLogo(null)}>{words("Rimuovi logo","Quitar logo")}</button>}
+        </div>}
         <form className="record-form" onSubmit={save}>
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
             {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||(!!selected.id&&!f.editable)} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}
           </label>)}
-          {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}{kind==="cases"&&selected.id&&canCreate&&<button type="button" className="secondary record-delete" disabled={saving} onClick={removeCase}>{words("Elimina pratica","Eliminar expediente")}</button>}</div>}
+          {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>customerOpen?setShowData(false):setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}{kind==="cases"&&selected.id&&canCreate&&<button type="button" className="secondary record-delete" disabled={saving} onClick={removeCase}>{words("Elimina pratica","Eliminar expediente")}</button>}</div>}
         </form>
-        {selected.id&&kind==="customers"&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
-        {selected.id&&kind==="customers"&&<div className="record-fleet"><h3>{words("Flotta e lavori per targa","Flota y trabajos por matrícula")}</h3><FleetProfile mode="staff" customerId={String(selected.id)} /></div>}
+        {customerOpen&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
+        </>}
+        {customerOpen&&<div className="record-fleet"><h3>{words("Veicoli del cliente","Vehículos del cliente")}</h3><FleetProfile mode="staff" customerId={String(selected.id)} /></div>}
         {selected.id&&kind!=="cases"&&<div className="record-history"><h3>{words("Storico pratiche","Historial de expedientes")}</h3>
           {historyBusy?<p>{words("Caricamento…","Cargando…")}</p>:historyError?<p role="alert">{t(historyError)}</p>:history.length===0?<p>{words("Nessuna pratica.","No hay expedientes.")}</p>:history.map(h=><a key={h.id} href={`/pratiche?q=${encodeURIComponent(String(h.case_number))}`}>{h.case_number} · {h.plate} · {t(String(h.status))}</a>)}
           <div className="record-pagination"><button disabled={!historyOffset||historyBusy} onClick={()=>setHistoryOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><button disabled={history.length<pageSize||historyBusy} onClick={()=>setHistoryOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div>
         </div>}
       </section>}
-      <section className="panel record-list" aria-busy={busy}>
+      {!customerOpen&&<><section className="panel record-list" aria-busy={busy}>
         {busy?<div className="empty-state">{words("Caricamento…","Cargando…")}</div>:!error&&items.length===0?<div className="empty-state">{words("Nessun risultato.","No hay resultados.")}</div>:items.map(item=><div className="record-row" key={item.id}>
-          <div><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}{kind==="cases"&&item.estimate_status&&<> <EstimateChip status={String(item.estimate_status)} prefix={t("Preventivo")}/></>}</small></div>
+          {kind==="customers"&&<CustomerLogo name={label(item)} version={item.logo_updated_at?String(item.logo_updated_at):null} load={()=>apiFetch(`/customers/${item.id}/logo`)} size={44}/>}
+          <div className="record-row-main"><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}{kind==="cases"&&item.estimate_status&&<> <EstimateChip status={String(item.estimate_status)} prefix={t("Preventivo")}/></>}</small></div>
           <button className="secondary" disabled={opening||saving} onClick={()=>open(item)}>{words("Apri scheda","Abrir ficha")}</button>
         </div>)}
       </section>
-      <div className="record-pagination"><button disabled={!offset||busy} onClick={()=>setOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><span>{words("Pagina","Página")} {offset/pageSize+1}</span><button disabled={items.length<pageSize||busy} onClick={()=>setOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div>
+      <div className="record-pagination"><button disabled={!offset||busy} onClick={()=>setOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><span>{words("Pagina","Página")} {offset/pageSize+1}</span><button disabled={items.length<pageSize||busy} onClick={()=>setOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div></>}
     </>}
   </SectionShell>;
 }

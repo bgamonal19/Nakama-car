@@ -1,6 +1,8 @@
 from uuid import UUID
 from pydantic import ValidationError
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ from app.models.portal import PortalAccount
 from app.schemas.garage import CustomerCreate, CustomerRead, CustomerUpdate
 from app.security.context import AuthContext, is_admin, require_permission
 from app.services.audit import record_audit
+from app.services.photos import MAX_UPLOAD_BYTES, PhotoError, prepare_photo
 from app.services.tracking import customer_display_name
 
 router = APIRouter(prefix="/customers", tags=["customers"])
@@ -175,3 +178,54 @@ def delete_customer(
                  action="deleted", old_value={"name": impact["name"], "cases": impact["cases"], "contracts": impact["contracts"]})
     db.delete(customer)
     db.commit()
+
+
+LOGO_SIDE = 512
+
+
+@router.put("/{customer_id}/logo", response_model=CustomerRead)
+async def upload_customer_logo(
+    customer_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.write")),
+):
+    """Company logo (raw image body), resized and kept as WebP with the customer."""
+    customer = tenant_customer(db, auth, customer_id)
+    if int(request.headers.get("content-length") or 0) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Immagine troppo grande (max 15 MB).")
+    try:
+        content, _, _ = prepare_photo(await request.body(), max_side=LOGO_SIDE)
+    except PhotoError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    customer.logo = content
+    customer.logo_updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(customer)
+    return customer
+
+
+@router.get("/{customer_id}/logo")
+def read_customer_logo(
+    customer_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.read")),
+):
+    customer = tenant_customer(db, auth, customer_id)
+    if not customer.logo:
+        raise HTTPException(status_code=404, detail="Logo non presente")
+    return Response(content=customer.logo, media_type="image/webp", headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.delete("/{customer_id}/logo", response_model=CustomerRead)
+def delete_customer_logo(
+    customer_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.write")),
+):
+    customer = tenant_customer(db, auth, customer_id)
+    customer.logo = None
+    customer.logo_updated_at = None
+    db.commit()
+    db.refresh(customer)
+    return customer

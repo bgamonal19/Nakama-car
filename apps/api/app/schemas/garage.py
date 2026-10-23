@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
@@ -37,6 +38,7 @@ class CustomerCreate(BaseModel):
 
 class CustomerRead(CustomerCreate):
     id: UUID
+    logo_updated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
 
 

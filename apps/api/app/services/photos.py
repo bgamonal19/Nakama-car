@@ -9,7 +9,7 @@ class PhotoError(ValueError):
     pass
 
 
-def prepare_photo(content: bytes) -> tuple[bytes, int, int]:
+def prepare_photo(content: bytes, max_side: int = MAX_SIDE) -> tuple[bytes, int, int]:
     if not content:
         raise PhotoError("File vuoto.")
     if len(content) > MAX_UPLOAD_BYTES:
@@ -20,7 +20,7 @@ def prepare_photo(content: bytes) -> tuple[bytes, int, int]:
         with Image.open(BytesIO(content)) as image:
             image.load()
             image = ImageOps.exif_transpose(image)
-            image.thumbnail((MAX_SIDE, MAX_SIDE))
+            image.thumbnail((max_side, max_side))
             if image.mode not in ("RGB", "RGBA"):
                 image = image.convert("RGB")
             output = BytesIO()

@@ -132,7 +132,9 @@ def vehicle_jobs(db: Session, vehicle: Vehicle) -> dict:
     done.sort(key=lambda item: str(item["date"] or ""), reverse=True)
     # In the workshop: an open case not yet ready for pick-up (same rule as the portal's "In officina").
     in_workshop = any(not tracking.is_closed(case) and case.status != RepairCaseStatus.READY for case in cases)
-    return {"todo": todo, "done": done[:DONE_LIMIT], "done_total": len(done), "in_workshop": in_workshop}
+    # Last time the vehicle came into the workshop (newest case), for sorting the fleet by entry.
+    last_entry = max((case.opened_at or case.created_at for case in cases), default=None, key=lambda value: tracking.aware(value).timestamp())
+    return {"todo": todo, "done": done[:DONE_LIMIT], "done_total": len(done), "in_workshop": in_workshop, "last_entry": last_entry}
 
 
 def fleet_profile(db: Session, customer: Customer) -> dict:

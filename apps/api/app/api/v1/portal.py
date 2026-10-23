@@ -8,7 +8,7 @@ from io import BytesIO
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel, EmailStr, Field
@@ -370,6 +370,7 @@ def portal_me(db: Session = Depends(get_db), context: PortalContext = Depends(ge
         "email": account.email,
         "must_change_password": account.must_change_password,
         "customer_name": tracking.customer_display_name(customer),
+        "customer_logo_updated_at": customer.logo_updated_at,
         "contract": {
             "name": contract.name, "start_date": contract.start_date, "end_date": contract.end_date,
             "labor_included": contract.labor_included,
@@ -639,6 +640,7 @@ def portal_profile_dict(account: PortalAccount, customer: Customer) -> dict:
         "account": {"full_name": account.full_name, "email": account.email, "last_login_at": account.last_login_at},
         "customer": {
             "display_name": tracking.customer_display_name(customer),
+            "logo_updated_at": customer.logo_updated_at,
             "customer_type": customer.customer_type.value,
             "company_name": customer.company_name,
             "first_name": customer.first_name,
@@ -661,6 +663,15 @@ def portal_customer(db: Session, context: PortalContext) -> Customer:
 @router.get("/portal/profile")
 def portal_profile(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
     return portal_profile_dict(db.get(PortalAccount, context.account_id), portal_customer(db, context))
+
+
+@router.get("/portal/logo")
+def portal_logo(db: Session = Depends(get_db), context: PortalContext = Depends(get_portal_context)):
+    """The customer's own company logo, set by the workshop."""
+    customer = portal_customer(db, context)
+    if not customer.logo:
+        raise HTTPException(status_code=404, detail="Logo non presente")
+    return Response(content=customer.logo, media_type="image/webp", headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.patch("/portal/profile")
