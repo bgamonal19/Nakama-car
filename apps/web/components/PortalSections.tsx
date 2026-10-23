@@ -7,6 +7,7 @@ import { UpdateAppButton } from "./UpdateWatcher";
 import { LanguageSwitcher } from "./LanguageProvider";
 import { NavIcon } from "./NavIcon";
 import { ChatMessage, ChatPresence, ChatThread } from "./ChatThread";
+import { CustomerLogo } from "./CustomerLogo";
 import { PasswordInput } from "./PasswordInput";
 import { portalError, portalFetch, savePortalToken } from "../lib/portal";
 
@@ -361,7 +362,7 @@ export function PortalAddVehicle({ onAdded }: { onAdded: (id: string) => void })
 type Profile = {
   account: { full_name: string; email: string; last_login_at?: string | null };
   customer: {
-    display_name: string; customer_type: string; company_name?: string | null; first_name?: string | null; last_name?: string | null;
+    display_name: string; logo_updated_at?: string | null; customer_type: string; company_name?: string | null; first_name?: string | null; last_name?: string | null;
     vat_number?: string | null; tax_code?: string | null; sdi?: string | null;
     phone?: string | null; email?: string | null; pec?: string | null; address?: string | null; city?: string | null; province?: string | null; postal_code?: string | null;
   };
@@ -444,6 +445,10 @@ export function PortalProfile({ onSaved }: { onSaved: () => void }) {
     <h2>{t("Il mio profilo")}</h2>
     {error && <p className="record-error" role="alert">{t(error)}</p>}
     {profile && form && <>
+      <div className="portal-profile-identity">
+        <CustomerLogo name={profile.customer.display_name} version={profile.customer.logo_updated_at} load={() => portalFetch("/portal/logo")} size={84} />
+        <strong>{profile.customer.display_name}</strong>
+      </div>
       <div className="portal-profile-tax">
         <h3>{t("Dati fiscali")}</h3>
         <dl>{taxData.map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || "—"}</dd></div>)}</dl>

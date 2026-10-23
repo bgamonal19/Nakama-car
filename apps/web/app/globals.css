@@ -2087,3 +2087,27 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
   button.fleet-vehicle-link { grid-template-columns: auto 1fr auto; }
   button.fleet-vehicle-link .fleet-vehicle-go { display: none; }
 }
+
+/* Customer profile: logo and name on top (click to unfold the data), then its vehicles. */
+.customer-logo { display: inline-grid; place-items: center; flex-shrink: 0; overflow: hidden; border-radius: 14px; background: #e8eef5; color: var(--nakama-navy, #16263a); font-weight: 700; border: 1px solid var(--line); }
+.customer-logo.has-image { background: #fff; }
+.customer-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+[data-theme="dark"] .customer-logo:not(.has-image) { background: #24384d; color: #e6eef7; }
+.record-row .record-row-main { flex: 1; }
+.customer-profile-back { margin-bottom: 12px; }
+.customer-profile-head { display: flex; align-items: center; gap: 18px; width: 100%; padding: 8px 4px 4px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.customer-profile-head > span:last-child { display: grid; gap: 4px; min-width: 0; }
+.customer-profile-head strong { font-size: 22px; line-height: 1.2; overflow-wrap: anywhere; }
+.customer-profile-head small { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.customer-profile-head em { font-style: normal; font-size: 13px; color: var(--accent); }
+.customer-profile-head:hover strong { text-decoration: underline; }
+.customer-logo-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0; font-size: 13px; color: var(--muted); }
+.customer-logo-edit span { flex: 1 1 240px; }
+.portal-top > .portal-identity.portal-identity-row { display: flex; flex-direction: row; align-items: center; gap: 10px; min-width: 0; }
+.fleet-sort { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin: 10px 0; }
+.fleet-sort label { display: grid; gap: 6px; font-size: 13px; }
+.fleet-sort select { border: 1px solid var(--line); padding: 9px 10px; border-radius: 6px; background: var(--panel); color: inherit; font: inherit; min-width: 190px; }
+@media (max-width: 600px) { .customer-profile-head strong { font-size: 18px; } .fleet-sort label, .fleet-sort select { width: 100%; } }
+.portal-identity-text { display: grid; justify-items: center; min-width: 0; max-width: 100%; }
+.portal-profile-identity { display: flex; align-items: center; gap: 16px; margin: 4px 0 18px; }
+.portal-profile-identity strong { font-size: 20px; overflow-wrap: anywhere; }

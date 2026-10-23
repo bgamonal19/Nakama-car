@@ -12,7 +12,7 @@ type Maintenance = { state: "OK" | "SOON" | "DUE" | "UNKNOWN"; next_service_date
 type FleetVehicle = {
   id: string; license_plate: string; fleet_number?: string | null; make?: string | null; model?: string | null; version?: string | null;
   year?: number | null; vin?: string | null; mileage?: number | null; vehicle_category: string; fuel_type?: string | null;
-  maintenance: Maintenance; todo: Job[]; done: Job[]; done_total: number; in_workshop?: boolean;
+  maintenance: Maintenance; todo: Job[]; done: Job[]; done_total: number; in_workshop?: boolean; last_entry?: string | null;
 };
 type Profile = { customer_name: string; totals: { vehicles: number; with_todo: number; todo: number; done: number }; vehicles: FleetVehicle[] };
 type ImportRow = { row: number; license_plate: string; action: "created" | "updated" | "skipped"; message: string | null; warnings: string[] };
@@ -26,6 +26,31 @@ function rowTone(vehicle: FleetVehicle): string {
   if (vehicle.maintenance.state === "SOON") return " tone-soon";
   return vehicle.maintenance.state === "OK" ? " tone-ok" : "";
 }
+// 0 red (overdue or in the workshop), 1 orange, 2 green, 3 no plan: the order of "Condizione".
+function conditionRank(vehicle: FleetVehicle): number {
+  if (vehicle.in_workshop || vehicle.maintenance.state === "DUE") return 0;
+  return { SOON: 1, OK: 2, UNKNOWN: 3, DUE: 0 }[vehicle.maintenance.state];
+}
+type SortKey = "plate" | "entry" | "condition" | "name" | "fleet" | "km";
+const sortLabel: Record<SortKey, string> = {
+  plate: "Targa (A-Z)", entry: "Ultimo ingresso in officina", condition: "Condizione (prima i rossi)", name: "Nome veicolo (marca e modello)", fleet: "N. flotta", km: "Chilometri (più alti prima)",
+};
+const conditionFilters: Record<string, string> = { "": "Tutte", "0": "Scaduta o in officina", "1": "Manutenzione vicina", "2": "In regola", "3": "Piano non impostato" };
+const vehicleName = (vehicle: FleetVehicle) => [vehicle.make, vehicle.model].filter(Boolean).join(" ");
+const byText = (a?: string | null, b?: string | null) => (a || "\uffff").localeCompare(b || "\uffff", "it", { numeric: true, sensitivity: "base" });
+function compare(sort: SortKey) {
+  return (a: FleetVehicle, b: FleetVehicle): number => {
+    const time = (value?: string | null) => (value ? new Date(value).getTime() || 0 : 0);
+    const result = sort === "entry" ? time(b.last_entry) - time(a.last_entry)
+      : sort === "condition" ? conditionRank(a) - conditionRank(b) || b.todo.length - a.todo.length
+      : sort === "name" ? byText(vehicleName(a), vehicleName(b))
+      : sort === "fleet" ? byText(a.fleet_number, b.fleet_number)
+      : sort === "km" ? (b.mileage ?? -1) - (a.mileage ?? -1)
+      : 0;
+    return result || byText(a.license_plate, b.license_plate);
+  };
+}
+
 const actionLabel: Record<ImportRow["action"], string> = { created: "Nuovo", updated: "Aggiornato", skipped: "Scartato" };
 
 function day(value?: string | null) {
@@ -63,6 +88,8 @@ export function FleetProfile({ mode, customerId, query: externalQuery, stateFilt
   const [deleting, setDeleting] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [openHistory, setOpenHistory] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<SortKey>("plate");
+  const [condition, setCondition] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const query = externalQuery ?? ownQuery;
 
@@ -150,10 +177,11 @@ export function FleetProfile({ mode, customerId, query: externalQuery, stateFilt
   const vehicles = (profile?.vehicles || []).filter((vehicle) => {
     if (onlyTodo && vehicle.todo.length === 0) return false;
     if (stateFilter && vehicle.maintenance.state !== stateFilter) return false;
+    if (condition && conditionRank(vehicle) !== Number(condition)) return false;
     if (!needle) return true;
     return [vehicle.license_plate, vehicle.fleet_number, vehicle.make, vehicle.model, vehicle.version, vehicle.vin, [vehicle.make, vehicle.model].filter(Boolean).join("")]
       .some((value) => squash(value || "").includes(needle));
-  });
+  }).sort(compare(sort));
   const allVisibleSelected = vehicles.length > 0 && vehicles.every((vehicle) => selected.has(vehicle.id));
   const openVehicle = mode === "staff" ? (id: string) => setProfileId(id) : onOpenVehicle;
 
@@ -189,7 +217,22 @@ export function FleetProfile({ mode, customerId, query: externalQuery, stateFilt
             <span aria-hidden="true">🔍</span>
             <input type="search" aria-label={t("Cerca veicolo")} placeholder={t("Cerca veicolo: targa, n. flotta, marca, modello o telaio")} value={ownQuery} onChange={(e) => setOwnQuery(e.target.value)} />
           </label>
-          {(needle || onlyTodo) && <small>{vehicles.length} {t("di")} {profile?.vehicles.length} {t("veicoli")}</small>}
+          {(needle || onlyTodo || condition) && <small>{vehicles.length} {t("di")} {profile?.vehicles.length} {t("veicoli")}</small>}
+        </div>
+      )}
+      {(profile?.vehicles.length || 0) > 1 && (
+        <div className="fleet-sort">
+          <label>{t("Ordina per")}
+            <select value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+              {(Object.keys(sortLabel) as SortKey[]).map((key) => <option key={key} value={key}>{t(sortLabel[key])}</option>)}
+            </select>
+          </label>
+          <label>{t("Condizione")}
+            <select value={condition} onChange={(e) => setCondition(e.target.value)}>
+              {Object.entries(conditionFilters).map(([key, text]) => <option key={key} value={key}>{t(text)}</option>)}
+            </select>
+          </label>
+          {condition && externalQuery !== undefined && <small>{vehicles.length} {t("di")} {profile?.vehicles.length} {t("veicoli")}</small>}
         </div>
       )}
       {canDelete && vehicles.length > 0 && (

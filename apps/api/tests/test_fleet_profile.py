@@ -44,6 +44,7 @@ def test_fleet_profile_lists_jobs_to_do_and_done_by_plate(client):
     assert any(job["description"] == "Spia motore accesa" for job in van["todo"])
     # Both have an open case, so both are in the workshop (red row in the list).
     assert truck["in_workshop"] and van["in_workshop"]
+    assert truck["last_entry"] and van["last_entry"]
 
     # The customer sees the same profile from the portal.
     account = c.post(f"/api/v1/customers/{customer['id']}/portal-accounts", json={"email": "flotta@univex.example.com", "full_name": "Ufficio flotta"}).json()

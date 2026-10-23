@@ -11,6 +11,7 @@ import { DamageMarker, DamagePhotoMap, MapPhoto, MarkerView } from "../../compon
 import { loadCustomerPhotos, OtherPhotos } from "../../components/CustomerPhotos";
 import type { PlateSpots } from "../../lib/plateSpots";
 import { FleetProfile, Job, JobItem } from "../../components/FleetProfile";
+import { CustomerLogo } from "../../components/CustomerLogo";
 import { openInvoicePdf, PortalAddVehicle, PortalChat, PortalEstimates, PortalInvoices, PortalProfile, PortalSection, PortalSidebar } from "../../components/PortalSections";
 import { clearPortalToken, getPortalToken, portalError, portalFetch, savePortalToken } from "../../lib/portal";
 
@@ -41,7 +42,7 @@ type VehicleDetail = FleetVehicle & {
   todo?: Job[]; done?: Job[]; done_total?: number; invoices?: VehicleInvoice[];
 };
 type Me = {
-  full_name: string; email: string; must_change_password: boolean; customer_name: string; unread: number;
+  full_name: string; email: string; must_change_password: boolean; customer_name: string; customer_logo_updated_at?: string | null; unread: number;
   contract: { name: string; start_date: string; end_date?: string | null; labor_included: boolean } | null;
   workshop: { name: string; phone?: string | null; email?: string | null; address?: string | null; chat_status?: ChatPresence };
 };
@@ -239,9 +240,12 @@ export default function PortalPage() {
         </button>
         <NakamaLogo />
         {openCase && <ChatLauncher open={chatOpen} unread={unreadCount} onToggle={() => setChatOpen(!chatOpen)} presence={me?.workshop.chat_status} />}
-        <div className="portal-identity">
-          <strong>{me?.customer_name}</strong>
-          <small>{me?.full_name}</small>
+        <div className="portal-identity portal-identity-row">
+          {me?.customer_logo_updated_at && <CustomerLogo name={me.customer_name} version={me.customer_logo_updated_at} load={() => portalFetch("/portal/logo")} size={36} />}
+          <span className="portal-identity-text">
+            <strong>{me?.customer_name}</strong>
+            <small>{me?.full_name}</small>
+          </span>
         </div>
         <button type="button" className="ghost" onClick={logout}>{t("Esci")}</button>
       </header>
