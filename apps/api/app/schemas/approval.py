@@ -36,3 +36,5 @@ class PublicEstimateDecision(BaseModel):
     accepted: bool
     signature_name: str = Field(min_length=2, max_length=180)
     customer_notes: str | None = None
+    accept_terms: bool = False
+    accept_privacy: bool = False

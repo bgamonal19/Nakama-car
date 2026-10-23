@@ -13,11 +13,13 @@ export type StaffSession = {
   permissions: string[];
   roles?: string[];
   work_area?: "BODY" | "MECHANICAL" | null;
+  /** True until the user ticks the two boxes (terms, privacy notice) of the current version. */
+  legal_required?: boolean;
 };
 
 export type SignInResult =
   | { kind: "staff"; session: StaffSession }
-  | { kind: "portal"; token: string }
+  | { kind: "portal"; token: string; legalRequired: boolean }
   | { kind: "error"; message: string };
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
@@ -70,8 +72,30 @@ export async function signIn(apiUrl: string, rawEmail: string, password: string,
   if (result.ok) {
     return kind === "staff"
       ? { kind: "staff", session: result.data as unknown as StaffSession }
-      : { kind: "portal", token: result.data.access_token as string };
+      : { kind: "portal", token: result.data.access_token as string, legalRequired: result.data.legal_required === true };
   }
   // Report the first page's own problem (e.g. "No tenant membership"), unless it was only wrong credentials.
   return { kind: "error", message: failure(!first.ok && first.status !== 401 ? first : result as Attempt & { ok: false }) };
+}
+
+/** True when the account must tick the terms and privacy boxes before entering. */
+export function needsLegal(result: SignInResult): boolean {
+  if (result.kind === "staff") return result.session.legal_required === true;
+  return result.kind === "portal" && result.legalRequired;
+}
+
+/** Stores the two acceptances (terms, privacy notice) on the account just signed in; false if it did not work. */
+export async function acceptLegal(apiUrl: string, result: SignInResult, fetcher: Fetch = fetch): Promise<boolean> {
+  if (result.kind === "error") return false;
+  const [path, token] = result.kind === "staff" ? ["/auth/legal", result.session.access_token] : ["/portal/legal", result.token];
+  try {
+    const response = await fetcher(`${apiUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ accept_terms: true, accept_privacy: true }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }

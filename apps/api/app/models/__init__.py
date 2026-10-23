@@ -7,7 +7,7 @@ from app.models.renders import DamageMarker, PlateSpot, VehicleRender
 from app.models.damage import Damage, VehicleArea
 from app.models.estimating import Estimate, EstimateLine, LaborRate
 from app.models.garage import Customer, RepairCase, Vehicle
-from app.models.identity import AuditLog, Permission, Role, RolePermission, Tenant, TenantSettings, User, UserRole, UserTenant
+from app.models.identity import AccessLog, AuditLog, Permission, Role, RolePermission, Tenant, TenantSettings, User, UserRole, UserTenant
 from app.models.media import Media
 from app.models.integrations import ApiKey, ExternalCredential, VehicleTelemetry
 from app.models.portal import PortalAccount
@@ -16,7 +16,7 @@ from app.models.workshop import WorkOrder, WorkOrderTask
 from app.models.staff import Diagnosis, DiagnosisLine, QuickItem, UserProfile
 
 __all__ = [
-    "AuditLog", "Permission", "Role", "RolePermission", "Tenant", "TenantSettings",
+    "AccessLog", "AuditLog", "Permission", "Role", "RolePermission", "Tenant", "TenantSettings",
     "User", "UserRole", "UserTenant", "Customer", "Vehicle", "RepairCase", "Media",
     "VehicleArea", "Damage", "LaborRate", "Estimate", "EstimateLine", "EstimateApproval",
     "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine", "ServiceContract", "VehicleLookup", "VehicleRender", "DamageMarker",

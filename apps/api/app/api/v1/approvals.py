@@ -17,6 +17,7 @@ from app.schemas.approval import (
     PublicEstimateRead,
 )
 from app.security.context import AuthContext, require_permission
+from app.services.access import LEGAL_VERSION, client_ip
 from app.services.contracts import customer_display_name
 from app.services.workshop import open_work_order
 
@@ -166,10 +167,17 @@ def public_estimate_decision(
     if approval.responded_at is not None:
         raise HTTPException(status_code=409, detail="Estimate already answered")
 
+    # Two separate boxes: privacy notice read (always), terms and conditions (to accept the estimate).
+    if not payload.accept_privacy or (payload.accepted and not payload.accept_terms):
+        raise HTTPException(status_code=422, detail="Accetta i termini e conferma di aver letto l'informativa privacy.")
     approval.accepted = payload.accepted
     approval.signature_name = payload.signature_name
     approval.customer_notes = payload.customer_notes
-    approval.ip_address = request.client.host if request.client else None
+    now = datetime.now(timezone.utc)
+    approval.legal_version = LEGAL_VERSION
+    approval.privacy_accepted_at = now
+    approval.terms_accepted_at = now if payload.accept_terms else None
+    approval.ip_address = client_ip(request)
     approval.user_agent = request.headers.get("user-agent")
     approval.responded_at = datetime.now(timezone.utc)
     estimate.status = EstimateStatus.APPROVED if payload.accepted else EstimateStatus.REJECTED

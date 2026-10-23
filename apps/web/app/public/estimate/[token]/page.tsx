@@ -5,6 +5,7 @@ import { useLanguage } from "../../../../components/LanguageProvider";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { NakamaLogo } from "../../../../components/NakamaLogo";
+import { LegalChoice, LegalConsent, LegalLinks } from "../../../../components/Legal";
 
 type PublicEstimate = {
   estimate_number: string;
@@ -32,6 +33,7 @@ export default function PublicEstimatePage() {
   const [signature, setSignature] = useState("");
   const [notes, setNotes] = useState("");
   const [result, setResult] = useState<string | null>(null);
+  const [legal, setLegal] = useState<LegalChoice>({ terms: false, privacy: false });
 
   useEffect(() => {
     if (!params.token || !api) return;
@@ -50,6 +52,11 @@ export default function PublicEstimatePage() {
       alert(t("Inserisci nome e cognome per confermare."));
       return;
     }
+    // Two separate boxes: the privacy notice always, the terms only to accept the estimate.
+    if (!legal.privacy || (accepted && !legal.terms)) {
+      alert(t(accepted ? "Per accettare spunta i termini e condizioni e l'informativa privacy." : "Conferma di aver letto l'informativa privacy."));
+      return;
+    }
     const r = await fetch(`${api}/public/estimate/${params.token}/decision`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -57,6 +64,8 @@ export default function PublicEstimatePage() {
         accepted,
         signature_name: signature.trim(),
         customer_notes: notes || null,
+        accept_terms: accepted && legal.terms,
+        accept_privacy: legal.privacy,
       }),
     });
     if (!r.ok) {
@@ -106,9 +115,11 @@ export default function PublicEstimatePage() {
             <p>{t("Inserisci nome e cognome come conferma della decisione sul preventivo.")}</p>
             <label>{t("Nome e cognome")}<input value={signature} onChange={(e) => setSignature(e.target.value)} placeholder="Mario Rossi" /></label>
             <label>{t("Note opzionali")}<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} /></label>
+            <LegalConsent value={legal} onChange={setLegal} termsLabel="Accetto il preventivo e i" />
             <div className="decision-actions"><button className="reject" onClick={() => decide(false)}>{t("Rifiuta")}</button><button className="accept" onClick={() => decide(true)}>{t("Accetta preventivo")}</button></div>
           </div>
         )}
+        <LegalLinks />
       </div>
     </main>
   );

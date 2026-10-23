@@ -26,8 +26,9 @@ def test_workers_area_profile_and_diagnosis_to_estimate(client):
     # Personal profile.
     saved = mechanic.put("/api/v1/me/profile", json={"phone": " 345 111 2222 ", "city": "Milano", "birth_date": "1990-05-01", "skills": "Diagnosi elettronica"})
     assert saved.status_code == 200, saved.text
-    assert saved.json()["profile"]["phone"] == "345 111 2222" and saved.json()["profile"]["city"] == "Milano"
-    assert mechanic.get("/api/v1/me").json()["profile"]["birth_date"] == "1990-05-01"
+    assert saved.json()["profile"]["phone"] == "345 111 2222"
+    # Data minimisation: birth date, tax code and home address are no longer asked nor stored.
+    assert not {"birth_date", "tax_code", "address", "city", "postal_code"} & set(mechanic.get("/api/v1/me").json()["profile"])
     assert mechanic.get(f"/api/v1/users/{mechanic_user['id']}/profile").status_code == 403
     assert c.get(f"/api/v1/users/{mechanic_user['id']}/profile").json()["profile"]["skills"] == "Diagnosi elettronica"
     assert c.put(f"/api/v1/users/{mechanic_user['id']}/area", json={"work_area": "ALL"}).json()["work_area"] is None
@@ -138,7 +139,7 @@ def test_flow_mechanic_office_customer_back_to_mechanic(client):
 
     # 4. The customer approves from the link: the job lands in the mechanic's list, marked new.
     token = share["public_token"]
-    assert c.post(f"/api/v1/public/estimate/{token}/decision", json={"accepted": True, "signature_name": "Marco Rossi"}).status_code == 200
+    assert c.post(f"/api/v1/public/estimate/{token}/decision", json={"accepted": True, "signature_name": "Marco Rossi", "accept_terms": True, "accept_privacy": True}).status_code == 200
     work = mechanic.get("/api/v1/my-work").json()
     assert work["pending"] == [] and work["new_jobs"] == 1
     job = work["jobs"][0]
@@ -159,7 +160,7 @@ def test_customer_rejection_is_shown_and_office_approval_opens_job(client):
     case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"}).json()
     estimate = c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json()
     token = c.post(f"/api/v1/estimates/{estimate['id']}/share").json()["public_token"]
-    assert c.post(f"/api/v1/public/estimate/{token}/decision", json={"accepted": False, "signature_name": "Sara Bianchi"}).status_code == 200
+    assert c.post(f"/api/v1/public/estimate/{token}/decision", json={"accepted": False, "signature_name": "Sara Bianchi", "accept_privacy": True}).status_code == 200
     work = mechanic.get("/api/v1/my-work").json()
     assert work["waiting"] == [] and work["pending"][0]["stage"] == "REJECTED" and work["jobs"] == []
 

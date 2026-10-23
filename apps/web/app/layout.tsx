@@ -21,8 +21,8 @@ export const viewport = {
 };
 
 // Without a workshop session the app opens straight on the login screen, before any page is painted.
-// Customer and public pages (portal, shared estimates, tracking, first setup) stay reachable without it.
-const loginGate = `try{var p=location.pathname;if(!/^\\/(login|portale|public|segui|setup)(\\/|$)/.test(p)&&!localStorage.getItem("nakama_access_token")){var n=p+location.search;location.replace(n==="/"?"/login":"/login?next="+encodeURIComponent(n))}}catch(e){}`;
+// Customer and public pages (portal, shared estimates, tracking, first setup, legal texts) stay reachable without it.
+const loginGate = `try{var p=location.pathname;if(!/^\\/(login|portale|public|segui|setup|legal)(\\/|$)/.test(p)&&!localStorage.getItem("nakama_access_token")){var n=p+location.search;location.replace(n==="/"?"/login":"/login?next="+encodeURIComponent(n))}}catch(e){}`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

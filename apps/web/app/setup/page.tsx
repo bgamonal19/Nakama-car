@@ -8,6 +8,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
+import { LegalChoice, LegalConsent } from "../../components/Legal";
 
 export default function SetupPage() {
   const { t } = useLanguage();
@@ -23,6 +24,7 @@ export default function SetupPage() {
     company_name: "NAKAMA CAR",
     vat_number: "",
   });
+  const [legal, setLegal] = useState<LegalChoice>({ terms: false, privacy: false });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +39,7 @@ export default function SetupPage() {
           "Content-Type": "application/json",
           "X-Bootstrap-Token": token,
         },
-        body: JSON.stringify({ ...form, vat_number: form.vat_number || null }),
+        body: JSON.stringify({ ...form, vat_number: form.vat_number || null, accept_terms: legal.terms, accept_privacy: legal.privacy }),
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.detail || "Inizializzazione non riuscita");
@@ -67,8 +69,9 @@ export default function SetupPage() {
           <label className="span-2">{t("Password amministratore")}<PasswordInput required minLength={10}  value={form.admin_password} onChange={(e) => field("admin_password", e.target.value)} /></label>
           <label>{t("Ragione sociale")}<input required value={form.company_name} onChange={(e) => field("company_name", e.target.value)} /></label>
           <label>{t("Partita IVA")}<input value={form.vat_number} onChange={(e) => field("vat_number", e.target.value)} /></label>
+          <div className="span-2"><LegalConsent value={legal} onChange={setLegal} /></div>
           {error && <div className="auth-error span-2">{t(error)}</div>}
-          <button className="primary auth-submit span-2" disabled={loading}>{loading ? t("Configurazione…") : t("Crea NAKAMA CAR")}</button>
+          <button className="primary auth-submit span-2" disabled={loading || !legal.terms || !legal.privacy}>{loading ? t("Configurazione…") : t("Crea NAKAMA CAR")}</button>
         </form>
       </div>
     </main>

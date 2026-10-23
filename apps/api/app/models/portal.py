@@ -22,3 +22,7 @@ class PortalAccount(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Version of terms + privacy notice accepted (two separate boxes) and when; empty = must accept at next login.
+    legal_version: Mapped[str | None] = mapped_column(String(20))
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    privacy_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -1,7 +1,7 @@
 // Run with: npm test (node --test --experimental-strip-types)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { signIn, WRONG_CREDENTIALS, SERVER_ERROR, SERVER_UNREACHABLE } from "./signin.ts";
+import { acceptLegal, needsLegal, signIn, WRONG_CREDENTIALS, SERVER_ERROR, SERVER_UNREACHABLE } from "./signin.ts";
 
 const API = "https://api.test/api/v1";
 const staffSession = { access_token: "staff-token", first_name: "Luca", last_name: "M", tenant_id: "t1", permissions: ["case.read"], roles: ["MECHANIC"], work_area: "MECHANICAL" };
@@ -38,7 +38,8 @@ for (const prefer of ["staff", "portal"]) {
   test(`${prefer} page: customer gets into the portal`, async () => {
     const { fetcher } = api(accounts);
     const result = await signIn(API, "flotta@univex.it", "Cliente123!", prefer, fetcher);
-    assert.deepEqual(result, { kind: "portal", token: "portal-token" });
+    assert.deepEqual(result, { kind: "portal", token: "portal-token", legalRequired: false });
+    assert.equal(needsLegal(result), false);
   });
 
   test(`${prefer} page: wrong password says so`, async () => {
@@ -65,4 +66,23 @@ test("server errors are not reported as a wrong password", async () => {
   assert.deepEqual(await signIn(API, "admin@nakamacar.it", "Admin12345!", "staff", api({ ...accounts, staffStatus: 500 }).fetcher), { kind: "error", message: SERVER_ERROR });
   assert.deepEqual(await signIn(API, "admin@nakamacar.it", "Admin12345!", "staff", api({ down: true }).fetcher), { kind: "error", message: SERVER_UNREACHABLE });
   assert.deepEqual(await signIn(API, "admin@nakamacar.it", "Admin12345!", "staff", api({ ...accounts, staffStatus: 403 }).fetcher), { kind: "error", message: "No tenant membership" });
+});
+
+test("accounts that have not accepted terms and privacy are asked, then the acceptance is sent", async () => {
+  const sent = [];
+  const fetcher = async (url, init) => {
+    sent.push({ url: url.replace(API, ""), auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    if (url.endsWith("/legal")) return new Response("{}", { status: 200 });
+    return new Response(JSON.stringify(url.includes("/portal/") ? { access_token: "portal-token", legal_required: true } : { detail: "Invalid credentials" }), { status: url.includes("/portal/") ? 200 : 401 });
+  };
+  const result = await signIn(API, "flotta@univex.it", "Cliente123!", "staff", fetcher);
+  assert.equal(needsLegal(result), true);
+  assert.equal(await acceptLegal(API, result, fetcher), true);
+  assert.deepEqual(sent.at(-1), { url: "/portal/legal", auth: "Bearer portal-token", body: { accept_terms: true, accept_privacy: true } });
+
+  const staff = { kind: "staff", session: { ...staffSession, legal_required: true } };
+  assert.equal(needsLegal(staff), true);
+  await acceptLegal(API, staff, fetcher);
+  assert.deepEqual(sent.at(-1).url, "/auth/legal");
+  assert.equal(sent.at(-1).auth, "Bearer staff-token");
 });

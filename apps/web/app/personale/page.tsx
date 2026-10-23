@@ -13,8 +13,7 @@ import { apiError, apiFetch, getAccessToken, sessionUser } from "../../lib/api";
 type Worker = { id: string; email: string; first_name: string; last_name: string; status: string; role_codes: string[]; work_area?: string | null };
 type StaffProfile = { profile: Record<string, string | null> };
 const profileLabels: [string, string][] = [
-  ["phone", "Telefono"], ["birth_date", "Data di nascita"], ["tax_code", "Codice fiscale"], ["address", "Indirizzo"], ["city", "Città"],
-  ["postal_code", "CAP"], ["emergency_contact", "Contatto di emergenza"], ["emergency_phone", "Telefono di emergenza"], ["skills", "Competenze"], ["notes", "Note"],
+  ["phone", "Telefono"], ["emergency_contact", "Contatto di emergenza"], ["emergency_phone", "Telefono di emergenza"], ["skills", "Competenze"], ["notes", "Note"],
 ];
 const profiles = [
   { code: "RECEPTION", name: "Accettazione", description: "Clienti, veicoli, pratiche e creazione preventivi." },

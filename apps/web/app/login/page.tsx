@@ -9,7 +9,8 @@ import { useRouter } from "next/navigation";
 import { API_URL, saveSession } from "../../lib/api";
 import { NakamaLogo } from "../../components/NakamaLogo";
 import { savePortalToken } from "../../lib/portal";
-import { signIn } from "../../lib/signin";
+import { acceptLegal, needsLegal, signIn, SignInResult } from "../../lib/signin";
+import { LegalLinks, LegalStep } from "../../components/Legal";
 
 export default function LoginPage() {
   const { t } = useLanguage();
@@ -20,6 +21,8 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [expired, setExpired] = useState(false);
   const [next, setNext] = useState("/");
+  // Signed in, waiting for the two boxes (terms, privacy) before the session is saved.
+  const [pending, setPending] = useState<SignInResult | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -29,6 +32,17 @@ export default function LoginPage() {
     setNext(target.startsWith("/") && !target.startsWith("//") ? target : "/");
   }, []);
 
+  function enter(result: SignInResult) {
+    if (result.kind === "portal") {
+      // Customers often type their portal access here: log them into the portal instead.
+      savePortalToken(result.token);
+      window.location.assign("/portale");
+    } else if (result.kind === "staff") {
+      saveSession(result.session);
+      router.push(next);
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
@@ -36,14 +50,8 @@ export default function LoginPage() {
     try {
       const result = await signIn(API_URL, email, password, "staff");
       if (result.kind === "error") throw new Error(result.message);
-      if (result.kind === "portal") {
-        // Customers often type their portal access here: log them into the portal instead.
-        savePortalToken(result.token);
-        window.location.assign("/portale");
-        return;
-      }
-      saveSession(result.session);
-      router.push(next);
+      if (needsLegal(result)) setPending(result);
+      else enter(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Accesso non riuscito");
     } finally {
@@ -56,15 +64,17 @@ export default function LoginPage() {
       <div className="auth-card">
         <div className="public-brand nakama-auth-brand"><NakamaLogo /></div>
         <div className="auth-copy"><p className="eyebrow">{t("ACCESSO OPERATORE")}</p><h1>{t("Accedi alla carrozzeria")}</h1><p>{t("Gestisci pratiche, preventivi, lavorazioni e fatturazione.")}</p></div>
+        {pending ? <LegalStep onAccept={async () => { const ok = await acceptLegal(API_URL, pending); if (ok) enter(pending); return ok; }} onCancel={() => { setPending(null); setPassword(""); }} /> :
         <form onSubmit={submit} className="auth-form">
           <label>{t("Email")}<input type="email" required autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="nome@azienda.it" /></label>
           <label>{t("Password")}<PasswordInput required autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} /></label>
           {expired && !error && <div className="auth-error" role="status">{t("Sessione scaduta. Accedi di nuovo per continuare.")}</div>}
           {error && <div className="auth-error">{t(error)}</div>}
           <button className="primary auth-submit" disabled={loading}>{loading ? t("Accesso…") : t("Accedi")}</button>
-        </form>
+        </form>}
         <p className="auth-foot"><a href="/portale/login">{t("Sei un cliente? Accedi al portale")}</a></p>
         <p className="auth-foot">{t("Primo avvio? Utilizza la pagina di inizializzazione riservata all'amministratore.")}</p>
+        <LegalLinks />
       </div>
     </main>
   );
