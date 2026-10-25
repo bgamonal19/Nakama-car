@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -21,6 +22,7 @@ def record_audit(
     user_agent: str | None = None,
 ) -> AuditLog:
     log = AuditLog(
+        created_at=datetime.now(timezone.utc),
         tenant_id=tenant_id,
         user_id=user_id,
         entity_type=entity_type,

@@ -229,7 +229,10 @@ def update_work_task_status(
     )
     if task is None:
         raise HTTPException(status_code=404, detail="Work task not found")
+    old_status = task.status.value
     task.status = payload.status
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="work_task", entity_id=task.id,
+                 action="status_changed", field_name="status", old_value=old_status, new_value=payload.status.value)
     done = payload.status.value == "DONE"
     task.completed_by = auth.user_id if done else None
     task.completed_at = datetime.now(timezone.utc) if done else None
