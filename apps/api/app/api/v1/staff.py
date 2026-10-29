@@ -381,9 +381,12 @@ def update_diagnosis(diagnosis_id: UUID, payload: DiagnosisIn, db: Session = Dep
 
 @router.delete("/diagnoses/{diagnosis_id}", status_code=204)
 def delete_diagnosis(diagnosis_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """Remove a diagnosis that never became an estimate (still waiting or rejected)."""
     diagnosis = get_diagnosis(db, auth, diagnosis_id)
-    if diagnosis.status != DiagnosisStatus.SENT:
-        raise HTTPException(status_code=409, detail="La diagnosi è già stata lavorata dall'ufficio")
+    if diagnosis.estimate_id is not None:
+        raise HTTPException(status_code=409, detail="Da questa diagnosi è già stato fatto un preventivo")
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="diagnosis", entity_id=diagnosis.id,
+                 action="deleted", old_value={"number": diagnosis.diagnosis_number, "plate": diagnosis.license_plate})
     db.delete(diagnosis)
     db.commit()
     return None
@@ -548,7 +551,8 @@ def delete_diagnosis_photo(diagnosis_id: UUID, photo_id: UUID, db: Session = Dep
 
 
 @router.post("/diagnoses/{diagnosis_id}/reject")
-def reject_diagnosis(diagnosis_id: UUID, payload: DiagnosisReject, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("estimate.create"))):
+def reject_diagnosis(diagnosis_id: UUID, payload: DiagnosisReject, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """The office, or the mechanic who wrote it, closes a diagnosis that won't become an estimate."""
     diagnosis = get_diagnosis(db, auth, diagnosis_id)
     if diagnosis.status != DiagnosisStatus.SENT:
         raise HTTPException(status_code=409, detail="Diagnosi già lavorata")

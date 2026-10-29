@@ -35,7 +35,17 @@ const bodyQuick: [string, number][] = [
   ["Paraurti anteriore", 2], ["Paraurti posteriore", 2], ["Parafango anteriore", 2.5], ["Portiera", 3], ["Cofano", 2.5],
   ["Faro anteriore", 0.8], ["Specchietto retrovisore", 0.6], ["Parabrezza", 1.5], ["Verniciatura elemento", 2.5], ["Lucidatura", 1],
 ];
-const materialQuick = ["Olio motore", "Liquido freni", "Antigelo", "Grasso", "Detergente", "Stucco", "Primer", "Vernice", "Trasparente", "Carta abrasiva"];
+// Materials per area: a mechanic never sees body shop materials, and vice versa.
+const materialQuick: Record<string, string[]> = {
+  MECHANICAL: ["Olio motore", "Liquido freni", "Antigelo", "Grasso", "AdBlue", "Liquido lavavetri", "Sbloccante", "Detergente"],
+  BODY: ["Stucco", "Primer", "Vernice", "Trasparente", "Carta abrasiva", "Nastro di mascheratura", "Diluente", "Detergente"],
+};
+
+/** When the diagnosis came in, e.g. "gio 29/10/2026 · 17:54". */
+function entryDate(value: string) {
+  const date = new Date(value);
+  return `${date.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })} · ${date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
+}
 
 function money(value: string | null) {
   return value ? Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : "—";
@@ -58,6 +68,7 @@ export default function DiagnosiPage() {
   const [picking, setPicking] = useState<Diagnosis | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [newCustomer, setNewCustomer] = useState<{ type: "PRIVATE" | "COMPANY"; name: string; last: string; phone: string } | null>(null);
   const [custom, setCustom] = useState<{ id: string; name: string; kind: QuickKind; labor_hours: number; created_by: string | null }[]>([]);
   const manager = Boolean(user?.permissions.includes("estimate.create"));
   const area = user?.work_area ?? null;
@@ -96,7 +107,7 @@ export default function DiagnosiPage() {
     const builtIn: QuickPick[] = catalog.flatMap((group) => group.items.map(([name, category, itemHours]) => ({
       key: `${group.group}-${name}`, name, kind: (category === "PART" ? "PART" : "SERVICE") as QuickKind, hours: itemHours, group: group.group, icon: group.icon,
     })));
-    const materials: QuickPick[] = materialQuick.map((name) => ({ key: `mat-${name}`, name, kind: "MATERIAL", hours: 0, group: "Materiali", icon: "🧴" }));
+    const materials: QuickPick[] = (materialQuick[workType] ?? materialQuick.MECHANICAL).map((name) => ({ key: `mat-${name}`, name, kind: "MATERIAL", hours: 0, group: "Materiali", icon: "🧴" }));
     return [...own, ...builtIn, ...materials];
   }, [workType, custom, manager, user]);
 
@@ -189,7 +200,8 @@ export default function DiagnosiPage() {
   async function remove(item: Diagnosis) {
     if (!window.confirm(t("Eliminare questa diagnosi?"))) return;
     const response = await apiFetch(`/diagnoses/${item.id}`, { method: "DELETE" });
-    if (response.ok) void load();
+    if (response.ok || response.status === 404) { if (editing === item.id) reset(); void load(); }
+    else setMessage(await apiError(response, "Impossibile eliminare la diagnosi."));
   }
 
   async function toEstimate(item: Diagnosis, customerId?: string) {
@@ -197,7 +209,7 @@ export default function DiagnosiPage() {
     const response = await apiFetch(`/diagnoses/${item.id}/estimate`, { method: "POST", body: JSON.stringify(customerId ? { customer_id: customerId } : {}) });
     if (response.status === 409) {
       const data = await response.json().catch(() => ({}));
-      if (data?.detail?.needs_customer) { setPicking(item); setCustomerQuery(""); setCustomers([]); return; }
+      if (data?.detail?.needs_customer) { setPicking(item); setCustomerQuery(""); setCustomers([]); setNewCustomer(null); return; }
     }
     if (!response.ok) { setMessage(await apiError(response, "Impossibile creare il preventivo.")); return; }
     const created = await response.json();
@@ -205,11 +217,30 @@ export default function DiagnosiPage() {
     window.location.assign(`/preventivi?id=${created.estimate_id}`);
   }
 
+  /** New vehicle of a customer the workshop doesn't have yet: create them here and go on to the estimate. */
+  async function createCustomer(event: FormEvent, item: Diagnosis) {
+    event.preventDefault();
+    if (!newCustomer || !newCustomer.name.trim()) return;
+    const company = newCustomer.type === "COMPANY";
+    const response = await apiFetch("/customers", { method: "POST", body: JSON.stringify({
+      customer_type: newCustomer.type,
+      company_name: company ? newCustomer.name : null,
+      first_name: company ? null : newCustomer.name,
+      last_name: company ? null : newCustomer.last || null,
+      phone: newCustomer.phone || null,
+    }) });
+    if (!response.ok) { setMessage(await apiError(response, "Impossibile creare il cliente.")); return; }
+    const created: Customer = await response.json();
+    setNewCustomer(null);
+    await toEstimate(item, created.id);
+  }
+
   async function reject(item: Diagnosis) {
     const note = window.prompt(t("Motivo (facoltativo)")) ?? null;
     if (note === null) return;
     const response = await apiFetch(`/diagnoses/${item.id}/reject`, { method: "POST", body: JSON.stringify({ note }) });
-    if (response.ok) void load();
+    if (response.ok) { if (editing === item.id) reset(); void load(); }
+    else setMessage(await apiError(response, "Impossibile segnare la diagnosi come rifiutata."));
   }
 
   useEffect(() => {
@@ -325,7 +356,8 @@ export default function DiagnosiPage() {
               <span>{[item.vehicle?.make, item.vehicle?.model].filter(Boolean).join(" ")}{item.customer_name ? ` · ${item.customer_name}` : ""}</span>
               <span className="status-chip">{t(statusNames[item.status])}</span>
             </header>
-            <p className="diagnosis-meta">{item.diagnosis_number} · {new Date(item.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · {item.author_name} · {t(item.work_type === "BODY" ? "Carrozzeria" : "Meccanica")}{item.urgency === "HIGH" ? ` · ⚠️ ${t("Urgente")}` : ""}</p>
+            <p className="diagnosis-entry">📅 {t("Ingresso")}: <b>{entryDate(item.created_at)}</b></p>
+            <p className="diagnosis-meta">{item.diagnosis_number} · {item.author_name} · {t(item.work_type === "BODY" ? "Carrozzeria" : "Meccanica")}{item.urgency === "HIGH" ? ` · ⚠️ ${t("Urgente")}` : ""}</p>
             {item.complaint && <p><b>{t("Problema")}:</b> {item.complaint}</p>}
             {item.findings && <p><b>{t("Diagnosi")}:</b> {item.findings}</p>}
             {item.fuel_level != null && (
@@ -342,14 +374,10 @@ export default function DiagnosiPage() {
             {item.estimate_status && customerStage[item.estimate_status] && <p className={`customer-stage stage-${item.estimate_status.toLowerCase()}`}>{t(customerStage[item.estimate_status])}</p>}
             {item.estimate_number && <p className="hint">{t("Preventivo")} {item.estimate_number}{item.case_number ? ` · ${t("Pratica")} ${item.case_number}` : ""}</p>}
             <div className="table-actions">
-              {item.status === "SENT" && (manager ? (
-                <>
-                  <button className="primary" onClick={() => toEstimate(item)}>€ {t("Crea preventivo")}</button>
-                  <button className="ghost" onClick={() => reject(item)}>{t("Respingi")}</button>
-                </>
-              ) : null)}
+              {item.status === "SENT" && manager && <button className="primary" onClick={() => toEstimate(item)}>€ {t("Crea preventivo")}</button>}
               {item.status === "SENT" && <button className="secondary" onClick={() => edit(item)}>{t("Modifica")}</button>}
-              {item.status === "SENT" && !manager && <button className="ghost" onClick={() => remove(item)}>{t("Elimina")}</button>}
+              {item.status === "SENT" && <button className="tone-button rejected" onClick={() => reject(item)}>✖ {t("Rifiutata")}</button>}
+              {!item.estimate_id && item.status !== "CONVERTED" && <button className="ghost" onClick={() => remove(item)}>🗑 {t("Elimina")}</button>}
               {item.estimate_id && manager && <a className="secondary link-button" href={`/preventivi?id=${item.estimate_id}`}>{t("Apri preventivo")}</a>}
             </div>
             {picking?.id === item.id && (
@@ -359,7 +387,25 @@ export default function DiagnosiPage() {
                 <div className="choice-chips">
                   {customers.map((customer) => <button type="button" key={customer.id} onClick={() => toEstimate(item, customer.id)}>{customerName(customer)}</button>)}
                 </div>
-                <p className="hint">{t("Se il cliente non esiste, crealo in Clienti e poi torna qui.")}</p>
+                {newCustomer ? (
+                  <form className="new-customer" onSubmit={(event) => createCustomer(event, item)}>
+                    <div className="choice-chips">
+                      {([["PRIVATE", "Privato"], ["COMPANY", "Azienda"]] as const).map(([code, name]) => (
+                        <button type="button" key={code} className={newCustomer.type === code ? "active" : ""} onClick={() => setNewCustomer({ ...newCustomer, type: code })}>{t(name)}</button>
+                      ))}
+                    </div>
+                    <input required autoFocus value={newCustomer.name} onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })} placeholder={t(newCustomer.type === "COMPANY" ? "Ragione sociale" : "Nome")} />
+                    {newCustomer.type === "PRIVATE" && <input value={newCustomer.last} onChange={(e) => setNewCustomer({ ...newCustomer, last: e.target.value })} placeholder={t("Cognome")} />}
+                    <input type="tel" value={newCustomer.phone} onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })} placeholder={t("Telefono")} />
+                    <div className="table-actions">
+                      <button type="button" className="ghost" onClick={() => setNewCustomer(null)}>{t("Annulla")}</button>
+                      <button className="primary" disabled={!newCustomer.name.trim()}>{t("Crea cliente e preventivo")}</button>
+                    </div>
+                    <p className="hint">{t("Gli altri dati (P. IVA, indirizzo…) si completano dopo in Clienti.")}</p>
+                  </form>
+                ) : (
+                  <button type="button" className="secondary" onClick={() => setNewCustomer({ type: "PRIVATE", name: customerQuery.trim(), last: "", phone: "" })}>＋ {t("Nuovo cliente")}</button>
+                )}
               </div>
             )}
           </article>
