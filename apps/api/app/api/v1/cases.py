@@ -13,6 +13,7 @@ from app.models.tracking import CaseMessage
 from app.models.workshop import WorkOrder, WorkOrderTask, WorkTaskStatus
 from app.schemas.garage import RepairCaseCreate, RepairCaseListItem, RepairCaseRead, RepairCaseUpdate
 from app.services.audit import record_audit
+from app.services.numbering import next_number
 from app.security.context import AuthContext, is_admin, require_permission
 
 
@@ -25,15 +26,7 @@ router = APIRouter(prefix="/cases", tags=["repair-cases"])
 
 
 def next_case_number(db: Session, tenant_id) -> str:
-    year = datetime.now(timezone.utc).year
-    prefix = f"NC-{year}-"
-    count = db.scalar(
-        select(func.count(RepairCase.id)).where(
-            RepairCase.tenant_id == tenant_id,
-            RepairCase.case_number.like(f"{prefix}%"),
-        )
-    ) or 0
-    return f"{prefix}{count + 1:06d}"
+    return next_number(db, RepairCase.case_number, RepairCase.tenant_id, tenant_id, "NC-")
 
 
 @router.post("", response_model=RepairCaseRead, status_code=status.HTTP_201_CREATED)

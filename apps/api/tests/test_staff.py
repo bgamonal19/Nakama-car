@@ -283,3 +283,28 @@ def test_diagnosis_check_in_photos_and_fuel_level(client):
     extra = mechanic.post(f"/api/v1/diagnoses/{second['id']}/photos", content=png_bytes()).json()
     assert mechanic.delete(f"/api/v1/diagnoses/{second['id']}/photos/{extra['id']}").status_code == 204
     assert mechanic.get(f"/api/v1/diagnoses/{second['id']}").json()["photos"] == []
+
+
+def test_numbers_stay_unique_after_deleting_records(client):
+    """Deleting a case must not make the next estimate, case or diagnosis reuse an existing number."""
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec-num@example.com", "MECHANIC")
+    customer = c.post("/api/v1/customers", json={"company_name": "Numeri Srl", "customer_type": "COMPANY"}).json()
+    cases, estimates = [], []
+    for plate in ("NU111AA", "NU222BB"):
+        vehicle = c.post("/api/v1/vehicles", json={"license_plate": plate, "customer_id": customer["id"]}).json()
+        case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"}).json()
+        cases.append(case)
+        estimates.append(c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json())
+    assert c.delete(f"/api/v1/cases/{cases[0]['id']}").status_code == 204
+
+    # Only one estimate is left, but its number is the second: a count would hand it out again.
+    again = c.post("/api/v1/estimates", json={"repair_case_id": cases[1]["id"]})
+    assert again.status_code == 201, again.text
+    assert again.json()["estimate_number"] > estimates[1]["estimate_number"]
+
+    # A received diagnosis for a new vehicle becomes an estimate (and a case) without clashing.
+    diagnosis = mechanic.post("/api/v1/diagnoses", json={"license_plate": "NU333CC", "complaint": "Turbina"}).json()
+    converted = c.post(f"/api/v1/diagnoses/{diagnosis['id']}/estimate", json={"customer_id": customer["id"]})
+    assert converted.status_code == 200, converted.text
+    assert converted.json()["case_number"] > cases[1]["case_number"]

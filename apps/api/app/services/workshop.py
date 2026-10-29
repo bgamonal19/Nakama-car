@@ -1,5 +1,4 @@
 """Work orders: opened automatically once the customer (or the office) approves an estimate."""
-from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -9,6 +8,7 @@ from app.models.estimating import Estimate, EstimateLine, EstimateLineCategory
 from app.models.garage import RepairCase, RepairCaseStatus
 from app.models.workshop import WorkOrder, WorkOrderStatus, WorkOrderTask
 from app.services.audit import record_audit
+from app.services.numbering import next_number
 
 BODYSHOP_TASKS = [
     ("DISASSEMBLY", "Smontaggio"),
@@ -116,14 +116,7 @@ def ensure_item_tasks(db: Session, order: WorkOrder) -> bool:
 
 
 def next_work_order_number(db: Session, tenant_id: UUID) -> str:
-    year = datetime.now(timezone.utc).year
-    count = db.scalar(
-        select(func.count(WorkOrder.id)).where(
-            WorkOrder.tenant_id == tenant_id,
-            WorkOrder.work_order_number.like(f"NC-ODL-{year}-%"),
-        )
-    ) or 0
-    return f"NC-ODL-{year}-{count + 1:06d}"
+    return next_number(db, WorkOrder.work_order_number, WorkOrder.tenant_id, tenant_id, "NC-ODL-")
 
 
 def open_work_order(db: Session, estimate: Estimate, user_id: UUID | None = None, source: str = "created_from_estimate") -> WorkOrder:
