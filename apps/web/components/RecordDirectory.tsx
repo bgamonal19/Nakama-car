@@ -9,6 +9,7 @@ import { FleetProfile } from "./FleetProfile";
 import { PortalAccess } from "./PortalAccess";
 import { EstimateChip } from "./EstimateChip";
 import { CustomerLogo } from "./CustomerLogo";
+import { Contract, contractInForce, FleetContracts } from "./FleetContracts";
 import { deleteCaseWithConfirm, typedConfirm } from "../lib/caseDeletion";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
@@ -127,6 +128,16 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       .finally(()=>{if(!controller.signal.aborted)setHistoryBusy(false);});
     return ()=>controller.abort();
   },[selected?.id,kind,historyOffset]);
+  // Coming from Contratti flotta (?id=<customer id>): open that customer's profile.
+  useEffect(()=>{
+    const target=kind==="customers"?new URLSearchParams(window.location.search).get("id"):null;
+    if(!target||!getAccessToken())return;
+    read<RecordData>(`/customers/${target}`).then(open).catch(e=>setError(message(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[kind]);
+  // The customer's fleet contract decides the type shown in the profile.
+  const [contracts,setContracts]=useState<Contract[]|null>(null);
+  useEffect(()=>{setContracts(null);},[selected?.id]);
 
   function label(item:RecordData) {
     if(kind==="customers")return String(item.company_name||[item.first_name,item.last_name].filter(Boolean).join(" "));
@@ -230,7 +241,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           <button type="button" className="ghost customer-profile-back" onClick={()=>setSelected(null)}>← {words("Tutti i clienti","Todos los clientes")}</button>
           <button type="button" className="customer-profile-head" aria-expanded={showData} onClick={()=>setShowData(v=>!v)}>
             <CustomerLogo name={label(selected)} version={selected.logo_updated_at?String(selected.logo_updated_at):null} load={()=>apiFetch(`/customers/${selected.id}/logo`)} size={84}/>
-            <span><strong>{label(selected)}</strong><small>{[selected.phone,selected.email].filter(Boolean).join(" · ")}</small><em>{showData?`▴ ${words("Nascondi dati del cliente","Ocultar datos del cliente")}`:`▾ ${words("Dati del cliente","Datos del cliente")}`}</em></span>
+            <span><strong>{label(selected)}</strong><span className="customer-type-tags"><span className="status-chip">{selected.customer_type==="COMPANY"?words("Azienda","Empresa"):words("Privato","Particular")}</span>{contracts&&(contracts.some(contractInForce)?<span className="status-chip contract">{words("Contratto flotta","Contrato de flota")}</span>:<span className="status-chip">{words("Listino normale","Tarifa normal")}</span>)}</span><small>{[selected.phone,selected.email].filter(Boolean).join(" · ")}</small><em>{showData?`▴ ${words("Nascondi dati del cliente","Ocultar datos del cliente")}`:`▾ ${words("Dati del cliente","Datos del cliente")}`}</em></span>
           </button>
         </>:<div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>}
         {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
@@ -250,6 +261,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
         </form>
         {customerOpen&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
         </>}
+        {customerOpen&&<div className="record-fleet"><h3>{words("Contratto flotta","Contrato de flota")}</h3><FleetContracts customer={{id:String(selected.id),name:label(selected)}} onLoaded={setContracts}/></div>}
         {customerOpen&&<div className="record-fleet"><h3>{words("Veicoli del cliente","Vehículos del cliente")}</h3><FleetProfile mode="staff" customerId={String(selected.id)} /></div>}
         {selected.id&&kind!=="cases"&&<div className="record-history"><h3>{words("Storico pratiche","Historial de expedientes")}</h3>
           {historyBusy?<p>{words("Caricamento…","Cargando…")}</p>:historyError?<p role="alert">{t(historyError)}</p>:history.length===0?<p>{words("Nessuna pratica.","No hay expedientes.")}</p>:history.map(h=><a key={h.id} href={`/pratiche?q=${encodeURIComponent(String(h.case_number))}`}>{h.case_number} · {h.plate} · {t(String(h.status))}</a>)}

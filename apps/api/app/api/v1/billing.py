@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.models.billing import Invoice, InvoiceLine, InvoiceStatus
 from app.models.contracts import ServiceContract
+from app.models.datev import DatevLink
 from app.models.estimating import Estimate, EstimateLine
 from app.models.garage import Customer, RepairCase, RepairCaseStatus, Vehicle
 from app.models.identity import TenantSettings
@@ -407,6 +408,46 @@ def update_invoice_status(
     db.refresh(invoice)
     customer, vehicle = invoice_context(db, invoice)
     return to_read(invoice, customer, vehicle)
+
+
+@router.delete("/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_invoice(
+    invoice_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("invoice.create")),
+):
+    """Only a draft that never became a fiscal document can be deleted.
+
+    An issued invoice (sent to the customer / SDI) must stay in the books: Italian law
+    requires a credit note (nota di credito) to cancel it, so here it can only be cancelled.
+    """
+    invoice = get_tenant_invoice(db, auth.tenant_id, invoice_id)
+    never_issued = invoice.status == InvoiceStatus.DRAFT or (
+        invoice.status == InvoiceStatus.CANCELLED and invoice.issue_date is None
+    )
+    if not never_issued:
+        raise HTTPException(status_code=409, detail="Issued invoices cannot be deleted")
+    exported = db.scalar(select(DatevLink.id).where(
+        DatevLink.tenant_id == auth.tenant_id, DatevLink.entity_type == "invoice",
+        DatevLink.local_id == str(invoice.id), DatevLink.remote_id.is_not(None),
+    ))
+    if exported is not None:
+        raise HTTPException(status_code=409, detail="Invoice already sent to DATEV")
+    record_audit(
+        db,
+        tenant_id=auth.tenant_id,
+        user_id=auth.user_id,
+        entity_type="invoice",
+        entity_id=invoice.id,
+        action="deleted",
+        old_value={"invoice_number": invoice.invoice_number, "status": invoice.status.value, "total": str(invoice.total)},
+    )
+    db.query(DatevLink).filter(
+        DatevLink.tenant_id == auth.tenant_id, DatevLink.entity_type == "invoice", DatevLink.local_id == str(invoice.id),
+    ).delete(synchronize_session=False)
+    db.query(InvoiceLine).filter(InvoiceLine.invoice_id == invoice.id).delete(synchronize_session=False)
+    db.delete(invoice)
+    db.commit()
 
 
 @router.get("/{invoice_id}/pdf")

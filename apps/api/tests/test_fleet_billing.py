@@ -148,3 +148,22 @@ def test_repair_invoice_keeps_exact_line_arithmetic(client):
     for line in lines:
         assert (Decimal(line["unit_price"]) * Decimal(line["quantity"])).quantize(Decimal("0.01")) == Decimal(line["line_subtotal"])
     assert c.get("/api/v1/invoices?q=FL123").json()[0]["plate"] == "FL123TR"
+
+
+def test_only_never_issued_invoices_can_be_deleted(client):
+    c, _, _ = client
+    _, contract, _, _ = create_fleet_case(c)
+    draft = c.post(f"/api/v1/contracts/{contract['id']}/fee-invoices", json={"period_month": "2026-03"}).json()
+    issued = c.post(f"/api/v1/contracts/{contract['id']}/fee-invoices", json={"period_month": "2026-04"}).json()
+    assert c.patch(f"/api/v1/invoices/{issued['id']}/status", json={"status": "ISSUED"}).status_code == 200
+
+    blocked = c.delete(f"/api/v1/invoices/{issued['id']}")
+    assert blocked.status_code == 409
+    assert c.patch(f"/api/v1/invoices/{issued['id']}/status", json={"status": "CANCELLED"}).status_code == 200
+    assert c.delete(f"/api/v1/invoices/{issued['id']}").status_code == 409  # issued once: stays in the books
+
+    assert c.delete(f"/api/v1/invoices/{draft['id']}").status_code == 204
+    assert c.get(f"/api/v1/invoices/{draft['id']}").status_code == 404
+    # The period is free again, so the fee invoice can be made anew.
+    again = c.post(f"/api/v1/contracts/{contract['id']}/fee-invoices", json={"period_month": "2026-03"})
+    assert again.status_code == 201, again.text
