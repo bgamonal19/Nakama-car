@@ -68,6 +68,7 @@ export default function DiagnosiPage() {
   const [picking, setPicking] = useState<Diagnosis | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [newCustomer, setNewCustomer] = useState<{ type: "PRIVATE" | "COMPANY"; name: string; last: string; phone: string } | null>(null);
   const [custom, setCustom] = useState<{ id: string; name: string; kind: QuickKind; labor_hours: number; created_by: string | null }[]>([]);
   const manager = Boolean(user?.permissions.includes("estimate.create"));
   const area = user?.work_area ?? null;
@@ -208,12 +209,30 @@ export default function DiagnosiPage() {
     const response = await apiFetch(`/diagnoses/${item.id}/estimate`, { method: "POST", body: JSON.stringify(customerId ? { customer_id: customerId } : {}) });
     if (response.status === 409) {
       const data = await response.json().catch(() => ({}));
-      if (data?.detail?.needs_customer) { setPicking(item); setCustomerQuery(""); setCustomers([]); return; }
+      if (data?.detail?.needs_customer) { setPicking(item); setCustomerQuery(""); setCustomers([]); setNewCustomer(null); return; }
     }
     if (!response.ok) { setMessage(await apiError(response, "Impossibile creare il preventivo.")); return; }
     const created = await response.json();
     setPicking(null);
     window.location.assign(`/preventivi?id=${created.estimate_id}`);
+  }
+
+  /** New vehicle of a customer the workshop doesn't have yet: create them here and go on to the estimate. */
+  async function createCustomer(event: FormEvent, item: Diagnosis) {
+    event.preventDefault();
+    if (!newCustomer || !newCustomer.name.trim()) return;
+    const company = newCustomer.type === "COMPANY";
+    const response = await apiFetch("/customers", { method: "POST", body: JSON.stringify({
+      customer_type: newCustomer.type,
+      company_name: company ? newCustomer.name : null,
+      first_name: company ? null : newCustomer.name,
+      last_name: company ? null : newCustomer.last || null,
+      phone: newCustomer.phone || null,
+    }) });
+    if (!response.ok) { setMessage(await apiError(response, "Impossibile creare il cliente.")); return; }
+    const created: Customer = await response.json();
+    setNewCustomer(null);
+    await toEstimate(item, created.id);
   }
 
   async function reject(item: Diagnosis) {
@@ -368,7 +387,25 @@ export default function DiagnosiPage() {
                 <div className="choice-chips">
                   {customers.map((customer) => <button type="button" key={customer.id} onClick={() => toEstimate(item, customer.id)}>{customerName(customer)}</button>)}
                 </div>
-                <p className="hint">{t("Se il cliente non esiste, crealo in Clienti e poi torna qui.")}</p>
+                {newCustomer ? (
+                  <form className="new-customer" onSubmit={(event) => createCustomer(event, item)}>
+                    <div className="choice-chips">
+                      {([["PRIVATE", "Privato"], ["COMPANY", "Azienda"]] as const).map(([code, name]) => (
+                        <button type="button" key={code} className={newCustomer.type === code ? "active" : ""} onClick={() => setNewCustomer({ ...newCustomer, type: code })}>{t(name)}</button>
+                      ))}
+                    </div>
+                    <input required autoFocus value={newCustomer.name} onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })} placeholder={t(newCustomer.type === "COMPANY" ? "Ragione sociale" : "Nome")} />
+                    {newCustomer.type === "PRIVATE" && <input value={newCustomer.last} onChange={(e) => setNewCustomer({ ...newCustomer, last: e.target.value })} placeholder={t("Cognome")} />}
+                    <input type="tel" value={newCustomer.phone} onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })} placeholder={t("Telefono")} />
+                    <div className="table-actions">
+                      <button type="button" className="ghost" onClick={() => setNewCustomer(null)}>{t("Annulla")}</button>
+                      <button className="primary" disabled={!newCustomer.name.trim()}>{t("Crea cliente e preventivo")}</button>
+                    </div>
+                    <p className="hint">{t("Gli altri dati (P. IVA, indirizzo…) si completano dopo in Clienti.")}</p>
+                  </form>
+                ) : (
+                  <button type="button" className="secondary" onClick={() => setNewCustomer({ type: "PRIVATE", name: customerQuery.trim(), last: "", phone: "" })}>＋ {t("Nuovo cliente")}</button>
+                )}
               </div>
             )}
           </article>

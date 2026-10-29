@@ -2149,3 +2149,7 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 [data-theme="dark"] .legal-language { background: #213950; color: #e7eef7; border-color: #47617a; }
 [data-theme="dark"] .legal-links a { color: #adbed1; }
 [data-theme="dark"] .data-table.access-failed { background: #3a2028; }
+
+/* Main action in a row of small buttons (e.g. «Crea preventivo» in Diagnosi): keep it filled, not white on white. */
+.table-actions button.primary, [data-theme="dark"] .table-actions button.primary { background: var(--nakama-navy); border-color: var(--nakama-navy); color: #fff; }
+.new-customer { display: grid; gap: 8px; }
