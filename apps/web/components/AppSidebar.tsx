@@ -26,6 +26,8 @@ const navigation = [
   ["/fatture", "◫ Fatture", "invoice", "invoice.read"],
   ["/personale", "♙ Personale", "people", "users.manage"],
 ];
+// Workshop staff (mechanic / body shop) see their menu in the order they work.
+const workerOrder = ["/diagnosi", "/preventivi", "/pratiche", "/officina", "/lavori", "/taller-3d"];
 const settings = [
   ["/profilo", "☺ Il mio profilo", "profile", ""],
   ["/configurazione", "⚙ Impostazioni", "settings", "settings.manage"],
@@ -72,6 +74,11 @@ export function AppSidebar() {
     return () => window.clearInterval(timer);
   }, [worker]);
   const allowed = ([, , , permission]: string[]) => !permission || !user || user.permissions.includes(permission);
+
+  const rank = (href: string) => { const index = workerOrder.indexOf(href); return index < 0 ? workerOrder.length : index; };
+  const menu = user?.work_area
+    ? navigation.filter(allowed).sort((a, b) => rank(a[0]) - rank(b[0]))
+    : navigation.filter(allowed);
 
   useEffect(() => { setOpen(false); }, [pathname]);
   useEffect(() => {
@@ -138,7 +145,7 @@ export function AppSidebar() {
     <aside ref={sidebarRef} id="nakama-navigation" className={`sidebar minimal-sidebar${open ? " is-open" : ""}`}
       onClick={event => { if ((event.target as HTMLElement).closest("a, button")) setOpen(false); }}>
     <a className="brand brand-link nakama-sidebar-brand" href="/" aria-label="NAKAMA CAR"><NakamaLogo /></a>
-    <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{navigation.filter(allowed).map(link)}</nav>
+    <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{menu.map(link)}</nav>
 
     <div className="sidebar-bottom">
       <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.filter(allowed).map(link)}</nav>
