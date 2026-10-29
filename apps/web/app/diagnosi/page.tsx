@@ -66,6 +66,7 @@ export default function DiagnosiPage() {
   const [sending, setSending] = useState(false);
   const [signedIn, setSignedIn] = useState(true);
   const [picking, setPicking] = useState<Diagnosis | null>(null);
+  const [converting, setConverting] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [newCustomer, setNewCustomer] = useState<{ type: "PRIVATE" | "COMPANY"; name: string; last: string; phone: string } | null>(null);
@@ -205,7 +206,12 @@ export default function DiagnosiPage() {
   }
 
   async function toEstimate(item: Diagnosis, customerId?: string) {
-    setMessage("");
+    if (converting) return;
+    setMessage(""); setConverting(item.id);
+    try { await convert(item, customerId); } finally { setConverting(null); }
+  }
+
+  async function convert(item: Diagnosis, customerId?: string) {
     const response = await apiFetch(`/diagnoses/${item.id}/estimate`, { method: "POST", body: JSON.stringify(customerId ? { customer_id: customerId } : {}) });
     if (response.status === 409) {
       const data = await response.json().catch(() => ({}));
@@ -374,7 +380,7 @@ export default function DiagnosiPage() {
             {item.estimate_status && customerStage[item.estimate_status] && <p className={`customer-stage stage-${item.estimate_status.toLowerCase()}`}>{t(customerStage[item.estimate_status])}</p>}
             {item.estimate_number && <p className="hint">{t("Preventivo")} {item.estimate_number}{item.case_number ? ` · ${t("Pratica")} ${item.case_number}` : ""}</p>}
             <div className="table-actions">
-              {item.status === "SENT" && manager && <button className="primary" onClick={() => toEstimate(item)}>€ {t("Crea preventivo")}</button>}
+              {item.status === "SENT" && manager && <button className="primary" disabled={converting === item.id} onClick={() => toEstimate(item)}>€ {t("Crea preventivo")}</button>}
               {item.status === "SENT" && <button className="secondary" onClick={() => edit(item)}>{t("Modifica")}</button>}
               {item.status === "SENT" && <button className="tone-button rejected" onClick={() => reject(item)}>✖ {t("Rifiutata")}</button>}
               {!item.estimate_id && item.status !== "CONVERTED" && <button className="ghost" onClick={() => remove(item)}>🗑 {t("Elimina")}</button>}
@@ -385,8 +391,10 @@ export default function DiagnosiPage() {
                 <p>{t("Veicolo nuovo: a quale cliente appartiene?")}</p>
                 <input autoFocus value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder={t("Cerca cliente per nome o azienda")} />
                 <div className="choice-chips">
-                  {customers.map((customer) => <button type="button" key={customer.id} onClick={() => toEstimate(item, customer.id)}>{customerName(customer)}</button>)}
+                  {customers.map((customer) => <button type="button" key={customer.id} disabled={converting === item.id} onClick={() => toEstimate(item, customer.id)}>{customerName(customer)}</button>)}
                 </div>
+                {converting === item.id && <p className="hint" role="status">{t("Creo il preventivo…")}</p>}
+                {message && converting !== item.id && <p className="record-error" role="alert">{message}</p>}
                 {newCustomer ? (
                   <form className="new-customer" onSubmit={(event) => createCustomer(event, item)}>
                     <div className="choice-chips">

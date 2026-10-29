@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
 from uuid import UUID
@@ -6,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
@@ -28,6 +27,7 @@ from app.schemas.estimating import (
 from app.security.context import AuthContext, require_permission
 from app.services.audit import record_audit
 from app.services.contracts import customer_display_name, find_active_contract
+from app.services.numbering import next_number
 from app.services.pdf import build_estimate_pdf
 from app.services.pricing import PUBLIC_TERMS, PricingTerms, money, price_line
 from app.services.workshop import open_work_order
@@ -155,18 +155,10 @@ def create_estimate(
     if case is None:
         raise HTTPException(status_code=404, detail="Repair case not found")
 
-    year = datetime.now(timezone.utc).year
-    count = db.scalar(
-        select(func.count(Estimate.id)).where(
-            Estimate.tenant_id == auth.tenant_id,
-            Estimate.estimate_number.like(f"NC-P-{year}-%"),
-        )
-    ) or 0
-
     estimate = Estimate(
         tenant_id=auth.tenant_id,
         repair_case_id=payload.repair_case_id,
-        estimate_number=f"NC-P-{year}-{count + 1:06d}",
+        estimate_number=next_number(db, Estimate.estimate_number, Estimate.tenant_id, auth.tenant_id, "NC-P-"),
         notes=payload.notes,
     )
     contract = None

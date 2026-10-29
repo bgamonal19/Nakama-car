@@ -1126,6 +1126,7 @@ Object.assign(spanish, {
   "Impossibile eliminare la diagnosi.": "No se pudo eliminar el diagnóstico.",
   "Impossibile segnare la diagnosi come rifiutata.": "No se pudo marcar el diagnóstico como rechazado.",
   "Diagnosi del": "Diagnóstico del",
+  "Creo il preventivo…": "Creando el presupuesto…",
   "Privato": "Particular",
   "Crea cliente e preventivo": "Crear cliente y presupuesto",
   "Gli altri dati (P. IVA, indirizzo…) si completano dopo in Clienti.": "Los demás datos (NIF/IVA, dirección…) se completan después en Clientes.",

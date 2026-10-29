@@ -23,6 +23,7 @@ from app.schemas.estimating import EstimateLineCreate
 from app.security.context import AuthContext, get_auth_context, require_permission
 from app.services import staff
 from app.services.audit import record_audit
+from app.services.numbering import next_number
 from app.services.contracts import customer_display_name, find_active_contract
 from app.services.photos import MAX_UPLOAD_BYTES, PhotoError, prepare_photo
 from app.services.tracking import case_render
@@ -330,11 +331,8 @@ def write_diagnosis(db: Session, auth: AuthContext, diagnosis: Diagnosis, payloa
 
 @router.post("/diagnoses", status_code=status.HTTP_201_CREATED)
 def create_diagnosis(payload: DiagnosisIn, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
-    year = datetime.now(timezone.utc).year
-    count = db.scalar(select(func.count(Diagnosis.id)).where(
-        Diagnosis.tenant_id == auth.tenant_id, Diagnosis.diagnosis_number.like(f"NC-DIA-{year}-%"),
-    )) or 0
-    diagnosis = Diagnosis(tenant_id=auth.tenant_id, diagnosis_number=f"NC-DIA-{year}-{count + 1:05d}", created_by=auth.user_id, license_plate="", work_type="MECHANICAL")
+    number = next_number(db, Diagnosis.diagnosis_number, Diagnosis.tenant_id, auth.tenant_id, "NC-DIA-", width=5)
+    diagnosis = Diagnosis(tenant_id=auth.tenant_id, diagnosis_number=number, created_by=auth.user_id, license_plate="", work_type="MECHANICAL")
     db.add(diagnosis)
     db.flush()
     write_diagnosis(db, auth, diagnosis, payload)
@@ -439,10 +437,9 @@ def diagnosis_to_estimate(
     diagnosis.repair_case_id = case.id
     attach_photos_to_case(db, diagnosis, case.id)
 
-    year = datetime.now(timezone.utc).year
-    count = db.scalar(select(func.count(Estimate.id)).where(Estimate.tenant_id == auth.tenant_id, Estimate.estimate_number.like(f"NC-P-{year}-%"))) or 0
     estimate = Estimate(
-        tenant_id=auth.tenant_id, repair_case_id=case.id, estimate_number=f"NC-P-{year}-{count + 1:06d}",
+        tenant_id=auth.tenant_id, repair_case_id=case.id,
+        estimate_number=next_number(db, Estimate.estimate_number, Estimate.tenant_id, auth.tenant_id, "NC-P-"),
         notes="\n".join(part for part in (
             f"Da diagnosi {diagnosis.diagnosis_number}", diagnosis.complaint and f"Richiesta: {diagnosis.complaint}",
             diagnosis.findings and f"Diagnosi: {diagnosis.findings}",
