@@ -1649,6 +1649,7 @@ body:has(.modal-backdrop) .chat-bubble-fab, body:has(.modal-backdrop) .chat-bubb
 .diagnosis-card header { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .diagnosis-card p { margin: 0; font-size: 13px; }
 .diagnosis-meta { color: var(--muted); font-size: 12px !important; }
+.diagnosis-entry { margin: 2px 0 4px !important; font-size: 14px; }
 .diagnosis-items { margin: 0; padding-left: 4px; list-style: none; display: grid; gap: 3px; font-size: 13px; }
 .customer-pick { display: grid; gap: 8px; padding: 12px; border-radius: 10px; background: var(--soft, #f4f6f8); }
 .list-panel .panel-head { flex-wrap: wrap; gap: 12px; }

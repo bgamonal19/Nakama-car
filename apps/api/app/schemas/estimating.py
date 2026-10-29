@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -80,3 +81,6 @@ class EstimateListItem(EstimateRead):
     plate: str = ""
     customer_name: str = ""
     contract_name: str | None = None
+    created_at: datetime | None = None
+    diagnosis_number: str | None = None
+    diagnosis_at: datetime | None = None

@@ -14,6 +14,7 @@ from app.models.contracts import ServiceContract
 from app.models.estimating import Estimate, EstimateLine, EstimateStatus, LaborRate
 from app.models.garage import Customer, RepairCase, Vehicle
 from app.models.identity import TenantSettings
+from app.models.staff import Diagnosis
 from app.schemas.estimating import (
     EstimateCreate,
     EstimateLineCreate,
@@ -214,6 +215,10 @@ def list_estimates(
             Customer.last_name.icontains(term, autoescape=True),
         ))
     rows = db.execute(query.order_by(Estimate.created_at.desc(), Estimate.id.desc()).offset(offset).limit(limit)).all()
+    # The mechanic's diagnosis each estimate came from, with the day it arrived.
+    diagnoses = {d.estimate_id: d for d in db.scalars(select(Diagnosis).where(
+        Diagnosis.tenant_id == auth.tenant_id, Diagnosis.estimate_id.in_([row[0].id for row in rows]),
+    )).all()} if rows else {}
     items = []
     for estimate, case, vehicle, customer, contract in rows:
         item = EstimateListItem.model_validate(estimate)
@@ -221,6 +226,9 @@ def list_estimates(
         item.plate = vehicle.license_plate
         item.customer_name = customer_display_name(customer)
         item.contract_name = contract.name if contract else None
+        diagnosis = diagnoses.get(estimate.id)
+        if diagnosis is not None:
+            item.diagnosis_number, item.diagnosis_at = diagnosis.diagnosis_number, diagnosis.created_at
         items.append(item)
     return items
 

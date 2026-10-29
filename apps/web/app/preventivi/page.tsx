@@ -25,6 +25,9 @@ type Estimate = {
   plate?: string;
   customer_name?: string;
   contract_name?: string | null;
+  created_at?: string | null;
+  diagnosis_number?: string | null;
+  diagnosis_at?: string | null;
 };
 
 type Line = {
@@ -183,7 +186,7 @@ export default function PreventiviPage() {
             </div>
             {busy ? <div className="empty-state">{t("Caricamento…")}</div> : items.length === 0 ? <div className="empty-state">{t("Nessun preventivo.")}</div> : items.map((x) => (
               <div className={`data-table estimates${estimateTone(x.status) ? ` tone-${estimateTone(x.status)}` : ""}`} key={x.id}>
-                <span><strong>{x.estimate_number}</strong><small>{x.case_number} · v{x.version}</small></span>
+                <span><strong>{x.estimate_number}</strong><small>{x.case_number} · v{x.version}{x.created_at ? ` · ${new Date(x.created_at).toLocaleDateString("it-IT")}` : ""}</small>{x.diagnosis_at && <small>📅 {t("Diagnosi del")} {new Date(x.diagnosis_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</small>}</span>
                 <span>{x.customer_name}<small>{x.plate}{x.contract_name ? ` · ${t("Contratto")}: ${x.contract_name}` : ""}</small></span>
                 <EstimateChip status={x.status} />
                 <span>{formatMoney(x.subtotal)}</span>

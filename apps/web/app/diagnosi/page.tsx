@@ -35,7 +35,17 @@ const bodyQuick: [string, number][] = [
   ["Paraurti anteriore", 2], ["Paraurti posteriore", 2], ["Parafango anteriore", 2.5], ["Portiera", 3], ["Cofano", 2.5],
   ["Faro anteriore", 0.8], ["Specchietto retrovisore", 0.6], ["Parabrezza", 1.5], ["Verniciatura elemento", 2.5], ["Lucidatura", 1],
 ];
-const materialQuick = ["Olio motore", "Liquido freni", "Antigelo", "Grasso", "Detergente", "Stucco", "Primer", "Vernice", "Trasparente", "Carta abrasiva"];
+// Materials per area: a mechanic never sees body shop materials, and vice versa.
+const materialQuick: Record<string, string[]> = {
+  MECHANICAL: ["Olio motore", "Liquido freni", "Antigelo", "Grasso", "AdBlue", "Liquido lavavetri", "Sbloccante", "Detergente"],
+  BODY: ["Stucco", "Primer", "Vernice", "Trasparente", "Carta abrasiva", "Nastro di mascheratura", "Diluente", "Detergente"],
+};
+
+/** When the diagnosis came in, e.g. "gio 29/10/2026 · 17:54". */
+function entryDate(value: string) {
+  const date = new Date(value);
+  return `${date.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })} · ${date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`;
+}
 
 function money(value: string | null) {
   return value ? Number(value).toLocaleString("it-IT", { style: "currency", currency: "EUR" }) : "—";
@@ -96,7 +106,7 @@ export default function DiagnosiPage() {
     const builtIn: QuickPick[] = catalog.flatMap((group) => group.items.map(([name, category, itemHours]) => ({
       key: `${group.group}-${name}`, name, kind: (category === "PART" ? "PART" : "SERVICE") as QuickKind, hours: itemHours, group: group.group, icon: group.icon,
     })));
-    const materials: QuickPick[] = materialQuick.map((name) => ({ key: `mat-${name}`, name, kind: "MATERIAL", hours: 0, group: "Materiali", icon: "🧴" }));
+    const materials: QuickPick[] = (materialQuick[workType] ?? materialQuick.MECHANICAL).map((name) => ({ key: `mat-${name}`, name, kind: "MATERIAL", hours: 0, group: "Materiali", icon: "🧴" }));
     return [...own, ...builtIn, ...materials];
   }, [workType, custom, manager, user]);
 
@@ -189,7 +199,8 @@ export default function DiagnosiPage() {
   async function remove(item: Diagnosis) {
     if (!window.confirm(t("Eliminare questa diagnosi?"))) return;
     const response = await apiFetch(`/diagnoses/${item.id}`, { method: "DELETE" });
-    if (response.ok) void load();
+    if (response.ok || response.status === 404) { if (editing === item.id) reset(); void load(); }
+    else setMessage(await apiError(response, "Impossibile eliminare la diagnosi."));
   }
 
   async function toEstimate(item: Diagnosis, customerId?: string) {
@@ -209,7 +220,8 @@ export default function DiagnosiPage() {
     const note = window.prompt(t("Motivo (facoltativo)")) ?? null;
     if (note === null) return;
     const response = await apiFetch(`/diagnoses/${item.id}/reject`, { method: "POST", body: JSON.stringify({ note }) });
-    if (response.ok) void load();
+    if (response.ok) { if (editing === item.id) reset(); void load(); }
+    else setMessage(await apiError(response, "Impossibile segnare la diagnosi come rifiutata."));
   }
 
   useEffect(() => {
@@ -325,7 +337,8 @@ export default function DiagnosiPage() {
               <span>{[item.vehicle?.make, item.vehicle?.model].filter(Boolean).join(" ")}{item.customer_name ? ` · ${item.customer_name}` : ""}</span>
               <span className="status-chip">{t(statusNames[item.status])}</span>
             </header>
-            <p className="diagnosis-meta">{item.diagnosis_number} · {new Date(item.created_at).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })} · {item.author_name} · {t(item.work_type === "BODY" ? "Carrozzeria" : "Meccanica")}{item.urgency === "HIGH" ? ` · ⚠️ ${t("Urgente")}` : ""}</p>
+            <p className="diagnosis-entry">📅 {t("Ingresso")}: <b>{entryDate(item.created_at)}</b></p>
+            <p className="diagnosis-meta">{item.diagnosis_number} · {item.author_name} · {t(item.work_type === "BODY" ? "Carrozzeria" : "Meccanica")}{item.urgency === "HIGH" ? ` · ⚠️ ${t("Urgente")}` : ""}</p>
             {item.complaint && <p><b>{t("Problema")}:</b> {item.complaint}</p>}
             {item.findings && <p><b>{t("Diagnosi")}:</b> {item.findings}</p>}
             {item.fuel_level != null && (
@@ -342,14 +355,10 @@ export default function DiagnosiPage() {
             {item.estimate_status && customerStage[item.estimate_status] && <p className={`customer-stage stage-${item.estimate_status.toLowerCase()}`}>{t(customerStage[item.estimate_status])}</p>}
             {item.estimate_number && <p className="hint">{t("Preventivo")} {item.estimate_number}{item.case_number ? ` · ${t("Pratica")} ${item.case_number}` : ""}</p>}
             <div className="table-actions">
-              {item.status === "SENT" && (manager ? (
-                <>
-                  <button className="primary" onClick={() => toEstimate(item)}>€ {t("Crea preventivo")}</button>
-                  <button className="ghost" onClick={() => reject(item)}>{t("Respingi")}</button>
-                </>
-              ) : null)}
+              {item.status === "SENT" && manager && <button className="primary" onClick={() => toEstimate(item)}>€ {t("Crea preventivo")}</button>}
               {item.status === "SENT" && <button className="secondary" onClick={() => edit(item)}>{t("Modifica")}</button>}
-              {item.status === "SENT" && !manager && <button className="ghost" onClick={() => remove(item)}>{t("Elimina")}</button>}
+              {item.status === "SENT" && <button className="tone-button rejected" onClick={() => reject(item)}>✖ {t("Rifiutata")}</button>}
+              {!item.estimate_id && item.status !== "CONVERTED" && <button className="ghost" onClick={() => remove(item)}>🗑 {t("Elimina")}</button>}
               {item.estimate_id && manager && <a className="secondary link-button" href={`/preventivi?id=${item.estimate_id}`}>{t("Apri preventivo")}</a>}
             </div>
             {picking?.id === item.id && (

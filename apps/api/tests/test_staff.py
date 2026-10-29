@@ -81,6 +81,18 @@ def test_workers_area_profile_and_diagnosis_to_estimate(client):
     rejected = c.post(f"/api/v1/diagnoses/{second['id']}/reject", json={"note": "Già incluso"})
     assert rejected.json()["status"] == "REJECTED" and rejected.json()["review_note"] == "Già incluso"
 
+    # The estimate list shows which diagnosis it came from and when it arrived.
+    listed = next(e for e in c.get("/api/v1/estimates").json() if e["id"] == estimate["id"])
+    assert listed["diagnosis_number"] == diagnosis["diagnosis_number"] and listed["diagnosis_at"] and listed["created_at"]
+
+    # A diagnosis that never became an estimate can be closed by its mechanic, or deleted (even once rejected).
+    third = mechanic.post("/api/v1/diagnoses", json={"license_plate": "AB123CD", "complaint": "Cliente rinuncia"}).json()
+    assert body.post(f"/api/v1/diagnoses/{third['id']}/reject", json={}).status_code == 404
+    assert mechanic.post(f"/api/v1/diagnoses/{third['id']}/reject", json={"note": "Il cliente non procede"}).json()["status"] == "REJECTED"
+    assert mechanic.delete(f"/api/v1/diagnoses/{third['id']}").status_code == 204
+    assert c.delete(f"/api/v1/diagnoses/{second['id']}").status_code == 204
+    assert c.delete(f"/api/v1/diagnoses/{diagnosis['id']}").status_code == 409  # it already has an estimate
+
 
 def test_my_work_shows_my_area_and_tasks_toggle(client):
     c, _, _ = client
