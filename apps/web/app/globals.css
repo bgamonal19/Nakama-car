@@ -2153,3 +2153,12 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 /* Main action in a row of small buttons (e.g. «Crea preventivo» in Diagnosi): keep it filled, not white on white. */
 .table-actions button.primary, [data-theme="dark"] .table-actions button.primary { background: var(--nakama-navy); border-color: var(--nakama-navy); color: #fff; }
 .new-customer { display: grid; gap: 8px; }
+
+/* Page header (eyebrow + title + actions) stays fixed while the page content scrolls under it.
+   overflow: clip still hides horizontal overflow but, unlike hidden, does not break position: sticky. */
+.nakama-theme .workspace { overflow: clip; }
+.topbar.nakama-topbar { position: sticky; top: 0; z-index: 30; margin: -14px -20px 14px; padding: 14px 20px 10px; background: var(--nakama-bg); border-bottom: 1px solid #e1e8f0; }
+[data-theme="dark"] .topbar.nakama-topbar { background: #0b1725; border-bottom-color: #1e3349; }
+@media (max-width: 1100px) {
+  .topbar.nakama-topbar { top: calc(60px + env(safe-area-inset-top)); }
+}
