@@ -308,3 +308,29 @@ def test_numbers_stay_unique_after_deleting_records(client):
     converted = c.post(f"/api/v1/diagnoses/{diagnosis['id']}/estimate", json={"customer_id": customer["id"]})
     assert converted.status_code == 200, converted.text
     assert converted.json()["case_number"] > cases[1]["case_number"]
+
+
+def test_diagnosis_keeps_make_model_and_known_plates_fill_in(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec-van@example.com", "MECHANIC")
+    assert mechanic.get("/api/v1/diagnoses/vehicle/GE027AM").status_code == 404
+
+    # A van never seen before: make/model typed in Diagnosi register the vehicle (no customer yet).
+    sent = mechanic.post("/api/v1/diagnoses", json={"license_plate": "GE 027 AM", "make": " Iveco ", "model": "Daily", "complaint": "Turbina"})
+    assert sent.status_code == 201, sent.text
+    assert sent.json()["vehicle"]["make"] == "Iveco" and sent.json()["vehicle"]["model"] == "Daily"
+    known = mechanic.get("/api/v1/diagnoses/vehicle/ge-027-am")
+    assert known.status_code == 200 and known.json()["model"] == "Daily" and known.json()["customer_name"] is None
+    assert c.get("/api/v1/vehicles/by-plate/GE 027 AM").json()["make"] == "Iveco"
+
+    # The office makes the estimate: the case shows the van's make and model.
+    customer = c.post("/api/v1/customers", json={"customer_type": "COMPANY", "company_name": "Gamonal Trasporti"}).json()
+    converted = c.post(f"/api/v1/diagnoses/{sent.json()['id']}/estimate", json={"customer_id": customer["id"]})
+    assert converted.status_code == 200, converted.text
+    case = next(item for item in c.get("/api/v1/cases").json() if item["id"] == converted.json()["repair_case_id"])
+    assert case["vehicle_make"] == "Iveco" and case["vehicle_model"] == "Daily" and case["plate"] == "GE027AM"
+    assert mechanic.get("/api/v1/diagnoses/vehicle/GE027AM").json()["customer_name"] == "Gamonal Trasporti"
+
+    # A registered vehicle keeps its data: a different model typed later does not overwrite it.
+    mechanic.post("/api/v1/diagnoses", json={"license_plate": "GE027AM", "make": "Fiat", "model": "Ducato"})
+    assert c.get("/api/v1/vehicles/by-plate/GE027AM").json()["model"] == "Daily"

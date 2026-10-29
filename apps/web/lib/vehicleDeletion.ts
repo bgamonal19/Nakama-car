@@ -37,7 +37,7 @@ export async function deleteVehiclesWithConfirm(ids: string[], words: Words): Pr
     `Eliminare ${plates.length === 1 ? "il veicolo" : `${plates.length} veicoli`}: ${list}?${history}${notes ? `\n\n${notes}` : ""}\n\nL'operazione non si può annullare.`,
     `¿Eliminar ${plates.length === 1 ? "el vehículo" : `${plates.length} vehículos`}: ${list}?${history}${notes ? `\n\n${notes}` : ""}\n\nNo se puede deshacer.`);
   if (!window.confirm(text)) return { deleted: [], kept: [] };
-  if (withHistory.length && !typedConfirm(words)) return { deleted: [], kept: [] };
+  if (withHistory.length && !(await typedConfirm(words))) return { deleted: [], kept: [] };
   const result = await send(false);
   return { deleted: result.deleted, kept: result.refused.map((item) => item.license_plate) };
 }

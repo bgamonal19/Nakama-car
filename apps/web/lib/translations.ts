@@ -292,6 +292,8 @@ export const spanish: Record<string, string> = {
   "Meccanica": "Mecánica",
   "Modalità pilot: puoi testare tutto il flusso. Accedi per attivare il salvataggio nel database.": "Modo de demostración: puedes probar todo el proceso. Inicia sesión para guardar en la base de datos.",
   "Modello": "Modelo",
+  "Veicolo già registrato": "Vehículo ya registrado",
+  "Ultimi km": "Últimos km",
   "Modifica": "Editar",
   "Modifica utente": "Editar usuario",
   "Modifiche salvate. Accedi nuovamente con le credenziali aggiornate.": "Cambios guardados. Inicia sesión de nuevo con las credenciales actualizadas.",

@@ -63,12 +63,11 @@ def get_vehicle_by_plate(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_permission("vehicle.read")),
 ):
-    plate = license_plate.strip().upper()
+    # "GE 027 AM", "ge027am" and "GE-027-AM" are the same plate.
+    plate = re.sub(r"[^A-Z0-9]", "", license_plate.upper())
+    stored = func.replace(func.replace(func.upper(Vehicle.license_plate), " ", ""), "-", "")
     vehicle = db.scalar(
-        select(Vehicle).where(
-            Vehicle.tenant_id == auth.tenant_id,
-            func.upper(Vehicle.license_plate) == plate,
-        )
+        select(Vehicle).where(Vehicle.tenant_id == auth.tenant_id, stored == plate).limit(1)
     )
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehicle not found")

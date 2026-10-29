@@ -5,6 +5,8 @@ import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
 import { apiError, apiFetch, getAccessToken, sessionUser, SessionUser } from "../../lib/api";
 import { mechanicalCatalog } from "../../lib/mechanicalCatalog";
+import { askText } from "../../lib/askText";
+import { VehicleFront } from "../../components/VehicleFront";
 import { QuickKind, QuickPick, QuickPicker } from "../../components/QuickPicker";
 import { CheckInPhotos, DiagnosisPhoto, FuelGauge, PendingPhoto, SavedPhoto } from "../../components/CheckIn";
 
@@ -17,9 +19,10 @@ type Diagnosis = {
   estimate_number: string | null; estimate_id: string | null; estimate_status: string | null; fuel_level: number | null; photos: SavedPhoto[]; repair_case_id: string | null; vehicle: { make: string | null; model: string | null } | null;
   lines: { kind: Kind; description: string; oem_code: string | null; quantity: string; unit_price: string | null }[];
 };
+type KnownVehicle = { make: string | null; model: string | null; year: number | null; color: string | null; category: string; mileage: number | null; customer_name: string | null };
 type Customer = { id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null };
 
-const emptyForm = { license_plate: "", work_type: "MECHANICAL", mileage: "", fuel_level: null as number | null, complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
+const emptyForm = { license_plate: "", make: "", model: "", work_type: "MECHANICAL", mileage: "", fuel_level: null as number | null, complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
 const urgencies = [["LOW", "Bassa"], ["NORMAL", "Normale"], ["HIGH", "Urgente"]] as const;
 const statusNames: Record<string, string> = { SENT: "Inviata all'ufficio", CONVERTED: "Preventivo creato", REJECTED: "Respinta" };
 // Where the estimate made from my diagnosis stands with the customer.
@@ -165,7 +168,7 @@ export default function DiagnosiPage() {
   function edit(item: Diagnosis) {
     setEditing(item.id);
     setForm({
-      license_plate: item.license_plate, work_type: item.work_type, mileage: item.mileage ? String(item.mileage) : "", fuel_level: item.fuel_level,
+      license_plate: item.license_plate, make: item.vehicle?.make || "", model: item.vehicle?.model || "", work_type: item.work_type, mileage: item.mileage ? String(item.mileage) : "", fuel_level: item.fuel_level,
       complaint: item.complaint || "", findings: item.findings || "", urgency: item.urgency, labor_hours: Number(item.labor_hours),
     });
     setLines(item.lines.map((line) => ({ kind: line.kind, description: line.description, oem_code: line.oem_code || "", quantity: String(Number(line.quantity)), unit_price: line.unit_price ? String(Number(line.unit_price)) : "" })));
@@ -174,13 +177,32 @@ export default function DiagnosiPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // A plate already registered brings its make, model and customer: nothing to type again.
+  const [known, setKnown] = useState<KnownVehicle | null>(null);
+  const plateKey = form.license_plate.replace(/[^A-Z0-9]/g, "");
+  useEffect(() => {
+    setKnown(null);
+    if (plateKey.length < 5) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      apiFetch(`/diagnoses/vehicle/${encodeURIComponent(plateKey)}`).then(async (response) => {
+        if (cancelled || !response.ok) return;
+        const found: KnownVehicle = await response.json();
+        if (cancelled) return;
+        setKnown(found);
+        setForm((current) => ({ ...current, make: current.make || found.make || "", model: current.model || found.model || "" }));
+      }).catch(() => undefined);
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [plateKey]);
+
   async function send(event: FormEvent) {
     event.preventDefault();
     if (sending) return;
     setSending(true); setMessage("");
     try {
       const body = {
-        license_plate: form.license_plate, work_type: workType, mileage: form.mileage ? Number(form.mileage) : null, fuel_level: form.fuel_level,
+        license_plate: form.license_plate, make: form.make.trim() || null, model: form.model.trim() || null, work_type: workType, mileage: form.mileage ? Number(form.mileage) : null, fuel_level: form.fuel_level,
         complaint: form.complaint, findings: form.findings, urgency: form.urgency, labor_hours: String(form.labor_hours),
         lines: lines.filter((line) => line.description.trim()).map((line) => ({
           kind: line.kind, description: line.description.trim(), oem_code: line.oem_code.trim() || null,
@@ -242,7 +264,7 @@ export default function DiagnosiPage() {
   }
 
   async function reject(item: Diagnosis) {
-    const note = window.prompt(t("Motivo (facoltativo)")) ?? null;
+    const note = await askText(t("Motivo (facoltativo)"), { ok: t("Rifiutata"), cancel: t("Annulla") });
     if (note === null) return;
     const response = await apiFetch(`/diagnoses/${item.id}/reject`, { method: "POST", body: JSON.stringify({ note }) });
     if (response.ok) { if (editing === item.id) reset(); void load(); }
@@ -275,6 +297,17 @@ export default function DiagnosiPage() {
             <input required value={form.license_plate} autoCapitalize="characters" autoComplete="off" placeholder="AB123CD"
               onChange={(e) => setForm({ ...form, license_plate: e.target.value.toUpperCase().replace(/[^A-Z0-9 ]/g, "") })} />
           </label>
+          {known && (
+            <div className="known-vehicle">
+              <VehicleFront make={known.make} model={known.model} year={known.year} color={known.color} size={96} />
+              <span><strong>{t("Veicolo già registrato")}</strong>
+                <small>{[[known.make, known.model].filter(Boolean).join(" "), known.customer_name, known.mileage ? `${t("Ultimi km")}: ${known.mileage.toLocaleString("it-IT")}` : null].filter(Boolean).join(" · ")}</small></span>
+            </div>
+          )}
+          {!(known?.make && known?.model) && <>
+            <label>{t("Marca")}<input value={form.make} maxLength={120} placeholder="Fiat, Iveco…" onChange={(e) => setForm({ ...form, make: e.target.value })} /></label>
+            <label>{t("Modello")}<input value={form.model} maxLength={120} placeholder="Ducato, Daily…" onChange={(e) => setForm({ ...form, model: e.target.value })} /></label>
+          </>}
           <label>{t("Km")}<input inputMode="numeric" value={form.mileage} onChange={(e) => setForm({ ...form, mileage: e.target.value.replace(/\D/g, "") })} /></label>
           {!area && (
             <div className="chip-field"><span>{t("Tipo di lavoro")}</span>
