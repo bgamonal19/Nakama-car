@@ -38,6 +38,26 @@ const nextStatuses: Record<string, string[]> = {
   CANCELLED: [],
 };
 
+/** Only a draft that was never issued can be deleted: an issued invoice needs a nota di credito. */
+function deletable(invoice: Invoice) {
+  return invoice.status === "DRAFT" || (invoice.status === "CANCELLED" && !invoice.issue_date);
+}
+
+/** Asks for confirmation and deletes a draft invoice. Returns an error message, or "" when deleted, or null when cancelled. */
+async function deleteInvoice(invoice: Invoice, words: (it: string, es: string) => string): Promise<string | null> {
+  if (!confirm(words(
+    `Eliminare la bozza ${invoice.invoice_number}? Non si può annullare.`,
+    `¿Eliminar el borrador ${invoice.invoice_number}? No se puede deshacer.`,
+  ))) return null;
+  const response = await apiFetch(`/invoices/${invoice.id}`, { method: "DELETE" });
+  if (response.ok) return "";
+  if (response.status === 409) return words(
+    "Questa fattura è già stata emessa: per legge non si può eliminare. Annullala ed emetti una nota di credito.",
+    "Esta factura ya se emitió: por ley no se puede eliminar. Anúlala y emite una nota de crédito.",
+  );
+  return await apiError(response, words("Impossibile eliminare la fattura.", "No se pudo eliminar la factura."));
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const [year, month, day] = value.split("-");
@@ -45,7 +65,10 @@ function formatDate(value?: string | null) {
 }
 
 export default function FatturePage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const words = (it: string, es: string) => language === "es" ? es : it;
+  const [canDelete, setCanDelete] = useState(false);
+  const [notice, setNotice] = useState("");
   const [signedIn, setSignedIn] = useState(false);
   const [items, setItems] = useState<Invoice[]>([]);
   const [query, setQuery] = useState("");
@@ -76,12 +99,23 @@ export default function FatturePage() {
   useEffect(() => {
     const token = Boolean(getAccessToken());
     setSignedIn(token);
+    setCanDelete(hasPermission("invoice.create"));
     if (!token) setBusy(false);
   }, []);
 
   useEffect(() => {
     if (getAccessToken()) load();
   }, [search, status, kind]);
+
+  async function remove(invoice: Invoice) {
+    setNotice("");
+    const failure = await deleteInvoice(invoice, words);
+    if (failure === null) return;
+    if (failure) { setError(failure); return; }
+    if (openId === invoice.id) setOpenId(null);
+    setNotice(words(`Fattura ${invoice.invoice_number} eliminata.`, `Factura ${invoice.invoice_number} eliminada.`));
+    await load();
+  }
 
   const totals = items
     .filter((invoice) => invoice.status === "ISSUED")
@@ -107,9 +141,14 @@ export default function FatturePage() {
             </label>
             <button className="secondary">{t("Cerca")}</button>
           </form>
+          <p className="hint">{words(
+            "Si possono eliminare solo le bozze (mai emesse). Una fattura emessa resta registrata per legge: si annulla con una nota di credito.",
+            "Solo se pueden eliminar los borradores (nunca emitidos). Una factura emitida queda registrada por ley: se anula con una nota de crédito.",
+          )}</p>
           {error && <div className="record-error" role="alert">{t(error)}</div>}
+          {notice && <p className="staff-success" role="status">{notice}</p>}
           {totals > 0 && <p className="section-intro">{t("Da incassare (fatture emesse in elenco)")}: <strong>{formatMoney(totals)}</strong></p>}
-          {openId && <InvoiceEditor key={openId} id={openId} onClose={() => setOpenId(null)} onChanged={load} />}
+          {openId && <InvoiceEditor key={openId} id={openId} onClose={() => setOpenId(null)} onChanged={load} onDelete={remove} />}
           <div className="panel list-panel" aria-busy={busy}>
             <div className="data-table invoices head">
               <span>{t("Fattura")}</span><span>{t("Cliente")}</span><span>{t("Stato")}</span><span>{t("Scadenza")}</span><span>{t("Totale")}</span><span>{t("Azioni")}</span>
@@ -121,7 +160,7 @@ export default function FatturePage() {
                 <span className={`status-chip status-${x.status.toLowerCase()}`}>{t(x.status)}</span>
                 <span>{formatDate(x.due_date)}{x.paid_at && <small>{t("Pagata il")} {formatDate(x.paid_at)}</small>}</span>
                 <strong>{formatMoney(x.total)}</strong>
-                <span className="table-actions"><button onClick={() => { setOpenId(x.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{t("Apri")}</button></span>
+                <span className="table-actions"><button onClick={() => { setOpenId(x.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{t("Apri")}</button>{canDelete && deletable(x) && <button className="record-delete" onClick={() => remove(x)}>{words("Elimina", "Eliminar")}</button>}</span>
               </div>
             ))}
           </div>
@@ -131,8 +170,9 @@ export default function FatturePage() {
   );
 }
 
-function InvoiceEditor({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
-  const { t } = useLanguage();
+function InvoiceEditor({ id, onClose, onChanged, onDelete }: { id: string; onClose: () => void; onChanged: () => void; onDelete: (invoice: Invoice) => void }) {
+  const { t, language } = useLanguage();
+  const words = (it: string, es: string) => language === "es" ? es : it;
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [form, setForm] = useState({ issue_date: "", due_date: "", payment_method: "", notes: "" });
   const [error, setError] = useState("");
@@ -219,7 +259,12 @@ function InvoiceEditor({ id, onClose, onChanged }: { id: string; onClose: () => 
                 {next === "ISSUED" && invoice.status === "PAID" ? t("Segna come non pagata") : next === "ISSUED" ? t("Emetti fattura") : next === "PAID" ? t("Segna come pagata") : t("Annulla fattura")}
               </button>
             ))}
+            {canEdit && deletable(invoice) && <button className="secondary record-delete" onClick={() => onDelete(invoice)}>{words("Elimina bozza", "Eliminar borrador")}</button>}
           </div>
+          {canEdit && !deletable(invoice) && <p className="hint">{words(
+            "Fattura emessa: non si può eliminare. Se è sbagliata, annullala e fai una nota di credito.",
+            "Factura emitida: no se puede eliminar. Si está mal, anúlala y haz una nota de crédito.",
+          )}</p>}
           <DatevInvoice invoiceId={invoice.id} localStatus={invoice.status} />
           <div className="line-editor readonly">
             <div className="line-row invoice head"><span>{t("Descrizione")}</span><span>{t("Q.tà")}</span><span>{t("Prezzo unit.")}</span><span>{t("IVA %")}</span><span>{t("Imponibile")}</span></div>

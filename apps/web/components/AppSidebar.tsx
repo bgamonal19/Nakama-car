@@ -14,7 +14,7 @@ import { apiFetch, refreshSession, sessionUser, SessionUser } from "../lib/api";
 // [href, label, icon, permission needed] — each user only sees what they can use.
 const navigation = [
   ["/", "▦ Dashboard", "dashboard", "case.create"],
-  ["/officina", "⚒ Il mio lavoro", "wrench", "work_order.update_status"],
+  ["/officina", "⚒ Il mio lavoro", "wrench", "work_order.read"],
   ["/diagnosi", "✚ Diagnosi", "diagnosis", "work_order.read"],
   ["/clienti", "◎ Clienti", "clients", "customer.read"],
   ["/contratti", "▣ Contratti flotta", "contract", "customer.read"],
@@ -22,12 +22,12 @@ const navigation = [
   ["/pratiche", "▤ Pratiche", "folder", "case.read"],
   ["/preventivi", "€ Preventivi", "estimate", "estimate.read"],
   ["/taller-3d", "◇ Officina 3D", "car", "work_order.read"],
-  ["/lavori", "⌁ Lavori in officina", "work", "work_order.read"],
   ["/fatture", "◫ Fatture", "invoice", "invoice.read"],
   ["/personale", "♙ Personale", "people", "users.manage"],
 ];
 // Workshop staff (mechanic / body shop) see their menu in the order they work.
-const workerOrder = ["/diagnosi", "/preventivi", "/pratiche", "/officina", "/lavori", "/taller-3d"];
+// «Lavori in officina» (/lavori) is not a separate entry: it is a view inside «Il mio lavoro» / «Lavori in corso».
+const workerOrder = ["/diagnosi", "/preventivi", "/pratiche", "/officina", "/taller-3d"];
 const settings = [
   ["/profilo", "☺ Il mio profilo", "profile", ""],
   ["/configurazione", "⚙ Impostazioni", "settings", "settings.manage"],
@@ -124,7 +124,7 @@ export function AppSidebar() {
     // The main account (no area) sees every job of the workshop, not "my" work.
     const name = href === "/officina" && user && !user.work_area ? "⚒ Lavori in corso" : key;
     const label = t(name).replace(/^\S+\s+/, "");
-    const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
+    const active = pathname === href || (href !== "/" && pathname.startsWith(href + "/")) || (href === "/officina" && pathname.startsWith("/lavori"));
     return <a key={href} href={href} className={`nav-item${active ? " active" : ""}`} aria-current={active ? "page" : undefined} aria-label={label} title={label}>
       <NavIcon name={icon} /><span className="nav-label">{label}</span>
       {badge > 0 && <b className="nav-badge" aria-label={`${badge}`}>{badge}</b>}

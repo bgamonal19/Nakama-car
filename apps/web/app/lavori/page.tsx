@@ -5,6 +5,7 @@ import { useLanguage } from "../../components/LanguageProvider";
 import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { apiFetch, getAccessToken } from "../../lib/api";
+import { WorkViews } from "../../components/WorkViews";
 
 type Order = {
   id: string;
@@ -110,6 +111,7 @@ export default function LavoriPage() {
         <div className="empty-state">{t("Accedi per gestire l'officina.")} <a href="/login">{t("Accedi")}</a></div>
       ) : (
         <>
+        <WorkViews current="/lavori" />
         <form className="record-search filters" onSubmit={(e: FormEvent) => { e.preventDefault(); setSearch(query.trim()); }}>
           <label>{t("Cerca")}<input type="search" value={query} placeholder={t("Ordine, targa, n. flotta o cliente")} onChange={(e) => setQuery(e.target.value)} /></label>
           <label className="checkbox-row narrow"><input type="checkbox" checked={openOnly} onChange={(e) => setOpenOnly(e.target.checked)} />{t("Solo in officina")}</label>

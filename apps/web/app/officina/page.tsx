@@ -7,6 +7,7 @@ import { DamageMarker, DamagePhotoMap, MarkerView } from "../../components/Damag
 import { apiError, apiFetch, getAccessToken, hasPermission, sessionUser } from "../../lib/api";
 import { deleteCaseWithConfirm } from "../../lib/caseDeletion";
 import { PlateSpots } from "../../lib/plateSpots";
+import { WorkViews } from "../../components/WorkViews";
 
 type Task = {
   id: string; task_type: string; description: string; status: string; completed_by: string | null; completed_at: string | null;
@@ -181,6 +182,7 @@ export default function OfficinaPage() {
       eyebrow={data?.work_area ? `OFFICINA · ${t(areaNames[data.work_area]).toUpperCase()}` : "OFFICINA · MECCANICA E CARROZZERIA"}
       actions={!isManager && <a className="primary link-button" href="/diagnosi">✚ {t("Nuova diagnosi")}</a>}
     >
+      {!job && <WorkViews current="/officina" />}
       {error && <div className="record-error" role="alert">{t(error)}</div>}
       {notice && <p role="status">{notice}</p>}
       {!data ? <div className="empty-state">{t("Caricamento…")}</div> : job ? (
