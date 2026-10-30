@@ -12,7 +12,7 @@ from app.models.garage import RepairCase
 from app.models.renders import DamageMarker, PlateSpot, VehicleRender
 from app.providers import carimage
 from app.schemas.renders import DamageMarkerCreate, DamageMarkerRead, PlateSpotWrite, RenderAvailability
-from app.security.context import AuthContext, require_permission
+from app.security.context import AuthContext, require_any_permission, require_permission
 from app.services.audit import record_audit
 
 router = APIRouter(tags=["renders"])
@@ -31,7 +31,7 @@ def renders_this_month(db: Session, tenant_id: UUID) -> int:
 def render_info(
     color: str | None = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("vehicle.read")),
+    auth: AuthContext = Depends(require_any_permission("vehicle.read", "work_order.read")),
 ):
     return RenderAvailability(
         configured=carimage.get_render_provider() is not None,
@@ -51,7 +51,7 @@ def render_car(
     year: int | None = Query(None, ge=1950, le=2100),
     color: str | None = None,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("vehicle.read")),
+    auth: AuthContext = Depends(require_any_permission("vehicle.read", "work_order.read")),
 ):
     """Studio picture of the vehicle; each make/model/year/color/view is paid once."""
     return serve_render(db, auth.tenant_id, make=make, model=model, year=year, color=color, view=view)
@@ -227,7 +227,7 @@ def get_plate_spots(
     make: str = Query(min_length=1, max_length=120),
     model: str = Query(min_length=1, max_length=120),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("vehicle.read")),
+    auth: AuthContext = Depends(require_any_permission("vehicle.read", "work_order.read")),
 ):
     return plate_spots_for(db, auth.tenant_id, make, model)
 

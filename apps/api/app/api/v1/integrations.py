@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.db.deps import get_db
 from app.models.garage import Vehicle
 from app.models.integrations import ApiKey, ExternalCredential, VehicleTelemetry
-from app.security.context import AuthContext, require_permission
+from app.security.context import AuthContext, require_any_permission, require_permission
 from app.services import integrations
 
 router = APIRouter(tags=["integrations"])
@@ -156,7 +156,7 @@ def vehicle_telemetry(
     vehicle_id: UUID,
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("vehicle.read")),
+    auth: AuthContext = Depends(require_any_permission("vehicle.read", "work_order.read")),
 ):
     vehicle = db.scalar(select(Vehicle).where(Vehicle.id == vehicle_id, Vehicle.tenant_id == auth.tenant_id))
     if vehicle is None:
