@@ -9,7 +9,7 @@ import { LegalLinks } from "./Legal";
 import { NakamaLogo } from "./NakamaLogo";
 import { NavIcon } from "./NavIcon";
 import { ChatBubble } from "./ChatBubble";
-import { apiFetch, hidesEstimates, refreshSession, sessionUser, SessionUser } from "../lib/api";
+import { apiFetch, clearSession, hidesEstimates, homeFor, refreshSession, sessionUser, SessionUser } from "../lib/api";
 
 // [href, label, icon, permission needed] — each user only sees what they can use.
 const navigation = [
@@ -144,11 +144,16 @@ export function AppSidebar() {
     <div className={`mobile-nav-backdrop${open ? " is-open" : ""}`} aria-hidden="true" onClick={() => setOpen(false)} />
     <aside ref={sidebarRef} id="nakama-navigation" className={`sidebar minimal-sidebar${open ? " is-open" : ""}`}
       onClick={event => { if ((event.target as HTMLElement).closest("a, button")) setOpen(false); }}>
-    <a className="brand brand-link nakama-sidebar-brand" href="/" aria-label="NAKAMA CAR"><NakamaLogo /></a>
+    {/* The logo leads to each user's own start page: "/" is the office dashboard. */}
+    <a className="brand brand-link nakama-sidebar-brand" href={homeFor(user)} aria-label="NAKAMA CAR"><NakamaLogo /></a>
     <nav aria-label={language === "es" ? "Navegación principal" : "Navigazione principale"}>{menu.map(link)}</nav>
 
     <div className="sidebar-bottom">
       <nav aria-label={language === "es" ? "Administración" : "Amministrazione"}>{settings.filter(allowed).map(link)}</nav>
+      {user && <button type="button" className="nav-item logout-button" title={t("Esci")}
+        onClick={() => { clearSession(); window.location.assign("/login"); }}>
+        <NavIcon name="logout" /><span className="nav-label">{t("Esci")}</span>
+      </button>}
       {user?.work_area && <p className="sidebar-area">{t("Area")}: <strong>{t(areaNames[user.work_area])}</strong></p>}
       <div className="sidebar-preferences"><LanguageSwitcher /><ThemeToggle /><UpdateAppButton /></div>
       <LegalLinks />
