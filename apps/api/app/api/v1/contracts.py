@@ -1,11 +1,14 @@
+from datetime import datetime
+from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
-from app.models.contracts import ServiceContract
+from app.models.contracts import ServiceContract, ServiceContractDocument
 from app.models.garage import Customer
 from app.schemas.contracts import ServiceContractCreate, ServiceContractRead, ServiceContractUpdate
 from app.security.context import AuthContext, require_permission
@@ -148,3 +151,99 @@ def update_contract(
     db.commit()
     db.refresh(contract)
     return to_read(contract, get_tenant_customer(db, auth.tenant_id, contract.customer_id))
+
+
+MAX_DOCUMENT_BYTES = 15 * 1024 * 1024
+
+
+class ContractDocumentRead(BaseModel):
+    id: UUID
+    contract_id: UUID
+    filename: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+def get_contract_document(db: Session, auth: AuthContext, contract_id: UUID, document_id: UUID) -> ServiceContractDocument:
+    document = db.scalar(select(ServiceContractDocument).where(
+        ServiceContractDocument.id == document_id,
+        ServiceContractDocument.contract_id == contract_id,
+        ServiceContractDocument.tenant_id == auth.tenant_id,
+    ))
+    if document is None:
+        raise HTTPException(status_code=404, detail="Documento non trovato")
+    return document
+
+
+@router.get("/{contract_id}/documents", response_model=list[ContractDocumentRead])
+def list_contract_documents(
+    contract_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.read")),
+):
+    contract = get_tenant_contract(db, auth.tenant_id, contract_id)
+    return db.scalars(select(ServiceContractDocument).where(
+        ServiceContractDocument.contract_id == contract.id, ServiceContractDocument.tenant_id == auth.tenant_id,
+    ).order_by(ServiceContractDocument.created_at.desc())).all()
+
+
+@router.post("/{contract_id}/documents", response_model=ContractDocumentRead, status_code=status.HTTP_201_CREATED)
+async def upload_contract_document(
+    contract_id: UUID,
+    request: Request,
+    filename: str = Query(min_length=1, max_length=255),
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.write")),
+):
+    """A file of the contract (raw body; its name in ``filename``), e.g. the signed contract PDF."""
+    contract = get_tenant_contract(db, auth.tenant_id, contract_id)
+    if int(request.headers.get("content-length") or 0) > MAX_DOCUMENT_BYTES:
+        raise HTTPException(status_code=413, detail="File troppo grande (max 15 MB).")
+    content = await request.body()
+    if not content:
+        raise HTTPException(status_code=422, detail="Il file è vuoto.")
+    if len(content) > MAX_DOCUMENT_BYTES:
+        raise HTTPException(status_code=413, detail="File troppo grande (max 15 MB).")
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip() or "application/octet-stream"
+    document = ServiceContractDocument(
+        tenant_id=auth.tenant_id, contract_id=contract.id, filename=filename.strip().replace("/", "_")[:255],
+        content_type=content_type[:120], size_bytes=len(content), uploaded_by=auth.user_id, content=content,
+    )
+    db.add(document)
+    db.flush()
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="service_contract", entity_id=contract.id,
+                 action="document_added", new_value={"document_id": str(document.id), "filename": document.filename})
+    db.commit()
+    db.refresh(document)
+    return document
+
+
+@router.get("/{contract_id}/documents/{document_id}")
+def download_contract_document(
+    contract_id: UUID,
+    document_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.read")),
+):
+    document = get_contract_document(db, auth, contract_id, document_id)
+    return Response(content=document.content, media_type=document.content_type, headers={
+        "Content-Disposition": f"attachment; filename*=UTF-8''{quote(document.filename)}",
+        "X-Content-Type-Options": "nosniff",
+    })
+
+
+@router.delete("/{contract_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_contract_document(
+    contract_id: UUID,
+    document_id: UUID,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_permission("customer.write")),
+):
+    document = get_contract_document(db, auth, contract_id, document_id)
+    record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="service_contract", entity_id=contract_id,
+                 action="document_deleted", old_value={"document_id": str(document.id), "filename": document.filename})
+    db.delete(document)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

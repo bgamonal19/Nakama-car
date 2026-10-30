@@ -3,12 +3,12 @@ from pydantic import ValidationError
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.db.deps import get_db
 from app.models.billing import Invoice
-from app.models.contracts import ServiceContract
+from app.models.contracts import ServiceContract, ServiceContractDocument
 from app.models.garage import Customer, RepairCase, Vehicle
 from app.models.portal import PortalAccount
 from app.schemas.garage import CustomerCreate, CustomerRead, CustomerUpdate
@@ -168,6 +168,7 @@ def delete_customer(
             raise HTTPException(status_code=409, detail="Impossibile eliminare il cliente: una pratica ha fatture.")
         remove_case(db, case, auth, forced=True)
     for contract in db.scalars(select(ServiceContract).where(ServiceContract.customer_id == customer.id)).all():
+        db.execute(delete(ServiceContractDocument).where(ServiceContractDocument.contract_id == contract.id))
         db.delete(contract)
     db.flush()
     db.execute(update(Vehicle).where(Vehicle.customer_id == customer.id).values(customer_id=None))

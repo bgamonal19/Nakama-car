@@ -10,6 +10,7 @@ import { PortalAccess } from "./PortalAccess";
 import { EstimateChip } from "./EstimateChip";
 import { CustomerLogo } from "./CustomerLogo";
 import { VehicleFront } from "./VehicleFront";
+import { uploadContractDocument } from "./ContractDocuments";
 import { Contract, contractInForce, ContractFields, contractPayload, ContractTerms, FleetContracts, newContractTerms } from "./FleetContracts";
 import { deleteCaseWithConfirm, typedConfirm } from "../lib/caseDeletion";
 
@@ -140,6 +141,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
   const [contracts,setContracts]=useState<Contract[]|null>(null);
   // A new customer can get its fleet contract in the same form (optional).
   const [newContract,setNewContract]=useState<ContractTerms|null>(null);
+  const [contractFiles,setContractFiles]=useState<File[]>([]);
   useEffect(()=>{setContracts(null);},[selected?.id]);
 
   function label(item:RecordData) {
@@ -155,7 +157,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     } catch(e){setError(message(e));}finally{setOpening(false);}
   }
   function create() {
-    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);setShowData(true);setNewContract(null);
+    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);setShowData(true);setNewContract(null);setContractFiles([]);
   }
   async function save(event:FormEvent) {
     event.preventDefault();if(!selected||!canWrite)return;
@@ -172,9 +174,12 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       // New customer with a fleet contract: create the contract too and open the profile, where it shows.
       if(kind==="customers"&&!selected.id&&newContract){
         let failed="";
-        try{await read(`/contracts`,{method:"POST",body:JSON.stringify({...contractPayload(newContract),...(newContract.name.trim()===t("Manutenzione flotta")?{name:`${t("Manutenzione flotta")} ${label(saved)}`}:{}),customer_id:saved.id})});}catch(e){failed=message(e);}
-        setRefresh(n=>n+1);setNewContract(null);await open(saved);
-        if(failed)setError(words("Cliente salvato, ma il contratto flotta no: ","Cliente guardado, pero el contrato de flota no: ")+failed);
+        try{
+          const contract=await read<{id:string}>(`/contracts`,{method:"POST",body:JSON.stringify({...contractPayload(newContract),...(newContract.name.trim()===t("Manutenzione flotta")?{name:`${t("Manutenzione flotta")} ${label(saved)}`}:{}),customer_id:saved.id})});
+          for(const file of contractFiles){const problem=await uploadContractDocument(contract.id,file);if(problem)failed=failed?`${failed} · ${problem}`:problem;}
+        }catch(e){failed=message(e);}
+        setRefresh(n=>n+1);setNewContract(null);setContractFiles([]);await open(saved);
+        if(failed)setError(words("Cliente salvato, ma il contratto flotta o i suoi file no: ","Cliente guardado, pero el contrato de flota o sus archivos no: ")+failed);
         else setNotice(words("Cliente e contratto flotta salvati.","Cliente y contrato de flota guardados."));
         return;
       }
@@ -278,7 +283,9 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           </label>)}
           {kind==="customers"&&!selected.id&&canWrite&&<fieldset className="span-2 new-customer-contract">
             <label className="checkbox-row"><input type="checkbox" disabled={saving} checked={!!newContract} onChange={e=>setNewContract(e.target.checked?newContractTerms(`${t("Manutenzione flotta")} ${label({id:"",...draft})}`.trim()):null)}/>{words("Contratto flotta (opzionale): canone mensile, manodopera e ricarico ricambi","Contrato de flota (opcional): cuota mensual, mano de obra y margen de recambios")}</label>
-            {newContract?<div className="record-form"><ContractFields draft={newContract} onChange={setNewContract}/></div>:<small className="hint">{words("Senza contratto il cliente paga il listino normale. Puoi aggiungerlo anche dopo dal profilo.","Sin contrato el cliente paga la tarifa normal. También puedes añadirlo después desde el perfil.")}</small>}
+            {newContract?<div className="record-form"><ContractFields draft={newContract} onChange={setNewContract}/>
+              <label className="span-2">{words("File del contratto (contratto firmato, allegati)","Archivos del contrato (contrato firmado, anexos)")}<input type="file" multiple disabled={saving} onChange={e=>setContractFiles(Array.from(e.target.files||[]))}/>{contractFiles.length>0&&<small className="hint">{contractFiles.map(f=>f.name).join(", ")}</small>}</label>
+            </div>:<small className="hint">{words("Senza contratto il cliente paga il listino normale. Puoi aggiungerlo anche dopo dal profilo.","Sin contrato el cliente paga la tarifa normal. También puedes añadirlo después desde el perfil.")}</small>}
           </fieldset>}
           {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>customerOpen?setShowData(false):setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}{kind==="cases"&&selected.id&&canCreate&&<button type="button" className="secondary record-delete" disabled={saving} onClick={removeCase}>{words("Elimina pratica","Eliminar expediente")}</button>}</div>}
         </form>

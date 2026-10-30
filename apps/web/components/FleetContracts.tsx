@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { ContractDocuments } from "./ContractDocuments";
 import { FleetPortalPanel } from "./FleetPortalPanel";
 import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, customerLabel, formatMoney, hasPermission } from "../lib/api";
@@ -310,6 +311,7 @@ export function FleetContracts({ customer, creating, onCreatingDone, onLoaded }:
                   </>
                 )}
               </span>
+              <ContractDocuments contractId={contract.id} canWrite={canWrite} />
             </div>
           ))}
           {canWrite && !draft && <button type="button" className="secondary" onClick={startCreate}>{t("+ Nuovo contratto")}</button>}

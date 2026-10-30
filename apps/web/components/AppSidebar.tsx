@@ -14,16 +14,16 @@ import { apiFetch, clearSession, hidesEstimates, homeFor, refreshSession, sessio
 // [href, label, icon, permission needed] — each user only sees what they can use.
 const navigation = [
   ["/", "▦ Dashboard", "dashboard", "case.create"],
-  ["/officina", "⚒ Il mio lavoro", "wrench", "work_order.read"],
   ["/diagnosi", "✚ Diagnosi", "diagnosis", "work_order.read"],
-  ["/clienti", "◎ Clienti", "clients", "customer.read"],
-  ["/contratti", "▣ Contratti flotta", "contract", "customer.read"],
-  ["/veicoli", "◇ Veicoli", "car", "vehicle.read"],
-  ["/pratiche", "▤ Pratiche", "folder", "case.read"],
   ["/preventivi", "€ Preventivi", "estimate", "estimate.read"],
-  ["/taller-3d", "◇ Officina 3D", "car", "work_order.read"],
+  ["/pratiche", "▤ Pratiche", "folder", "case.read"],
+  ["/officina", "⚒ Il mio lavoro", "wrench", "work_order.read"],
   ["/fatture", "◫ Fatture", "invoice", "invoice.read"],
+  ["/clienti", "◎ Clienti", "clients", "customer.read"],
+  ["/veicoli", "◇ Veicoli", "car", "vehicle.read"],
   ["/personale", "♙ Personale", "people", "users.manage"],
+  ["/taller-3d", "◇ Officina 3D", "car", "work_order.read"],
+  // Fleet contracts live in each customer's profile (Clienti); /contratti stays reachable but is not in the menu.
 ];
 // Workshop staff (mechanic / body shop) see their menu in the order they work.
 // «Lavori in officina» (/lavori) is not a separate entry: it is a view inside «Il mio lavoro» / «Lavori in corso».

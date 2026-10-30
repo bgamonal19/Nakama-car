@@ -2,8 +2,8 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, ForeignKey, Numeric, String, Text, Uuid
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, Date, ForeignKey, Integer, LargeBinary, Numeric, String, Text, Uuid
+from sqlalchemy.orm import Mapped, deferred, mapped_column
 
 from app.db.base import Base, TenantOwnedMixin, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -34,3 +34,18 @@ class ServiceContract(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixi
     end_date: Mapped[date | None] = mapped_column(Date)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     notes: Mapped[str | None] = mapped_column(Text)
+
+
+class ServiceContractDocument(Base, UUIDPrimaryKeyMixin, TenantOwnedMixin, TimestampMixin):
+    """A file kept with a fleet contract (the signed contract, annexes, price lists…)."""
+
+    __tablename__ = "service_contract_documents"
+
+    contract_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("service_contracts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(Uuid)
+    content: Mapped[bytes] = deferred(mapped_column(LargeBinary, nullable=False))
