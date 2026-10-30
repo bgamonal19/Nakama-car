@@ -366,3 +366,28 @@ def test_mechanic_looks_up_new_plates_and_does_not_see_estimates(client, monkeyp
     assert mechanic.get(f"/api/v1/estimates/{estimate['id']}/pdf").status_code == 403
     assert body.get("/api/v1/estimates").status_code == 200
     assert c.get(f"/api/v1/estimates/{estimate['id']}").status_code == 200
+
+
+def test_mechanic_saves_plate_data_on_a_registered_vehicle(client, monkeypatch):
+    from app.providers import targa
+    from test_plate_lookup import FakeProvider
+
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec-save@example.com", "MECHANIC")
+    customer = c.post("/api/v1/customers", json={"first_name": "Flotta"}).json()
+    c.post("/api/v1/vehicles", json={"customer_id": customer["id"], "license_plate": "FG133WJ", "make": "Renault", "model": "Trafic"})
+    fake = FakeProvider()
+    monkeypatch.setattr(targa, "get_vehicle_data_provider", lambda: fake)
+
+    saved = mechanic.post("/api/v1/diagnoses/vehicle/fg 133 wj/plate-data")
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["saved"] is True and saved.json()["make"] == "Fiat"
+    known = mechanic.get("/api/v1/diagnoses/vehicle/FG133WJ").json()
+    assert known["make"] == "Fiat" and known["model"] == "PANDA" and known["year"] == 2015
+    assert known["customer_name"]
+
+    # The next search of the same plate is served from the cache: no new credit.
+    assert mechanic.post("/api/v1/diagnoses/vehicle/FG133WJ/plate-data").json()["cached"] is True
+    assert fake.calls == 1
+    # A plate not registered only answers, nothing to save.
+    assert mechanic.post("/api/v1/diagnoses/vehicle/AB123CD/plate-data").json()["saved"] is False

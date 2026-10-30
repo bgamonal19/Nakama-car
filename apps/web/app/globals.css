@@ -2197,3 +2197,4 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 .known-vehicle { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px; background: var(--soft); border: 1px solid var(--line); }
 .known-vehicle span { display: grid; gap: 2px; }
 .known-vehicle small { color: var(--muted); }
+.known-vehicle > button { margin-left: auto; }
