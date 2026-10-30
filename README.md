@@ -54,6 +54,11 @@ The same platform now runs a **mechanical workshop** for two kinds of customers:
 - Settings: workshop fiscal data (P.IVA, C.F., address, regime fiscale, IBAN, PEC/SDI).
 - Case record: photo gallery with upload and the case estimates.
 
+## Testing a PR before merging
+
+Every PR can be tried on its own Railway PR environment or locally with Docker (`./scripts/probar-pr.sh <PR>`),
+always with a separate demo database: see [docs/PROBAR.md](docs/PROBAR.md) (Spanish).
+
 ## Stack
 
 - Frontend: Next.js 15 + React 19 + TypeScript + Tailwind CSS

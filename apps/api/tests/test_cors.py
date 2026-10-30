@@ -50,3 +50,18 @@ def test_cors_does_not_bypass_case_authentication():
     response = client.get("/api/v1/cases", headers={"Origin": WEB_ORIGIN})
     assert response.status_code in (401, 403)
     assert response.headers["access-control-allow-origin"] == WEB_ORIGIN
+
+
+def test_railway_pr_environment_web_is_allowed():
+    origin = "https://nakama-car-web-extraordinary-adaptation-pr-106.up.railway.app"
+    response = client.get("/api/v1/health", headers={"Origin": origin})
+    assert response.headers["access-control-allow-origin"] == origin
+
+
+@pytest.mark.parametrize("origin", [
+    "https://nakama-car-web-pr-1.up.railway.app.example.com",
+    "https://evil-nakama-car-web-pr-1.up.railway.app",
+])
+def test_lookalike_railway_origins_are_not_allowed(origin):
+    response = client.get("/api/v1/health", headers={"Origin": origin})
+    assert "access-control-allow-origin" not in response.headers

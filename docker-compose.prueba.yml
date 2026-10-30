@@ -1,0 +1,45 @@
+# Copia de prueba de toda la app en el Mac (ver docs/PROBAR.md). Base de datos propia y vacía, nunca la real.
+name: nakama-prueba
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: nakama_prueba
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nakama_prueba"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build: ./apps/api
+    environment:
+      APP_ENV: preview
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/nakama_prueba
+      JWT_SECRET: solo-para-pruebas-en-local
+    # Sin «alembic upgrade head» del Dockerfile: la API comprueba primero que la base sea de prueba.
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: node:22
+    working_dir: /app
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      NEXT_TELEMETRY_DISABLED: "1"
+    command: sh -c "npm install --no-audit --no-fund && npm run dev -- -p 3000 -H 0.0.0.0"
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
