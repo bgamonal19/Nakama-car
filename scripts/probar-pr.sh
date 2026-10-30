@@ -1,6 +1,6 @@
 #!/bin/bash
 # Arranca en este Mac una copia de prueba de la app con los cambios de un PR.
-#   ./scripts/probar-pr.sh 110   → prueba el PR número 106
+#   ./scripts/probar-pr.sh 110   → prueba el PR número 110
 #   ./scripts/probar-pr.sh       → prueba la versión actual (main)
 # Para pararla: ./scripts/parar-prueba.sh
 set -euo pipefail
