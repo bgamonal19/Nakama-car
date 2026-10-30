@@ -2217,3 +2217,7 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 .nakama-theme .minimal-sidebar .logout-button:hover { color: #ff8a95; }
 .new-customer-contract { border:1px solid var(--line); border-radius:8px; padding:14px; margin:0; display:grid; gap:14px; min-width:0; }
 .new-customer-contract > .checkbox-row { font-weight:600; }
+.customer-contract > .contract-documents, .contract-documents { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding-top:10px; margin-top:10px; border-top:1px dashed var(--line); width:100%; }
+.contract-documents-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--muted, #667085); width:100%; }
+.contract-document { display:inline-flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:6px; padding:2px 6px; }
+.contract-document small { color:var(--muted, #667085); }

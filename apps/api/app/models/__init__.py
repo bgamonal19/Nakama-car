@@ -1,7 +1,7 @@
 from app.models.datev import DatevLink
 from app.models.approval import EstimateApproval
 from app.models.billing import Invoice, InvoiceLine
-from app.models.contracts import ServiceContract
+from app.models.contracts import ServiceContract, ServiceContractDocument
 from app.models.lookup import VehicleLookup
 from app.models.renders import DamageMarker, PlateSpot, VehicleRender
 from app.models.damage import Damage, VehicleArea
@@ -19,7 +19,7 @@ __all__ = [
     "AccessLog", "AuditLog", "Permission", "Role", "RolePermission", "Tenant", "TenantSettings",
     "User", "UserRole", "UserTenant", "Customer", "Vehicle", "RepairCase", "Media",
     "VehicleArea", "Damage", "LaborRate", "Estimate", "EstimateLine", "EstimateApproval",
-    "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine", "ServiceContract", "VehicleLookup", "VehicleRender", "DamageMarker",
+    "WorkOrder", "WorkOrderTask", "Invoice", "InvoiceLine", "ServiceContract", "ServiceContractDocument", "VehicleLookup", "VehicleRender", "DamageMarker",
     "CaseTrackingLink", "CaseMessage", "PortalAccount", "PlateSpot", "ApiKey", "ExternalCredential", "VehicleTelemetry",
     "Diagnosis", "DiagnosisLine", "QuickItem", "UserProfile",
 ]
