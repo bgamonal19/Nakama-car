@@ -10,7 +10,7 @@ import { PortalAccess } from "./PortalAccess";
 import { EstimateChip } from "./EstimateChip";
 import { CustomerLogo } from "./CustomerLogo";
 import { VehicleFront } from "./VehicleFront";
-import { Contract, contractInForce, FleetContracts } from "./FleetContracts";
+import { Contract, contractInForce, ContractFields, contractPayload, ContractTerms, FleetContracts, newContractTerms } from "./FleetContracts";
 import { deleteCaseWithConfirm, typedConfirm } from "../lib/caseDeletion";
 
 type RecordData = { id: string; [key: string]: string | number | null | undefined };
@@ -138,6 +138,8 @@ export function RecordDirectory({kind}: {kind: Kind}) {
   },[kind]);
   // The customer's fleet contract decides the type shown in the profile.
   const [contracts,setContracts]=useState<Contract[]|null>(null);
+  // A new customer can get its fleet contract in the same form (optional).
+  const [newContract,setNewContract]=useState<ContractTerms|null>(null);
   useEffect(()=>{setContracts(null);},[selected?.id]);
 
   function label(item:RecordData) {
@@ -153,7 +155,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
     } catch(e){setError(message(e));}finally{setOpening(false);}
   }
   function create() {
-    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);setShowData(true);
+    setSelected({id:""});setDraft({customer_type:"PRIVATE",country:"IT",vehicle_category:"CAR"});setNotice("");setError("");setHistory([]);setOpened(n=>n+1);setShowData(true);setNewContract(null);
   }
   async function save(event:FormEvent) {
     event.preventDefault();if(!selected||!canWrite)return;
@@ -167,6 +169,15 @@ export function RecordDirectory({kind}: {kind: Kind}) {
         return [f.key,value===""?null:f.type==="number"?Number(value):f.key==="country"?value.toUpperCase():value];
       }));
       const saved=await read<RecordData>(`/${kind}${selected.id?`/${selected.id}`:""}`,{method:selected.id?"PATCH":"POST",body:JSON.stringify(payload)});
+      // New customer with a fleet contract: create the contract too and open the profile, where it shows.
+      if(kind==="customers"&&!selected.id&&newContract){
+        let failed="";
+        try{await read(`/contracts`,{method:"POST",body:JSON.stringify({...contractPayload(newContract),...(newContract.name.trim()===t("Manutenzione flotta")?{name:`${t("Manutenzione flotta")} ${label(saved)}`}:{}),customer_id:saved.id})});}catch(e){failed=message(e);}
+        setRefresh(n=>n+1);setNewContract(null);await open(saved);
+        if(failed)setError(words("Cliente salvato, ma il contratto flotta no: ","Cliente guardado, pero el contrato de flota no: ")+failed);
+        else setNotice(words("Cliente e contratto flotta salvati.","Cliente y contrato de flota guardados."));
+        return;
+      }
       // A customer's profile stays open after saving its data, with the data folded again.
       if(kind==="customers"&&selected.id){setSelected({...selected,...saved});setShowData(false);}else setSelected(null);
       setRefresh(n=>n+1);setNotice(words("Salvato correttamente.","Guardado correctamente."));
@@ -251,7 +262,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
             <CustomerLogo name={label(selected)} version={selected.logo_updated_at?String(selected.logo_updated_at):null} load={()=>apiFetch(`/customers/${selected.id}/logo`)} size={84}/>
             <span><strong>{label(selected)}</strong><span className="customer-type-tags"><span className="status-chip">{selected.customer_type==="COMPANY"?words("Azienda","Empresa"):words("Privato","Particular")}</span>{contracts&&(contracts.some(contractInForce)?<span className="status-chip contract">{words("Contratto flotta","Contrato de flota")}</span>:<span className="status-chip">{words("Listino normale","Tarifa normal")}</span>)}</span><small>{[selected.phone,selected.email].filter(Boolean).join(" · ")}</small><em>{showData?`▴ ${words("Nascondi dati del cliente","Ocultar datos del cliente")}`:`▾ ${words("Dati del cliente","Datos del cliente")}`}</em></span>
           </button>
-        </>:<><button type="button" className="ghost record-back" onClick={()=>setSelected(null)}>← {kind==="cases"?words("Tutte le pratiche","Todos los expedientes"):words("Tutti i veicoli","Todos los vehículos")}</button>{kind==="cases"&&selected.plate?<div className="case-plate-hero"><span className="reg-plate">{String(selected.plate)}</span></div>:null}<div className="panel-head"><div className="record-title"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2>{selected.id&&kind!=="customers"&&<small>{vehicleName(selected)||words("Marca e modello non indicati","Marca y modelo no indicados")}</small>}</div><span className="record-head-side">{selected.id&&kind==="vehicles"&&<VehicleFront make={selected.make} model={selected.model} year={selected.year} color={selected.color_name}/>}{kind==="cases"&&<VehicleFront make={selected.vehicle_make} model={selected.vehicle_model} year={selected.vehicle_year} color={selected.vehicle_color}/>}<button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></span></div></>}
+        </>:<><button type="button" className="ghost record-back" onClick={()=>setSelected(null)}>← {kind==="cases"?words("Tutte le pratiche","Todos los expedientes"):kind==="customers"?words("Tutti i clienti","Todos los clientes"):words("Tutti i veicoli","Todos los vehículos")}</button>{kind==="cases"&&selected.plate?<div className="case-plate-hero"><span className="reg-plate">{String(selected.plate)}</span></div>:null}<div className="panel-head"><div className="record-title"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2>{selected.id&&kind!=="customers"&&<small>{vehicleName(selected)||words("Marca e modello non indicati","Marca y modelo no indicados")}</small>}</div><span className="record-head-side">{selected.id&&kind==="vehicles"&&<VehicleFront make={selected.make} model={selected.model} year={selected.year} color={selected.color_name}/>}{kind==="cases"&&<VehicleFront make={selected.vehicle_make} model={selected.vehicle_model} year={selected.vehicle_year} color={selected.vehicle_color}/>}<button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></span></div></>}
         {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{[selected.customer_name,selected.plate,vehicleName(selected)].filter(Boolean).join(" · ")} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} workType={selected.work_type?String(selected.work_type):undefined} />}
         {(!customerOpen||showData)&&<>
@@ -265,6 +276,10 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           {definition.fields.map(f=><label key={f.key}>{words(f.it,f.es)}
             {f.type==="textarea"?<textarea disabled={!canWrite||saving} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>:f.options?<select disabled={!canWrite||saving||(!!selected.id&&!f.editable)} value={draft[f.key]||f.options[0]} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}>{f.options.map(o=><option key={o} value={o}>{o==="PRIVATE"?words("Privato","Particular"):t(o)}</option>)}</select>:<input type={f.type||"text"} required={f.required} disabled={!canWrite||saving||!!(selected.id&&f.readOnly)} min={f.min} max={f.type==="number"?f.max:undefined} maxLength={f.type!=="number"?f.max:undefined} value={draft[f.key]||""} onChange={e=>setDraft({...draft,[f.key]:e.target.value})}/>}
           </label>)}
+          {kind==="customers"&&!selected.id&&canWrite&&<fieldset className="span-2 new-customer-contract">
+            <label className="checkbox-row"><input type="checkbox" disabled={saving} checked={!!newContract} onChange={e=>setNewContract(e.target.checked?newContractTerms(`${t("Manutenzione flotta")} ${label({id:"",...draft})}`.trim()):null)}/>{words("Contratto flotta (opzionale): canone mensile, manodopera e ricarico ricambi","Contrato de flota (opcional): cuota mensual, mano de obra y margen de recambios")}</label>
+            {newContract?<div className="record-form"><ContractFields draft={newContract} onChange={setNewContract}/></div>:<small className="hint">{words("Senza contratto il cliente paga il listino normale. Puoi aggiungerlo anche dopo dal profilo.","Sin contrato el cliente paga la tarifa normal. También puedes añadirlo después desde el perfil.")}</small>}
+          </fieldset>}
           {canWrite&&<div className="record-form-actions"><button className="primary" disabled={saving}>{saving?words("Salvataggio…","Guardando…"):words("Salva","Guardar")}</button><button type="button" className="secondary" disabled={saving} onClick={()=>customerOpen?setShowData(false):setSelected(null)}>{words("Annulla","Cancelar")}</button>{kind==="customers"&&selected.id&&<button type="button" className="secondary record-delete" disabled={saving} onClick={remove}>{words("Elimina cliente","Eliminar cliente")}</button>}{kind==="cases"&&selected.id&&canCreate&&<button type="button" className="secondary record-delete" disabled={saving} onClick={removeCase}>{words("Elimina pratica","Eliminar expediente")}</button>}</div>}
         </form>
         {customerOpen&&<div className="record-fleet"><PortalAccess customerId={String(selected.id)} customerName={label(selected)} /></div>}
