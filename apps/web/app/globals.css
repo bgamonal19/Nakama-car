@@ -2205,3 +2205,8 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 .vehicle-data { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 16px; margin: 0; }
 .vehicle-data dt { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .vehicle-data dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+/* «Indietro» next to every page title. */
+.topbar-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.back-button { flex: none; padding: 6px 12px; border-radius: 999px; font-weight: 600; }
+.record-back { margin-bottom: 10px; }

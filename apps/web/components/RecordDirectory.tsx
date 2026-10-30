@@ -228,10 +228,17 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Cliente eliminato.","Cliente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
   }
+  // «Indietro» in the page header closes the open record before leaving the page.
+  const selectedRef=useRef(selected);selectedRef.current=selected;
+  useEffect(()=>{
+    const onBack=(event:Event)=>{if(selectedRef.current){event.preventDefault();setSelected(null);}};
+    window.addEventListener("nakama-back",onBack);
+    return()=>window.removeEventListener("nakama-back",onBack);
+  },[]);
   const customerOpen=kind==="customers"&&!!selected?.id;
   return <SectionShell title={words(definition.it,definition.es)} actions={signedIn&&canCreate&&(kind==="cases"?<a className="primary link-button" href="/?new=practice">{words("Nuova pratica","Nuevo expediente")}</a>:<button className="primary" onClick={create} disabled={saving||opening}>{words("Aggiungi","Añadir")}</button>)}>
     {!signedIn?<div className="empty-state">{words("Accedi per consultare i dati della tua officina.","Inicia sesión para consultar los datos de tu taller.")} <a href="/login">{words("Accedi","Iniciar sesión")}</a></div>:<>
-      {!customerOpen&&<form className="record-search" onSubmit={e=>{e.preventDefault();setSearch(query.trim());setOffset(0);setRefresh(n=>n+1);}}>
+      {!selected&&<form className="record-search" onSubmit={e=>{e.preventDefault();setSearch(query.trim());setOffset(0);setRefresh(n=>n+1);}}>
         <label>{words("Cerca","Buscar")}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} /></label>
         <button className="secondary">{words("Cerca","Buscar")}</button>
       </form>}
@@ -244,7 +251,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
             <CustomerLogo name={label(selected)} version={selected.logo_updated_at?String(selected.logo_updated_at):null} load={()=>apiFetch(`/customers/${selected.id}/logo`)} size={84}/>
             <span><strong>{label(selected)}</strong><span className="customer-type-tags"><span className="status-chip">{selected.customer_type==="COMPANY"?words("Azienda","Empresa"):words("Privato","Particular")}</span>{contracts&&(contracts.some(contractInForce)?<span className="status-chip contract">{words("Contratto flotta","Contrato de flota")}</span>:<span className="status-chip">{words("Listino normale","Tarifa normal")}</span>)}</span><small>{[selected.phone,selected.email].filter(Boolean).join(" · ")}</small><em>{showData?`▴ ${words("Nascondi dati del cliente","Ocultar datos del cliente")}`:`▾ ${words("Dati del cliente","Datos del cliente")}`}</em></span>
           </button>
-        </>:<div className="panel-head"><div className="record-title"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2>{selected.id&&kind!=="customers"&&<small>{vehicleName(selected)||words("Marca e modello non indicati","Marca y modelo no indicados")}</small>}</div><span className="record-head-side">{selected.id&&kind==="vehicles"&&<VehicleFront make={selected.make} model={selected.model} year={selected.year} color={selected.color_name}/>}{kind==="cases"&&<VehicleFront make={selected.vehicle_make} model={selected.vehicle_model} year={selected.vehicle_year} color={selected.vehicle_color}/>}<button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></span></div>}
+        </>:<><button type="button" className="ghost record-back" onClick={()=>setSelected(null)}>← {kind==="cases"?words("Tutte le pratiche","Todos los expedientes"):words("Tutti i veicoli","Todos los vehículos")}</button><div className="panel-head"><div className="record-title"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2>{selected.id&&kind!=="customers"&&<small>{vehicleName(selected)||words("Marca e modello non indicati","Marca y modelo no indicados")}</small>}</div><span className="record-head-side">{selected.id&&kind==="vehicles"&&<VehicleFront make={selected.make} model={selected.model} year={selected.year} color={selected.color_name}/>}{kind==="cases"&&<VehicleFront make={selected.vehicle_make} model={selected.vehicle_model} year={selected.vehicle_year} color={selected.vehicle_color}/>}<button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></span></div></>}
         {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{[selected.customer_name,selected.plate,vehicleName(selected)].filter(Boolean).join(" · ")} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} workType={selected.work_type?String(selected.work_type):undefined} />}
         {(!customerOpen||showData)&&<>
@@ -269,7 +276,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
           <div className="record-pagination"><button disabled={!historyOffset||historyBusy} onClick={()=>setHistoryOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><button disabled={history.length<pageSize||historyBusy} onClick={()=>setHistoryOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div>
         </div>}
       </section>}
-      {!customerOpen&&<><section className="panel record-list" aria-busy={busy}>
+      {!selected&&<><section className="panel record-list" aria-busy={busy}>
         {busy?<div className="empty-state">{words("Caricamento…","Cargando…")}</div>:!error&&items.length===0?<div className="empty-state">{words("Nessun risultato.","No hay resultados.")}</div>:items.map(item=><div className="record-row" key={item.id}>
           {kind==="customers"&&<CustomerLogo name={label(item)} version={item.logo_updated_at?String(item.logo_updated_at):null} load={()=>apiFetch(`/customers/${item.id}/logo`)} size={44}/>}
           <div className="record-row-main">{kind==="cases"?<strong className="case-row-title"><WorkBadge type={item.work_type}/>{item.plate?<span className="reg-plate">{String(item.plate)}</span>:null}<span className="case-row-number">{label(item)}</span></strong>:<strong>{label(item)}</strong>}<small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,vehicleName(item),t(String(item.status))].filter(Boolean).join(" · ")}{kind==="cases"&&item.estimate_status&&<> <EstimateChip status={String(item.estimate_status)} prefix={t("Preventivo")}/></>}</small></div>

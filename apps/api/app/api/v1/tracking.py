@@ -58,7 +58,7 @@ def get_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: AuthCo
 
 
 @router.post("/cases/{case_id}/tracking-link")
-def create_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.update"))):
+def create_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.create"))):
     case = get_case(db, auth.tenant_id, case_id)
     link = db.scalar(select(CaseTrackingLink).where(CaseTrackingLink.repair_case_id == case.id, CaseTrackingLink.tenant_id == auth.tenant_id))
     if link is None:
@@ -75,7 +75,7 @@ def create_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: Aut
 
 
 @router.delete("/cases/{case_id}/tracking-link")
-def revoke_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.update"))):
+def revoke_tracking_link(case_id: UUID, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("case.create"))):
     case = get_case(db, auth.tenant_id, case_id)
     link = db.scalar(select(CaseTrackingLink).where(CaseTrackingLink.repair_case_id == case.id, CaseTrackingLink.tenant_id == auth.tenant_id))
     if link is not None:

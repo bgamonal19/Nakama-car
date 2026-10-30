@@ -33,6 +33,8 @@ export function CaseTracking({ caseId, plate }: { caseId: string; plate?: string
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [notice, setNotice] = useState("");
   const [canEdit, setCanEdit] = useState(false);
+  // Only the office (who opens cases) gives the customer a link; workshop staff keep just the chat.
+  const [canShare, setCanShare] = useState(false);
 
   const loadMessages = useCallback(async () => {
     const response = await apiFetch(`/cases/${caseId}/messages`).catch(() => null);
@@ -41,6 +43,7 @@ export function CaseTracking({ caseId, plate }: { caseId: string; plate?: string
 
   useEffect(() => {
     setCanEdit(hasPermission("case.update"));
+    setCanShare(hasPermission("case.create"));
     setNotice("");
     apiFetch(`/cases/${caseId}/tracking-link`).then(async (response) => { if (response.ok) setLink(await response.json()); });
     loadMessages();
@@ -84,7 +87,7 @@ export function CaseTracking({ caseId, plate }: { caseId: string; plate?: string
 
   return (
     <div className="case-tracking">
-      {link?.active ? (
+      {!canShare ? null : link?.active ? (
         <div className="tracking-share">
           <input readOnly value={url} aria-label={t("Link per il cliente")} onFocus={(event) => event.target.select()} />
           <div className="tracking-share-actions">
@@ -94,14 +97,14 @@ export function CaseTracking({ caseId, plate }: { caseId: string; plate?: string
               <a className="button-link secondary" href={`mailto:${link.customer_email}?subject=${encodeURIComponent(t("Stato della riparazione"))}&body=${encodeURIComponent(text)}`}>{t("Email")}</a>
             )}
             <a className="button-link secondary" href={url} target="_blank" rel="noopener noreferrer">{t("Apri")}</a>
-            {canEdit && <button type="button" className="ghost" onClick={revoke}>{t("Disattiva")}</button>}
+            {canShare && <button type="button" className="ghost" onClick={revoke}>{t("Disattiva")}</button>}
           </div>
           <p className="hint">{link.last_viewed_at ? `${t("Aperto dal cliente il")} ${new Date(link.last_viewed_at).toLocaleString("it-IT")}` : t("Il cliente non ha ancora aperto il link.")}</p>
         </div>
       ) : (
         <div className="tracking-share empty">
           <p className="hint">{t("Genera un link: il cliente vede l'avanzamento della riparazione e può scriverti in chat, senza registrarsi.")}</p>
-          {canEdit && <button type="button" className="primary" onClick={create}>{t("Genera link per il cliente")}</button>}
+          <button type="button" className="primary" onClick={create}>{t("Genera link per il cliente")}</button>
         </div>
       )}
       {notice && <p className="hint" role="status">{t(notice)}</p>}
