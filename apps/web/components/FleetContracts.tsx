@@ -24,9 +24,7 @@ export type Contract = {
 
 type CustomerOption = { id: string; company_name?: string | null; first_name?: string | null; last_name?: string | null; vat_number?: string | null };
 
-type Draft = {
-  customer_id: string;
-  customer_name: string;
+export type ContractTerms = {
   name: string;
   labor_included: boolean;
   labor_discount_percent: string;
@@ -40,6 +38,8 @@ type Draft = {
   notes: string;
 };
 
+type Draft = ContractTerms & { customer_id: string; customer_name: string };
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -48,11 +48,51 @@ function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
-const emptyDraft: Draft = {
-  customer_id: "", customer_name: "", name: "", labor_included: true, labor_discount_percent: "0",
-  parts_markup_percent: "5", monthly_fee: "0", fee_vat_rate: "22", fee_description: "",
-  start_date: today(), end_date: "", is_active: true, notes: "",
-};
+/** Default conditions of a new contract (the usual fleet terms). */
+export function newContractTerms(name = ""): ContractTerms {
+  return {
+    name, labor_included: true, labor_discount_percent: "0", parts_markup_percent: "5", monthly_fee: "0",
+    fee_vat_rate: "22", fee_description: "", start_date: today(), end_date: "", is_active: true, notes: "",
+  };
+}
+
+
+/** The contract's conditions: shared by the contract editor and the new-customer form. */
+export function ContractFields<T extends ContractTerms>({ draft, onChange }: { draft: T; onChange: (draft: T) => void }) {
+  const { t } = useLanguage();
+  return (
+    <>
+      <label>{t("Nome contratto")}<input required minLength={2} maxLength={160} value={draft.name} onChange={(e) => onChange({ ...draft, name: e.target.value })} /></label>
+      <label>{t("Canone mensile (€ + IVA)")}<input type="number" min="0" step="0.01" required value={draft.monthly_fee} onChange={(e) => onChange({ ...draft, monthly_fee: e.target.value })} /></label>
+      <label className="checkbox-row"><input type="checkbox" checked={draft.labor_included} onChange={(e) => onChange({ ...draft, labor_included: e.target.checked })} />{t("Manodopera inclusa nel canone")}</label>
+      <label>{t("Sconto manodopera % (se non inclusa)")}<input type="number" min="0" max="100" step="0.01" disabled={draft.labor_included} value={draft.labor_discount_percent} onChange={(e) => onChange({ ...draft, labor_discount_percent: e.target.value })} /></label>
+      <label>{t("Ricarico ricambi e materiali %")}<input type="number" min="0" max="100" step="0.01" required value={draft.parts_markup_percent} onChange={(e) => onChange({ ...draft, parts_markup_percent: e.target.value })} /></label>
+      <label>{t("IVA canone %")}<input type="number" min="0" max="100" step="0.01" required value={draft.fee_vat_rate} onChange={(e) => onChange({ ...draft, fee_vat_rate: e.target.value })} /></label>
+      <label>{t("Inizio")}<input type="date" required value={draft.start_date} onChange={(e) => onChange({ ...draft, start_date: e.target.value })} /></label>
+      <label>{t("Fine (opzionale)")}<input type="date" min={draft.start_date} value={draft.end_date} onChange={(e) => onChange({ ...draft, end_date: e.target.value })} /></label>
+      <label>{t("Descrizione in fattura del canone")}<input maxLength={255} value={draft.fee_description} placeholder={t("Canone manutenzione flotta")} onChange={(e) => onChange({ ...draft, fee_description: e.target.value })} /></label>
+      <label className="checkbox-row"><input type="checkbox" checked={draft.is_active} onChange={(e) => onChange({ ...draft, is_active: e.target.checked })} />{t("Contratto attivo")}</label>
+      <label className="span-2">{t("Note")}<textarea value={draft.notes} onChange={(e) => onChange({ ...draft, notes: e.target.value })} /></label>
+    </>
+  );
+}
+
+/** The body sent to the API for a contract's conditions. */
+export function contractPayload(draft: ContractTerms) {
+  return {
+    name: draft.name.trim(),
+    labor_included: draft.labor_included,
+    labor_discount_percent: Number(draft.labor_discount_percent || 0),
+    parts_markup_percent: Number(draft.parts_markup_percent || 0),
+    monthly_fee: Number(draft.monthly_fee || 0),
+    fee_vat_rate: Number(draft.fee_vat_rate || 0),
+    fee_description: draft.fee_description.trim() || null,
+    start_date: draft.start_date,
+    end_date: draft.end_date || null,
+    is_active: draft.is_active,
+    notes: draft.notes.trim() || null,
+  };
+}
 
 /** A contract is in force today: active and inside its dates. */
 export function contractInForce(contract: Contract) {
@@ -120,8 +160,8 @@ export function FleetContracts({ customer, creating, onCreatingDone, onLoaded }:
   function startCreate() {
     setEditingId(null);
     setDraft(customer
-      ? { ...emptyDraft, start_date: today(), customer_id: customer.id, customer_name: customer.name, name: `${t("Manutenzione flotta")} ${customer.name}` }
-      : { ...emptyDraft, start_date: today() });
+      ? { ...newContractTerms(`${t("Manutenzione flotta")} ${customer.name}`), customer_id: customer.id, customer_name: customer.name }
+      : { ...newContractTerms(), customer_id: "", customer_name: "" });
     setCustomerQuery("");
     setCustomerResults([]);
     setNotice("");
@@ -167,19 +207,7 @@ export function FleetContracts({ customer, creating, onCreatingDone, onLoaded }:
     }
     setSaving(true);
     setError("");
-    const payload = {
-      name: draft.name.trim(),
-      labor_included: draft.labor_included,
-      labor_discount_percent: Number(draft.labor_discount_percent || 0),
-      parts_markup_percent: Number(draft.parts_markup_percent || 0),
-      monthly_fee: Number(draft.monthly_fee || 0),
-      fee_vat_rate: Number(draft.fee_vat_rate || 0),
-      fee_description: draft.fee_description.trim() || null,
-      start_date: draft.start_date,
-      end_date: draft.end_date || null,
-      is_active: draft.is_active,
-      notes: draft.notes.trim() || null,
-    };
+    const payload = contractPayload(draft);
     try {
       const response = editingId
         ? await apiFetch(`/contracts/${editingId}`, { method: "PATCH", body: JSON.stringify(payload) })
@@ -243,17 +271,7 @@ export function FleetContracts({ customer, creating, onCreatingDone, onLoaded }:
             </div>
           )}
           <form className="record-form" onSubmit={save}>
-            <label>{t("Nome contratto")}<input required minLength={2} maxLength={160} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></label>
-            <label>{t("Canone mensile (€ + IVA)")}<input type="number" min="0" step="0.01" required value={draft.monthly_fee} onChange={(e) => setDraft({ ...draft, monthly_fee: e.target.value })} /></label>
-            <label className="checkbox-row"><input type="checkbox" checked={draft.labor_included} onChange={(e) => setDraft({ ...draft, labor_included: e.target.checked })} />{t("Manodopera inclusa nel canone")}</label>
-            <label>{t("Sconto manodopera % (se non inclusa)")}<input type="number" min="0" max="100" step="0.01" disabled={draft.labor_included} value={draft.labor_discount_percent} onChange={(e) => setDraft({ ...draft, labor_discount_percent: e.target.value })} /></label>
-            <label>{t("Ricarico ricambi e materiali %")}<input type="number" min="0" max="100" step="0.01" required value={draft.parts_markup_percent} onChange={(e) => setDraft({ ...draft, parts_markup_percent: e.target.value })} /></label>
-            <label>{t("IVA canone %")}<input type="number" min="0" max="100" step="0.01" required value={draft.fee_vat_rate} onChange={(e) => setDraft({ ...draft, fee_vat_rate: e.target.value })} /></label>
-            <label>{t("Inizio")}<input type="date" required value={draft.start_date} onChange={(e) => setDraft({ ...draft, start_date: e.target.value })} /></label>
-            <label>{t("Fine (opzionale)")}<input type="date" min={draft.start_date} value={draft.end_date} onChange={(e) => setDraft({ ...draft, end_date: e.target.value })} /></label>
-            <label>{t("Descrizione in fattura del canone")}<input maxLength={255} value={draft.fee_description} placeholder={t("Canone manutenzione flotta")} onChange={(e) => setDraft({ ...draft, fee_description: e.target.value })} /></label>
-            <label className="checkbox-row"><input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })} />{t("Contratto attivo")}</label>
-            <label className="span-2">{t("Note")}<textarea value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} /></label>
+            <ContractFields draft={draft} onChange={setDraft} />
             <div className="record-form-actions">
               <button className="primary" disabled={saving}>{saving ? t("Salvataggio…") : t("Salva")}</button>
               <button type="button" className="secondary" disabled={saving} onClick={close}>{t("Annulla")}</button>
