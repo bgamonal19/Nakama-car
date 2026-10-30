@@ -49,6 +49,14 @@ def require_permission(permission: str):
         return context
     return dependency
 
+def require_any_permission(*permissions: str):
+    """One of these is enough: e.g. workshop staff (work_order.read) see the vehicle they work on without vehicle.read."""
+    def dependency(context: AuthContext = Depends(get_auth_context)) -> AuthContext:
+        if not context.permissions.intersection(permissions):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+        return context
+    return dependency
+
 # Only the ADMIN profile manages staff accounts, so this permission marks an administrator.
 ADMIN_PERMISSION = "users.manage"
 

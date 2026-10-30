@@ -15,7 +15,7 @@ from app.models.lookup import VehicleLookup
 from app.models.staff import Diagnosis
 from app.providers import targa
 from app.schemas.garage import PlateLookupResult, VehicleCreate, VehicleRead, VehicleUpdate
-from app.security.context import AuthContext, is_admin, require_permission
+from app.security.context import AuthContext, is_admin, require_any_permission, require_permission
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/vehicles", tags=["vehicles"])
@@ -61,7 +61,7 @@ def create_vehicle(
 def get_vehicle_by_plate(
     license_plate: str,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("vehicle.read")),
+    auth: AuthContext = Depends(require_any_permission("vehicle.read", "work_order.read")),
 ):
     # "GE 027 AM", "ge027am" and "GE-027-AM" are the same plate.
     plate = re.sub(r"[^A-Z0-9]", "", license_plate.upper())

@@ -394,3 +394,17 @@ def test_mechanic_saves_plate_data_on_a_registered_vehicle(client, monkeypatch):
     assert mechanic.post("/api/v1/diagnoses/vehicle/AB123CD/plate-data").json()["saved"] is True
     created = mechanic.get("/api/v1/diagnoses/vehicle/AB123CD").json()
     assert created["make"] == "Fiat" and created["version"] == "1.2 Easy" and created["fuel_type"] == "Benzina" and created["customer_name"] is None
+
+
+def test_mechanic_sees_the_vehicle_of_the_job(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec-3d@example.com", "MECHANIC")
+    c.post("/api/v1/vehicles", json={"license_plate": "FG133WJ", "make": "Fiat", "model": "Fiorino"})
+    # The case card and the 3D lift read the vehicle by plate and the render catalog.
+    found = mechanic.get("/api/v1/vehicles/by-plate/FG133WJ")
+    assert found.status_code == 200 and found.json()["model"] == "Fiorino"
+    assert mechanic.get("/api/v1/renders/info").status_code == 200
+    assert mechanic.get("/api/v1/renders/plate-spots", params={"make": "Fiat", "model": "Fiorino"}).status_code == 200
+    assert mechanic.get(f"/api/v1/vehicles/{found.json()['id']}/telemetry").status_code == 200
+    # Still read-only: the vehicle list and edits stay with the office.
+    assert mechanic.get("/api/v1/vehicles").status_code == 403
