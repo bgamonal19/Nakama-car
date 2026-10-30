@@ -264,6 +264,36 @@ def diagnosis_plate_data(license_plate: str, db: Session = Depends(get_db), auth
     return lookup_plate_data(license_plate, db, auth)
 
 
+# Technical data the plate service gives and the vehicle record keeps.
+PLATE_FIELDS = ("make", "model", "version", "year", "vin", "fuel_type", "engine_size", "power_kw")
+
+
+@router.post("/diagnoses/vehicle/{license_plate}/plate-data")
+def save_diagnosis_plate_data(license_plate: str, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """«Cerca dati veicolo»: asks the plate service and saves the answer on the registered vehicle.
+
+    Wrong or missing make/model typed earlier are replaced, so the next lookup of this plate is right and free.
+    """
+    from app.api.v1.vehicles import lookup_plate_data
+
+    found = lookup_plate_data(license_plate, db, auth)
+    vehicle = find_vehicle(db, auth.tenant_id, license_plate)
+    saved = False
+    if vehicle is not None:
+        old = {field: getattr(vehicle, field) for field in PLATE_FIELDS}
+        for field in PLATE_FIELDS:
+            value = getattr(found, field)
+            if value not in (None, ""):
+                setattr(vehicle, field, value)
+        new = {field: getattr(vehicle, field) for field in PLATE_FIELDS}
+        if new != old:
+            record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="vehicle", entity_id=vehicle.id,
+                         action="plate_data_saved", old_value=old, new_value=new)
+            db.commit()
+        saved = True
+    return {**found.model_dump(), "saved": saved}
+
+
 def open_case(db: Session, tenant_id, vehicle_id, work_type: str) -> RepairCase | None:
     return db.scalar(
         select(RepairCase).where(
