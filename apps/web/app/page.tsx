@@ -113,6 +113,8 @@ export default function HomePage() {
   const [workType, setWorkType] = useState<"BODY" | "MECHANICAL">("BODY");
   const [apiOnline, setApiOnline] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
+  // Stays false until we know this user belongs on the office dashboard, so workers never see it flash.
+  const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [workOrders, setWorkOrders] = useState<WorkOrderSummary[]>([]);
@@ -144,6 +146,7 @@ export default function HomePage() {
       window.location.replace(homeFor(current));
       return;
     }
+    setReady(true);
     const requested = new URLSearchParams(window.location.search).get("new");
     if (requested === "practice") setWizardOpen(true);
     if (requested === "estimate") setChooserOpen(true);
@@ -584,6 +587,8 @@ export default function HomePage() {
       setSaving(false);
     }
   }
+
+  if (!ready) return <main className="app-shell nakama-theme" aria-busy="true" />;
 
   return (
     <main className="app-shell nakama-theme">

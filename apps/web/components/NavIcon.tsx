@@ -18,6 +18,7 @@ const paths: Record<string, ReactNode> = {
   diagnosis: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M9 3v3h6V3M8 11h3l1.5-3 2 6 1.5-3H18" /></>,
   chat: <path d="M4 5h16v11H9l-5 4V5Z" />,
   plus: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M12 8v8M8 12h8" /></>,
+  logout: <><path d="M14 4h5v16h-5" /><path d="M10 8l-4 4 4 4M6 12h10" /></>,
   profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21v-1a8 8 0 0 1 16 0v1" /></>,
 };
 
