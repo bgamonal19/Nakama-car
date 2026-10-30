@@ -2210,3 +2210,6 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 .topbar-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .back-button { flex: none; padding: 6px 12px; border-radius: 999px; font-weight: 600; }
 .record-back { margin-bottom: 10px; }
+/* Open pratica: the plate on top, big and centred, so the job is recognised at a glance. */
+.case-plate-hero { display: flex; justify-content: center; margin: 0 0 14px; }
+.case-plate-hero .reg-plate { font-size: clamp(30px, 6vw, 52px); padding: 10px 28px; border-width: 3px; border-left-width: 22px; border-radius: 10px; }
