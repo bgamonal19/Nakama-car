@@ -19,8 +19,9 @@ type Diagnosis = {
   estimate_number: string | null; estimate_id: string | null; estimate_status: string | null; fuel_level: number | null; photos: SavedPhoto[]; repair_case_id: string | null; vehicle: { make: string | null; model: string | null } | null;
   lines: { kind: Kind; description: string; oem_code: string | null; quantity: string; unit_price: string | null }[];
 };
-type KnownVehicle = { make: string | null; model: string | null; year: number | null; color: string | null; category: string; mileage: number | null; customer_name: string | null };
-type PlateData = { make: string | null; model: string | null; version: string | null; year: number | null; fuel_type: string | null };
+type VehicleData = { make: string | null; model: string | null; version?: string | null; year: number | null; fuel_type?: string | null; engine_size?: string | null; power_kw?: number | null; vin?: string | null };
+type KnownVehicle = VehicleData & { color: string | null; category: string; mileage: number | null; customer_name: string | null };
+type PlateData = VehicleData;
 type Customer = { id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null };
 
 const emptyForm = { license_plate: "", make: "", model: "", work_type: "MECHANICAL", mileage: "", fuel_level: null as number | null, complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
@@ -179,12 +180,12 @@ export default function DiagnosiPage() {
   }
 
   // A plate already registered brings its make, model and customer: nothing to type again.
-  // A new plate asks the plate service (targa.co.it): by itself for a full Italian plate, otherwise with the button.
-  // «Cerca dati veicolo» also fixes a registered vehicle with missing or wrong make/model and saves it for next time.
+  // Typing a plate shows what we know of the vehicle. A plate we do not know (or know without make/model) asks the
+  // plate service (targa.co.it): the answer is only shown, and «Registra dati» saves it on the vehicle after a confirm.
   const [known, setKnown] = useState<KnownVehicle | null>(null);
   const [plateData, setPlateData] = useState<PlateData | null>(null);
   const [plateNote, setPlateNote] = useState("");
-  const [plateSearch, setPlateSearch] = useState<"idle" | "new" | "searching">("idle");
+  const [plateSearch, setPlateSearch] = useState<"idle" | "new" | "searching" | "saving">("idle");
   const plateKey = form.license_plate.replace(/[^A-Z0-9]/g, "");
   // Make/model put in by a lookup belong to that plate: a different plate must not inherit them.
   const autoFilled = useRef({ make: "", model: "" });
@@ -199,22 +200,39 @@ export default function DiagnosiPage() {
     setPlateSearch("searching");
     setPlateNote("Cerco i dati del veicolo dalla targa…");
     try {
-      const response = await apiFetch(`/diagnoses/vehicle/${encodeURIComponent(plate)}/plate-data`, { method: "POST" });
+      const response = await apiFetch(`/diagnoses/plate-data/${encodeURIComponent(plate)}`);
       if (!isCurrent()) return;
       setPlateSearch("new");
       if (response.status === 404) { setPlateNote("Targa non trovata nella banca dati: inserisci marca e modello a mano."); return; }
       if (response.status === 429) { setPlateNote("Limite mensile di ricerche targa raggiunto: inserisci i dati a mano."); return; }
       if (!response.ok) { setPlateNote("Servizio targhe non disponibile: inserisci i dati a mano."); return; }
-      const found: PlateData & { saved: boolean } = await response.json();
+      const found: PlateData = await response.json();
       if (!isCurrent()) return;
       setPlateData(found);
-      setPlateNote(found.saved ? "Dati del veicolo salvati: la prossima volta compaiono da soli." : "");
-      if (found.saved) setKnown((current) => current && { ...current, make: found.make || current.make, model: found.model || current.model, year: found.year || current.year });
+      setPlateNote("");
       fillVehicle(found.make, found.model, true);
     } catch {
       if (isCurrent()) { setPlateSearch("new"); setPlateNote("Servizio targhe non disponibile: inserisci i dati a mano."); }
     }
   }, [fillVehicle]);
+  async function registerPlateData() {
+    if (!plateData) return;
+    const name = [plateData.make, plateData.model, plateData.version].filter(Boolean).join(" ");
+    if (!window.confirm(`${t("Registrare questi dati sul veicolo")} ${form.license_plate}?\n\n${name}${known ? `\n\n${t("I dati attuali del veicolo verranno sostituiti.")}` : ""}`)) return;
+    setPlateSearch("saving");
+    try {
+      const response = await apiFetch(`/diagnoses/vehicle/${encodeURIComponent(plateKey)}/plate-data`, { method: "POST" });
+      if (!response.ok) { setPlateSearch("new"); setPlateNote(await apiError(response, "Impossibile registrare i dati del veicolo.")); return; }
+      const reload = await apiFetch(`/diagnoses/vehicle/${encodeURIComponent(plateKey)}`);
+      if (reload.ok) setKnown(await reload.json());
+      setPlateData(null);
+      setPlateSearch("new");
+      setPlateNote("Dati del veicolo registrati: la prossima volta compaiono da soli.");
+    } catch {
+      setPlateSearch("new");
+      setPlateNote("Impossibile registrare i dati del veicolo.");
+    }
+  }
   useEffect(() => {
     setKnown(null);
     setPlateData(null);
@@ -244,13 +262,28 @@ export default function DiagnosiPage() {
         const found: KnownVehicle = await response.json();
         if (cancelled) return;
         setKnown(found);
+        setPlateSearch("new");
         if (!editing) fillVehicle(found.make, found.model, false);
-        // Registered without make or model: look them up once and save them on the vehicle.
+        // Registered without make or model: show what the plate service says, ready to be registered.
         if (!editing && italian && !(found.make && found.model)) await lookupPlateData(plateKey, () => !cancelled);
       }).catch(() => undefined);
     }, 350);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [plateKey, editing, lookupPlateData, fillVehicle]);
+
+  // Every detail we have of the vehicle, so the mechanic sees what it is before writing the diagnosis.
+  function vehicleRows(data: VehicleData, extra: [string, string | null][] = []) {
+    const engine = [data.engine_size, data.power_kw ? `${data.power_kw} kW` : null].filter(Boolean).join(" · ");
+    const rows: [string, string | null | undefined][] = [
+      ["Marca", data.make], ["Modello", data.model], ["Versione", data.version], ["Anno", data.year ? String(data.year) : null],
+      ["Alimentazione", data.fuel_type], ["Motore", engine || null], ["Telaio (VIN)", data.vin], ...extra,
+    ];
+    return (
+      <dl className="vehicle-data">
+        {rows.map(([label, value]) => <div key={label}><dt>{t(label)}</dt><dd>{value || "—"}</dd></div>)}
+      </dl>
+    );
+  }
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -354,19 +387,25 @@ export default function DiagnosiPage() {
               onChange={(e) => setForm({ ...form, license_plate: e.target.value.toUpperCase().replace(/[^A-Z0-9 ]/g, "") })} />
           </label>
           {known && (
-            <div className="known-vehicle">
+            <div className="known-vehicle vehicle-card">
               <VehicleFront make={known.make} model={known.model} year={known.year} color={known.color} size={96} />
-              <span><strong>{t("Veicolo già registrato")}</strong>
-                <small>{[[known.make, known.model].filter(Boolean).join(" "), known.customer_name, known.mileage ? `${t("Ultimi km")}: ${known.mileage.toLocaleString("it-IT")}` : null].filter(Boolean).join(" · ")}</small>
-                {plateNote && <small>{t(plateNote)}</small>}</span>
-              {!editing && <button type="button" className="secondary" disabled={plateSearch === "searching"} onClick={() => void lookupPlateData(plateKey)}>{t(plateSearch === "searching" ? "Ricerca in corso…" : "Cerca dati veicolo")}</button>}
+              <div className="vehicle-card-body">
+                <strong>{t("Veicolo già registrato")}</strong>
+                {vehicleRows(known, [["Cliente", known.customer_name], ["Ultimi km", known.mileage ? known.mileage.toLocaleString("it-IT") : null]])}
+                {plateNote && <small>{t(plateNote)}</small>}
+              </div>
+              {!editing && !plateData && <button type="button" className="secondary" disabled={plateSearch === "searching"} onClick={() => void lookupPlateData(plateKey)}>{t(plateSearch === "searching" ? "Ricerca in corso…" : "Cerca dati veicolo")}</button>}
             </div>
           )}
-          {!known && plateData && (
-            <div className="known-vehicle">
+          {plateData && (
+            <div className="known-vehicle vehicle-card found">
               <VehicleFront make={plateData.make} model={plateData.model} year={plateData.year} size={96} />
-              <span><strong>{t("Dati dalla targa")}</strong>
-                <small>{[[plateData.make, plateData.model, plateData.version].filter(Boolean).join(" "), plateData.year, plateData.fuel_type].filter(Boolean).join(" · ")}</small></span>
+              <div className="vehicle-card-body">
+                <strong>{t("Dati trovati dalla targa")}</strong>
+                {vehicleRows(plateData)}
+                <small>{t(known ? "Non ancora registrati: i dati del veicolo restano quelli di prima finché non li registri." : "Veicolo nuovo: registra i dati per ritrovarli alla prossima visita.")}</small>
+              </div>
+              <button type="button" className="primary" disabled={plateSearch === "saving"} onClick={() => void registerPlateData()}>{t(plateSearch === "saving" ? "Salvataggio…" : "Registra dati")}</button>
             </div>
           )}
           {!known && !plateData && plateSearch !== "idle" && (

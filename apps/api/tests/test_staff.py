@@ -389,5 +389,8 @@ def test_mechanic_saves_plate_data_on_a_registered_vehicle(client, monkeypatch):
     # The next search of the same plate is served from the cache: no new credit.
     assert mechanic.post("/api/v1/diagnoses/vehicle/FG133WJ/plate-data").json()["cached"] is True
     assert fake.calls == 1
-    # A plate not registered only answers, nothing to save.
-    assert mechanic.post("/api/v1/diagnoses/vehicle/AB123CD/plate-data").json()["saved"] is False
+    # A plate not registered yet: confirmed data become a vehicle (no customer yet) with all its details.
+    assert mechanic.get("/api/v1/diagnoses/vehicle/AB123CD").status_code == 404
+    assert mechanic.post("/api/v1/diagnoses/vehicle/AB123CD/plate-data").json()["saved"] is True
+    created = mechanic.get("/api/v1/diagnoses/vehicle/AB123CD").json()
+    assert created["make"] == "Fiat" and created["version"] == "1.2 Easy" and created["fuel_type"] == "Benzina" and created["customer_name"] is None

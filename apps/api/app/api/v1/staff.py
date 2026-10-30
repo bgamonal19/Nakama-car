@@ -249,6 +249,7 @@ def diagnosis_vehicle(license_plate: str, db: Session = Depends(get_db), auth: A
     return {
         "id": str(vehicle.id), "license_plate": vehicle.license_plate, "make": vehicle.make, "model": vehicle.model,
         "year": vehicle.year, "color": vehicle.color_name, "category": vehicle.vehicle_category, "mileage": vehicle.mileage,
+        "version": vehicle.version, "vin": vehicle.vin, "fuel_type": vehicle.fuel_type, "engine_size": vehicle.engine_size, "power_kw": vehicle.power_kw,
         "customer_name": customer_display_name(customer) if customer else None,
     }
 
@@ -270,28 +271,30 @@ PLATE_FIELDS = ("make", "model", "version", "year", "vin", "fuel_type", "engine_
 
 @router.post("/diagnoses/vehicle/{license_plate}/plate-data")
 def save_diagnosis_plate_data(license_plate: str, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
-    """«Cerca dati veicolo»: asks the plate service and saves the answer on the registered vehicle.
+    """«Registra dati»: saves what the plate service says on the vehicle, after the worker confirmed it.
 
     Wrong or missing make/model typed earlier are replaced, so the next lookup of this plate is right and free.
+    A plate not registered yet becomes a vehicle without customer, like a diagnosis with make and model.
     """
     from app.api.v1.vehicles import lookup_plate_data
 
     found = lookup_plate_data(license_plate, db, auth)
     vehicle = find_vehicle(db, auth.tenant_id, license_plate)
-    saved = False
-    if vehicle is not None:
-        old = {field: getattr(vehicle, field) for field in PLATE_FIELDS}
-        for field in PLATE_FIELDS:
-            value = getattr(found, field)
-            if value not in (None, ""):
-                setattr(vehicle, field, value)
-        new = {field: getattr(vehicle, field) for field in PLATE_FIELDS}
-        if new != old:
-            record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="vehicle", entity_id=vehicle.id,
-                         action="plate_data_saved", old_value=old, new_value=new)
-            db.commit()
-        saved = True
-    return {**found.model_dump(), "saved": saved}
+    if vehicle is None:
+        vehicle = Vehicle(tenant_id=auth.tenant_id, license_plate=found.license_plate)
+        db.add(vehicle)
+        db.flush()
+    old = {field: getattr(vehicle, field) for field in PLATE_FIELDS}
+    for field in PLATE_FIELDS:
+        value = getattr(found, field)
+        if value not in (None, ""):
+            setattr(vehicle, field, value)
+    new = {field: getattr(vehicle, field) for field in PLATE_FIELDS}
+    if new != old:
+        record_audit(db, tenant_id=auth.tenant_id, user_id=auth.user_id, entity_type="vehicle", entity_id=vehicle.id,
+                     action="plate_data_saved", old_value=old, new_value=new)
+    db.commit()
+    return {**found.model_dump(), "saved": True}
 
 
 def open_case(db: Session, tenant_id, vehicle_id, work_type: str) -> RepairCase | None:
