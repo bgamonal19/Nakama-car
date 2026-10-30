@@ -2096,6 +2096,10 @@ button.fleet-vehicle-link .plate-chip { justify-self: start; }
 .customer-logo img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
 [data-theme="dark"] .customer-logo:not(.has-image) { background: #24384d; color: #e6eef7; }
 .record-row .record-row-main { flex: 1; }
+/* Pratiche: the plate first and big, the case number after it. */
+.case-row-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.case-row-title .reg-plate { font-size: 20px; padding: 5px 12px; }
+.case-row-number { color: var(--muted); font-size: 13px; font-weight: 600; }
 .customer-profile-back { margin-bottom: 12px; }
 .customer-profile-head { display: flex; align-items: center; gap: 18px; width: 100%; padding: 8px 4px 4px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .customer-profile-head > span:last-child { display: grid; gap: 4px; min-width: 0; }

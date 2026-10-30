@@ -20,6 +20,7 @@ type Diagnosis = {
   lines: { kind: Kind; description: string; oem_code: string | null; quantity: string; unit_price: string | null }[];
 };
 type KnownVehicle = { make: string | null; model: string | null; year: number | null; color: string | null; category: string; mileage: number | null; customer_name: string | null };
+type PlateData = { make: string | null; model: string | null; version: string | null; year: number | null; fuel_type: string | null };
 type Customer = { id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null };
 
 const emptyForm = { license_plate: "", make: "", model: "", work_type: "MECHANICAL", mileage: "", fuel_level: null as number | null, complaint: "", findings: "", urgency: "NORMAL", labor_hours: 0 };
@@ -178,15 +179,48 @@ export default function DiagnosiPage() {
   }
 
   // A plate already registered brings its make, model and customer: nothing to type again.
+  // A new plate asks the plate service (targa.co.it): by itself for a full Italian plate, otherwise with the button.
   const [known, setKnown] = useState<KnownVehicle | null>(null);
+  const [plateData, setPlateData] = useState<PlateData | null>(null);
+  const [plateNote, setPlateNote] = useState("");
+  const [plateSearch, setPlateSearch] = useState<"idle" | "new" | "searching">("idle");
   const plateKey = form.license_plate.replace(/[^A-Z0-9]/g, "");
+  const lookupPlateData = useCallback(async (plate: string, isCurrent: () => boolean = () => true) => {
+    setPlateSearch("searching");
+    setPlateNote("Targa nuova: cerco marca e modello…");
+    try {
+      const response = await apiFetch(`/diagnoses/plate-data/${encodeURIComponent(plate)}`);
+      if (!isCurrent()) return;
+      setPlateSearch("new");
+      if (response.status === 404) { setPlateNote("Targa non trovata nella banca dati: inserisci marca e modello a mano."); return; }
+      if (response.status === 429) { setPlateNote("Limite mensile di ricerche targa raggiunto: inserisci i dati a mano."); return; }
+      if (!response.ok) { setPlateNote("Servizio targhe non disponibile: inserisci i dati a mano."); return; }
+      const found: PlateData = await response.json();
+      if (!isCurrent()) return;
+      setPlateData(found);
+      setPlateNote("");
+      setForm((current) => ({ ...current, make: current.make || found.make || "", model: current.model || found.model || "" }));
+    } catch {
+      if (isCurrent()) { setPlateSearch("new"); setPlateNote("Servizio targhe non disponibile: inserisci i dati a mano."); }
+    }
+  }, []);
   useEffect(() => {
     setKnown(null);
+    setPlateData(null);
+    setPlateNote("");
+    setPlateSearch("idle");
     if (plateKey.length < 5) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
       apiFetch(`/diagnoses/vehicle/${encodeURIComponent(plateKey)}`).then(async (response) => {
-        if (cancelled || !response.ok) return;
+        if (cancelled) return;
+        if (response.status === 404) {
+          if (editing) return;
+          setPlateSearch("new");
+          if (/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(plateKey)) await lookupPlateData(plateKey, () => !cancelled);
+          return;
+        }
+        if (!response.ok) return;
         const found: KnownVehicle = await response.json();
         if (cancelled) return;
         setKnown(found);
@@ -194,7 +228,7 @@ export default function DiagnosiPage() {
       }).catch(() => undefined);
     }, 350);
     return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [plateKey]);
+  }, [plateKey, editing, lookupPlateData]);
 
   async function send(event: FormEvent) {
     event.preventDefault();
@@ -302,6 +336,21 @@ export default function DiagnosiPage() {
               <VehicleFront make={known.make} model={known.model} year={known.year} color={known.color} size={96} />
               <span><strong>{t("Veicolo già registrato")}</strong>
                 <small>{[[known.make, known.model].filter(Boolean).join(" "), known.customer_name, known.mileage ? `${t("Ultimi km")}: ${known.mileage.toLocaleString("it-IT")}` : null].filter(Boolean).join(" · ")}</small></span>
+            </div>
+          )}
+          {!known && plateData && (
+            <div className="known-vehicle">
+              <VehicleFront make={plateData.make} model={plateData.model} year={plateData.year} size={96} />
+              <span><strong>{t("Dati dalla targa")}</strong>
+                <small>{[[plateData.make, plateData.model, plateData.version].filter(Boolean).join(" "), plateData.year, plateData.fuel_type].filter(Boolean).join(" · ")}</small></span>
+            </div>
+          )}
+          {!known && !plateData && plateSearch !== "idle" && (
+            <div className="known-vehicle plate-check">
+              {plateNote && <small>{t(plateNote)}</small>}
+              {plateSearch === "new" && !plateNote && (
+                <button type="button" className="secondary" onClick={() => void lookupPlateData(plateKey)}>{t("Consulta targa")}</button>
+              )}
             </div>
           )}
           {!(known?.make && known?.model) && <>

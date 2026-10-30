@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { SectionShell } from "../../components/SectionShell";
 import { useLanguage } from "../../components/LanguageProvider";
-import { apiError, apiFetch, estimateTone, formatMoney, getAccessToken, hasPermission, openProtectedFile } from "../../lib/api";
+import { apiError, apiFetch, estimateTone, formatMoney, getAccessToken, hasPermission, hidesEstimates, homeFor, openProtectedFile, sessionUser } from "../../lib/api";
 import { whatsappNumber } from "../../components/CaseTracking";
 import { EstimateChip } from "../../components/EstimateChip";
 
@@ -110,6 +110,12 @@ export default function PreventiviPage() {
     }
   }
 
+  // A mechanic who opens the address by hand goes back to their own home page.
+  useEffect(() => {
+    const user = sessionUser();
+    if (hidesEstimates(user)) window.location.replace(homeFor(user));
+  }, []);
+
   useEffect(() => {
     const token = Boolean(getAccessToken());
     setSignedIn(token);
@@ -119,7 +125,7 @@ export default function PreventiviPage() {
   }, []);
 
   useEffect(() => {
-    if (getAccessToken()) load();
+    if (getAccessToken() && !hidesEstimates(sessionUser())) load();
   }, [search, status]);
 
   async function act(path: string, init: RequestInit, fallback: string) {

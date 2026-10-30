@@ -9,7 +9,7 @@ import { LegalLinks } from "./Legal";
 import { NakamaLogo } from "./NakamaLogo";
 import { NavIcon } from "./NavIcon";
 import { ChatBubble } from "./ChatBubble";
-import { apiFetch, refreshSession, sessionUser, SessionUser } from "../lib/api";
+import { apiFetch, hidesEstimates, refreshSession, sessionUser, SessionUser } from "../lib/api";
 
 // [href, label, icon, permission needed] — each user only sees what they can use.
 const navigation = [
@@ -73,7 +73,7 @@ export function AppSidebar() {
     const timer = window.setInterval(load, 60_000);
     return () => window.clearInterval(timer);
   }, [worker]);
-  const allowed = ([, , , permission]: string[]) => !permission || !user || user.permissions.includes(permission);
+  const allowed = ([href, , , permission]: string[]) => (href !== "/preventivi" || !hidesEstimates(user)) && (!permission || !user || user.permissions.includes(permission));
 
   const rank = (href: string) => { const index = workerOrder.indexOf(href); return index < 0 ? workerOrder.length : index; };
   const menu = user?.work_area
