@@ -73,7 +73,9 @@ export function AppSidebar() {
     const timer = window.setInterval(load, 60_000);
     return () => window.clearInterval(timer);
   }, [worker]);
-  const allowed = ([href, , , permission]: string[]) => (href !== "/preventivi" || !hidesEstimates(user)) && (!permission || !user || user.permissions.includes(permission));
+  // Until we know who is signed in, show no restricted entries: the static HTML used to
+  // carry the full office menu, which flashed on every page load for workshop staff.
+  const allowed = ([href, , , permission]: string[]) => (href !== "/preventivi" || !hidesEstimates(user)) && (!permission || Boolean(user?.permissions.includes(permission)));
 
   const rank = (href: string) => { const index = workerOrder.indexOf(href); return index < 0 ? workerOrder.length : index; };
   const menu = user?.work_area
