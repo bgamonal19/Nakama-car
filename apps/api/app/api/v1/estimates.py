@@ -25,6 +25,7 @@ from app.schemas.estimating import (
     LaborRateUpsert,
 )
 from app.security.context import AuthContext, require_permission
+from app.services import staff
 from app.services.audit import record_audit
 from app.services.contracts import customer_display_name, find_active_contract
 from app.services.numbering import next_number
@@ -33,6 +34,13 @@ from app.services.pricing import PUBLIC_TERMS, PricingTerms, money, price_line
 from app.services.workshop import open_work_order
 
 router = APIRouter(tags=["estimates"])
+
+
+def estimate_reader(db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("estimate.read"))) -> AuthContext:
+    """Mechanics do not see estimates (prices are the office's business); body shop and office do."""
+    if "estimate.create" not in auth.permissions and staff.user_area(db, auth.user_id, auth.tenant_id) == "MECHANICAL":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Permission denied")
+    return auth
 
 
 class EstimatePricingUpdate(BaseModel):
@@ -181,7 +189,7 @@ def list_estimates(
     offset: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=200),
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("estimate.read")),
+    auth: AuthContext = Depends(estimate_reader),
 ):
     query = (
         select(Estimate, RepairCase, Vehicle, Customer, ServiceContract)
@@ -229,7 +237,7 @@ def list_estimates(
 def get_estimate(
     estimate_id: UUID,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("estimate.read")),
+    auth: AuthContext = Depends(estimate_reader),
 ):
     return get_tenant_estimate(db, auth.tenant_id, estimate_id)
 
@@ -305,7 +313,7 @@ def update_estimate_pricing(
 def list_estimate_lines(
     estimate_id: UUID,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("estimate.read")),
+    auth: AuthContext = Depends(estimate_reader),
 ):
     estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
     terms = terms_of(estimate)
@@ -476,7 +484,7 @@ def delete_estimate_line(
 def estimate_pdf(
     estimate_id: UUID,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_permission("estimate.read")),
+    auth: AuthContext = Depends(estimate_reader),
 ):
     estimate = get_tenant_estimate(db, auth.tenant_id, estimate_id)
     case = db.scalar(

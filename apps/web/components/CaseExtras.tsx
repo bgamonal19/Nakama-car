@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
-import { apiError, apiFetch, formatMoney, hasPermission, uploadCasePhoto } from "../lib/api";
+import { apiError, apiFetch, formatMoney, hasPermission, hidesEstimates, sessionUser, uploadCasePhoto } from "../lib/api";
 import { DamageMarker, DamagePhotoMap, MapPhoto, VehicleLook } from "./DamagePhotoMap";
 import { CaseTracking } from "./CaseTracking";
 import { TelemetryCard, TelemetryReading } from "./Telemetry";
@@ -29,6 +29,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
   const [telemetry, setTelemetry] = useState<TelemetryReading | null>(null);
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [canEdit, setCanEdit] = useState(false);
+  const [showEstimates, setShowEstimates] = useState(false);
 
   async function loadMarkers() {
     const response = await apiFetch(`/cases/${caseId}/damage-markers`);
@@ -111,6 +112,9 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
   useEffect(() => {
     setMessage("");
     loadMedia();
+    const visible = !hidesEstimates(sessionUser());
+    setShowEstimates(visible);
+    if (!visible) return;
     apiFetch(`/estimates?repair_case_id=${caseId}`).then(async (response) => {
       if (response.ok) setEstimates(await response.json());
     });
@@ -177,7 +181,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
           } : undefined}
         />
       </div>
-      <div className="case-extras-block">
+      {showEstimates && <div className="case-extras-block">
         <h3>{t("Preventivi della pratica")}</h3>
         {estimates.length === 0 ? <p className="hint">{t("Nessun preventivo.")}</p> : estimates.map((estimate) => (
           <a key={estimate.id} className="case-link" href={`/preventivi?id=${estimate.id}`}>
@@ -187,7 +191,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
             <span>{formatMoney(estimate.total)}</span>
           </a>
         ))}
-      </div>
+      </div>}
       <div className="case-extras-block">
         <div className="case-extras-head">
           <h3>{t("Foto")} ({media.length})</h3>

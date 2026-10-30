@@ -86,6 +86,11 @@ export async function refreshSession(): Promise<SessionUser | null> {
   }
 }
 
+/** Mechanics do not see estimates (prices stay with the office); the API refuses them too. */
+export function hidesEstimates(user: SessionUser | null): boolean {
+  return Boolean(user && user.work_area === "MECHANICAL" && !user.permissions.includes("estimate.create"));
+}
+
 /** First page this user can use: the office goes to the dashboard, workers to their jobs. */
 export function homeFor(user: SessionUser | null): string {
   const can = (permission: string) => Boolean(user?.permissions.includes(permission));

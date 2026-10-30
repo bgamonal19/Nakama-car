@@ -253,6 +253,17 @@ def diagnosis_vehicle(license_plate: str, db: Session = Depends(get_db), auth: A
     }
 
 
+@router.get("/diagnoses/plate-data/{license_plate}")
+def diagnosis_plate_data(license_plate: str, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """Plate not in our registry: make/model from the external provider, also for workers without vehicle.write.
+
+    Same cache and monthly limit as /vehicles/plate-data, so a plate already searched costs nothing.
+    """
+    from app.api.v1.vehicles import lookup_plate_data
+
+    return lookup_plate_data(license_plate, db, auth)
+
+
 def open_case(db: Session, tenant_id, vehicle_id, work_type: str) -> RepairCase | None:
     return db.scalar(
         select(RepairCase).where(

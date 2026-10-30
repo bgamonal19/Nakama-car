@@ -334,3 +334,35 @@ def test_diagnosis_keeps_make_model_and_known_plates_fill_in(client):
     # A registered vehicle keeps its data: a different model typed later does not overwrite it.
     mechanic.post("/api/v1/diagnoses", json={"license_plate": "GE027AM", "make": "Fiat", "model": "Ducato"})
     assert c.get("/api/v1/vehicles/by-plate/GE027AM").json()["model"] == "Daily"
+
+
+def test_mechanic_looks_up_new_plates_and_does_not_see_estimates(client, monkeypatch):
+    from app.providers import targa
+    from test_plate_lookup import FakeProvider
+
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec-targa@example.com", "MECHANIC")
+    body, _, _ = worker(c, "body-targa@example.com", "BODYSHOP")
+
+    # Diagnosi: a plate never seen asks the external provider, cached like the office lookup.
+    assert mechanic.get("/api/v1/vehicles/plate-data/AB123CD").status_code == 403
+    assert mechanic.get("/api/v1/diagnoses/plate-data/AB123CD").status_code == 503
+    fake = FakeProvider()
+    monkeypatch.setattr(targa, "get_vehicle_data_provider", lambda: fake)
+    found = mechanic.get("/api/v1/diagnoses/plate-data/ab 123 cd")
+    assert found.status_code == 200, found.text
+    assert found.json()["make"] == "Fiat" and found.json()["model"] == "PANDA"
+    assert c.get("/api/v1/vehicles/plate-data/AB123CD").json()["cached"] is True
+    assert mechanic.get("/api/v1/diagnoses/plate-data/ZZ999ZZ").status_code == 404
+    assert fake.calls == 2
+
+    # Estimates stay with the office: the mechanic cannot list or open them, the body shop still can.
+    customer = c.post("/api/v1/customers", json={"first_name": "Mario"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"customer_id": customer["id"], "license_plate": "EF456GH"}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"}).json()
+    estimate = c.post("/api/v1/estimates", json={"repair_case_id": case["id"]}).json()
+    assert mechanic.get("/api/v1/estimates").status_code == 403
+    assert mechanic.get(f"/api/v1/estimates/{estimate['id']}").status_code == 403
+    assert mechanic.get(f"/api/v1/estimates/{estimate['id']}/pdf").status_code == 403
+    assert body.get("/api/v1/estimates").status_code == 200
+    assert c.get(f"/api/v1/estimates/{estimate['id']}").status_code == 200
