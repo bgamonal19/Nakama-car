@@ -1,4 +1,5 @@
 import { apiError, apiFetch, hasPermission } from "./api";
+import { askText } from "./askText";
 
 type Words = (it: string, es: string) => string;
 type Plan = Record<string, string | number | boolean | null>;
@@ -26,7 +27,7 @@ export async function deleteCaseWithConfirm(caseId: string, label: string, words
     `Eliminare la pratica ${label}?${force ? " I lavori sono già iniziati." : ""}\n\nSi elimina anche: ${parts || "nient'altro"}.\nCliente e veicolo restano.\n\nL'operazione non si può annullare.`,
     `¿Eliminar el expediente ${label}?${force ? " Los trabajos ya empezaron." : ""}\n\nTambién se elimina: ${parts || "nada más"}.\nEl cliente y el vehículo se quedan.\n\nNo se puede deshacer.`);
   if (!window.confirm(text)) return false;
-  if (force && !typedConfirm(words)) return false;
+  if (force && !(await typedConfirm(words))) return false;
   const response = await apiFetch(`${path}${force ? "?force=true" : ""}`, { method: "DELETE" });
   if (response.status === 409) throw new Error(await apiError(response, words("Non si può eliminare.", "No se puede eliminar.")));
   if (response.status === 403) throw new Error(words("Solo un amministratore può eliminarlo.", "Solo un administrador puede eliminarlo."));
@@ -35,6 +36,7 @@ export async function deleteCaseWithConfirm(caseId: string, label: string, words
 }
 
 /** Records with history need the word typed in, so a slip of the finger never removes them. */
-export function typedConfirm(words: Words) {
-  return window.prompt(words("Per confermare scrivi ELIMINA", "Para confirmar escribe ELIMINA"))?.trim().toUpperCase() === "ELIMINA";
+export async function typedConfirm(words: Words) {
+  const typed = await askText(words("Per confermare scrivi ELIMINA", "Para confirmar escribe ELIMINA"), { ok: words("Elimina", "Eliminar"), cancel: words("Annulla", "Cancelar") });
+  return typed?.trim().toUpperCase() === "ELIMINA";
 }

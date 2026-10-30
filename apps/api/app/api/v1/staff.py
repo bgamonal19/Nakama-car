@@ -205,6 +205,9 @@ class DiagnosisLineIn(BaseModel):
 
 class DiagnosisIn(BaseModel):
     license_plate: str = Field(min_length=2, max_length=20)
+    # Make/model of a vehicle not registered yet (or missing on the registered one).
+    make: str | None = Field(default=None, max_length=120)
+    model: str | None = Field(default=None, max_length=120)
     work_type: Literal["BODY", "MECHANICAL"] | None = None
     mileage: int | None = Field(default=None, ge=0, le=5_000_000)
     fuel_level: int | None = Field(default=None, ge=0, le=100)
@@ -234,6 +237,20 @@ def find_vehicle(db: Session, tenant_id, plate: str) -> Vehicle | None:
         if staff.normalize_plate(vehicle.license_plate) == wanted:
             return vehicle
     return None
+
+
+@router.get("/diagnoses/vehicle/{license_plate}")
+def diagnosis_vehicle(license_plate: str, db: Session = Depends(get_db), auth: AuthContext = Depends(require_permission("work_order.read"))):
+    """What we already know about a plate typed in Diagnosi, so the worker does not type it again."""
+    vehicle = find_vehicle(db, auth.tenant_id, license_plate)
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehicle not found")
+    customer = db.get(Customer, vehicle.customer_id) if vehicle.customer_id else None
+    return {
+        "id": str(vehicle.id), "license_plate": vehicle.license_plate, "make": vehicle.make, "model": vehicle.model,
+        "year": vehicle.year, "color": vehicle.color_name, "category": vehicle.vehicle_category, "mileage": vehicle.mileage,
+        "customer_name": customer_display_name(customer) if customer else None,
+    }
 
 
 def open_case(db: Session, tenant_id, vehicle_id, work_type: str) -> RepairCase | None:
@@ -293,6 +310,15 @@ def write_diagnosis(db: Session, auth: AuthContext, diagnosis: Diagnosis, payloa
     if len(plate) < 2:
         raise HTTPException(status_code=422, detail="Targa non valida")
     vehicle = find_vehicle(db, auth.tenant_id, plate)
+    make, model = (payload.make or "").strip() or None, (payload.model or "").strip() or None
+    if vehicle is None and (make or model):
+        # Registered right away (still without customer), so the case and the next visit see make and model.
+        vehicle = Vehicle(tenant_id=auth.tenant_id, license_plate=plate, make=make, model=model, mileage=payload.mileage)
+        db.add(vehicle)
+        db.flush()
+    elif vehicle is not None:
+        vehicle.make = vehicle.make or make
+        vehicle.model = vehicle.model or model
     work_type = area or payload.work_type or "MECHANICAL"
     case = None
     if payload.repair_case_id:

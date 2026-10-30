@@ -91,6 +91,11 @@ class RepairCaseListItem(BaseModel):
     work_type: str = "BODY"
     plate: str
     vehicle_name: str
+    # Make/model on their own (vehicle_name also carries the long version), for headers and the front picture.
+    vehicle_make: str | None = None
+    vehicle_model: str | None = None
+    vehicle_year: int | None = None
+    vehicle_color: str | None = None
     customer_name: str
     mileage: int | None = None
     estimate_status: str | None = None

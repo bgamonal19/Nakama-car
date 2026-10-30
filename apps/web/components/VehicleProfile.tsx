@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useLanguage } from "./LanguageProvider";
 import { apiError, apiFetch, hasPermission } from "../lib/api";
+import { VehicleFront } from "./VehicleFront";
 import { deleteVehiclesWithConfirm } from "../lib/vehicleDeletion";
 
 type Task = { description: string; status: string; note?: string | null; completed_at?: string | null };
@@ -135,6 +136,7 @@ export function VehicleProfile({ vehicleId, onClose, onChanged }: { vehicleId: s
             <h2>{profile ? [profile.make, profile.model].filter(Boolean).join(" ") || t("Marca e modello non indicati") : t("Caricamento…")}</h2>
             {profile?.customer_name && <small>{profile.customer_name}</small>}
           </div>
+          {profile && <VehicleFront make={profile.make} model={profile.model} year={profile.year} color={profile.color_name} size={120} />}
           <button type="button" className="secondary" onClick={onClose}>{t("Chiudi")}</button>
         </header>
 

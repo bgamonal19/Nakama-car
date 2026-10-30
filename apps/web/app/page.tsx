@@ -296,8 +296,17 @@ export default function HomePage() {
     }
   }
 
-  async function lookupPlate() {
+  // While typing, a plate already in the registry fills the data on its own; the paid external search stays on the button.
+  useEffect(() => {
+    if (plate.replace(/[^A-Z0-9]/g, "").length < 5 || !getAccessToken()) return;
+    const timer = window.setTimeout(() => { void lookupPlate(true); }, 500);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plate]);
+
+  async function lookupPlate(auto = false) {
     const normalized = plate.trim().toUpperCase();
+    if (auto && existingVehicleId) return;
     if (!normalized || !getAccessToken()) {
       setPlateLookupMessage(getAccessToken() ? "Inserisci una targa." : "Accedi per cercare veicoli esistenti.");
       return;
@@ -308,6 +317,7 @@ export default function HomePage() {
     try {
       const r = await apiFetch(`/vehicles/by-plate/${encodeURIComponent(normalized)}`);
       if (r.status === 404) {
+        if (auto) { setPlateLookupMessage(""); return; }
         await lookupExternalPlate(normalized);
         return;
       }
@@ -694,7 +704,7 @@ export default function HomePage() {
                   </div>
                   <label>{t("Targa del veicolo")}</label>
                   <input className="plate-input" placeholder="AB123CD" value={plate} onChange={(e) => { setPlate(e.target.value.toUpperCase()); setExistingVehicleId(null); setExistingCustomerId(null); setPlateLookupMessage(""); }} autoFocus />
-                  {authenticated && <button className="secondary plate-search" type="button" onClick={lookupPlate}>{t("Cerca nella tua anagrafica")}</button>}
+                  {authenticated && <button className="secondary plate-search" type="button" onClick={() => lookupPlate()}>{t("Cerca nella tua anagrafica")}</button>}
                   {plateLookupMessage && <div className={`plate-lookup-message ${existingVehicleId ? "found" : ""}`}>{t(plateLookupMessage)}</div>}
                   <p>{t("La ricerca usa prima l'anagrafica NAKAMA CAR. DAT / GT Motive potrà essere collegato successivamente per identificazione esterna e dati tecnici licenziati.")}</p>
                 </div>

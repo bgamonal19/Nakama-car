@@ -9,6 +9,7 @@ import { FleetProfile } from "./FleetProfile";
 import { PortalAccess } from "./PortalAccess";
 import { EstimateChip } from "./EstimateChip";
 import { CustomerLogo } from "./CustomerLogo";
+import { VehicleFront } from "./VehicleFront";
 import { Contract, contractInForce, FleetContracts } from "./FleetContracts";
 import { deleteCaseWithConfirm, typedConfirm } from "../lib/caseDeletion";
 
@@ -222,7 +223,7 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       const text=words(
         `Eliminare il cliente "${label(selected)}"?\n\nSi elimina anche: ${parts||"nient'altro"}.${Number(plan.vehicles)?`\nI suoi ${plan.vehicles} veicoli restano in archivio senza cliente.`:""}\n\nL'operazione non si può annullare.`,
         `¿Eliminar el cliente "${label(selected)}"?\n\nTambién se elimina: ${parts||"nada más"}.${Number(plan.vehicles)?`\nSus ${plan.vehicles} vehículos se quedan guardados sin cliente.`:""}\n\nNo se puede deshacer.`);
-      if(!window.confirm(text)||(force&&!typedConfirm(words)))return;
+      if(!window.confirm(text)||(force&&!(await typedConfirm(words))))return;
       await sendDelete(path,force);
       setSelected(null);setRefresh(n=>n+1);setNotice(words("Cliente eliminato.","Cliente eliminado."));
     }catch(e){setError(message(e));}finally{setSaving(false);}
@@ -243,8 +244,8 @@ export function RecordDirectory({kind}: {kind: Kind}) {
             <CustomerLogo name={label(selected)} version={selected.logo_updated_at?String(selected.logo_updated_at):null} load={()=>apiFetch(`/customers/${selected.id}/logo`)} size={84}/>
             <span><strong>{label(selected)}</strong><span className="customer-type-tags"><span className="status-chip">{selected.customer_type==="COMPANY"?words("Azienda","Empresa"):words("Privato","Particular")}</span>{contracts&&(contracts.some(contractInForce)?<span className="status-chip contract">{words("Contratto flotta","Contrato de flota")}</span>:<span className="status-chip">{words("Listino normale","Tarifa normal")}</span>)}</span><small>{[selected.phone,selected.email].filter(Boolean).join(" · ")}</small><em>{showData?`▴ ${words("Nascondi dati del cliente","Ocultar datos del cliente")}`:`▾ ${words("Dati del cliente","Datos del cliente")}`}</em></span>
           </button>
-        </>:<div className="panel-head"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2><button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></div>}
-        {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{selected.customer_name} · {selected.plate} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
+        </>:<div className="panel-head"><div className="record-title"><h2>{selected.id?label(selected):(kind==="customers"?words("Nuovo cliente","Nuevo cliente"):words("Nuovo veicolo","Nuevo vehículo"))}</h2>{selected.id&&kind!=="customers"&&<small>{vehicleName(selected)||words("Marca e modello non indicati","Marca y modelo no indicados")}</small>}</div><span className="record-head-side">{selected.id&&kind==="vehicles"&&<VehicleFront make={selected.make} model={selected.model} year={selected.year} color={selected.color_name}/>}{kind==="cases"&&<VehicleFront make={selected.vehicle_make} model={selected.vehicle_model} year={selected.vehicle_year} color={selected.vehicle_color}/>}<button className="secondary" disabled={saving} onClick={()=>setSelected(null)}>{words("Chiudi","Cerrar")}</button></span></div>}
+        {kind==="cases"&&<p><WorkBadge type={selected.work_type}/>{[selected.customer_name,selected.plate,vehicleName(selected)].filter(Boolean).join(" · ")} · {t(String(selected.status))}{selected.estimate_status&&<> <EstimateChip status={String(selected.estimate_status)} prefix={t("Preventivo")}/></>}</p>}
         {kind==="cases"&&selected.id&&<CaseExtras caseId={String(selected.id)} plate={selected.plate?String(selected.plate):undefined} workType={selected.work_type?String(selected.work_type):undefined} />}
         {(!customerOpen||showData)&&<>
         {customerOpen&&canWrite&&<div className="customer-logo-edit">
@@ -271,13 +272,18 @@ export function RecordDirectory({kind}: {kind: Kind}) {
       {!customerOpen&&<><section className="panel record-list" aria-busy={busy}>
         {busy?<div className="empty-state">{words("Caricamento…","Cargando…")}</div>:!error&&items.length===0?<div className="empty-state">{words("Nessun risultato.","No hay resultados.")}</div>:items.map(item=><div className="record-row" key={item.id}>
           {kind==="customers"&&<CustomerLogo name={label(item)} version={item.logo_updated_at?String(item.logo_updated_at):null} load={()=>apiFetch(`/customers/${item.id}/logo`)} size={44}/>}
-          <div className="record-row-main"><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,t(String(item.status))].filter(Boolean).join(" · ")}{kind==="cases"&&item.estimate_status&&<> <EstimateChip status={String(item.estimate_status)} prefix={t("Preventivo")}/></>}</small></div>
+          <div className="record-row-main"><strong>{kind==="cases"&&<WorkBadge type={item.work_type}/>}{label(item)}</strong><small>{kind==="customers"?[item.phone,item.email].filter(Boolean).join(" · "):kind==="vehicles"?[item.vehicle_category&&item.vehicle_category!=="CAR"?t(String(item.vehicle_category)):null,item.fleet_number?`#${item.fleet_number}`:null,item.make,item.model,item.vin].filter(Boolean).join(" · "):[item.customer_name,item.plate,vehicleName(item),t(String(item.status))].filter(Boolean).join(" · ")}{kind==="cases"&&item.estimate_status&&<> <EstimateChip status={String(item.estimate_status)} prefix={t("Preventivo")}/></>}</small></div>
           <button className="secondary" disabled={opening||saving} onClick={()=>open(item)}>{words("Apri scheda","Abrir ficha")}</button>
         </div>)}
       </section>
       <div className="record-pagination"><button disabled={!offset||busy} onClick={()=>setOffset(n=>Math.max(0,n-pageSize))}>{words("Precedenti","Anteriores")}</button><span>{words("Pagina","Página")} {offset/pageSize+1}</span><button disabled={items.length<pageSize||busy} onClick={()=>setOffset(n=>n+pageSize)}>{words("Successive","Siguientes")}</button></div></>}
     </>}
   </SectionShell>;
+}
+
+/** "Make Model" of a vehicle record, or of the vehicle of a case. */
+function vehicleName(item: RecordData) {
+  return [item.vehicle_make ?? item.make, item.vehicle_model ?? item.model].filter(Boolean).join(" ");
 }
 
 /** Bodywork or mechanical job, recognisable at a glance in lists and records. */
