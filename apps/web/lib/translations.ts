@@ -298,6 +298,7 @@ export const spanish: Record<string, string> = {
   "Dati del veicolo registrati: la prossima volta compaiono da soli.": "Datos del vehículo registrados: la próxima vez aparecen solos.",
   "Dati trovati dalla targa": "Datos encontrados por la matrícula",
   "Registra dati": "Registrar datos",
+  "Indietro": "Atrás",
   "Registrare questi dati sul veicolo": "¿Registrar estos datos en el vehículo",
   "I dati attuali del veicolo verranno sostituiti.": "Los datos actuales del vehículo se sustituirán.",
   "Non ancora registrati: i dati del veicolo restano quelli di prima finché non li registri.": "Aún no registrados: el vehículo conserva sus datos hasta que los registres.",

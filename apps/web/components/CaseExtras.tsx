@@ -30,6 +30,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
   const [markers, setMarkers] = useState<DamageMarker[]>([]);
   const [canEdit, setCanEdit] = useState(false);
   const [showEstimates, setShowEstimates] = useState(false);
+  const [office, setOffice] = useState(false);
 
   async function loadMarkers() {
     const response = await apiFetch(`/cases/${caseId}/damage-markers`);
@@ -92,6 +93,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
 
   useEffect(() => {
     setCanEdit(hasPermission("case.update"));
+    setOffice(hasPermission("case.create"));
     loadMarkers();
     apiFetch(`/cases/${caseId}/parts`).then(async (response) => { if (response.ok) setParts(await response.json()); }).catch(() => undefined);
     setVehicle(null);
@@ -151,7 +153,7 @@ export function CaseExtras({ caseId, plate, workType }: { caseId: string; plate?
         </div>
       )}
       <div className="case-extras-block">
-        <h3>{t("Cliente: link di avanzamento e chat")}</h3>
+        <h3>{t(office ? "Cliente: link di avanzamento e chat" : "Chat con il cliente")}</h3>
         <CaseTracking caseId={caseId} plate={plate} />
       </div>
       <div className="case-extras-block">

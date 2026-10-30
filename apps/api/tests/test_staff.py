@@ -408,3 +408,16 @@ def test_mechanic_sees_the_vehicle_of_the_job(client):
     assert mechanic.get(f"/api/v1/vehicles/{found.json()['id']}/telemetry").status_code == 200
     # Still read-only: the vehicle list and edits stay with the office.
     assert mechanic.get("/api/v1/vehicles").status_code == 403
+
+
+def test_only_the_office_gives_the_customer_link(client):
+    c, _, _ = client
+    mechanic, _, _ = worker(c, "mec-link@example.com", "MECHANIC")
+    customer = c.post("/api/v1/customers", json={"first_name": "Link"}).json()
+    vehicle = c.post("/api/v1/vehicles", json={"license_plate": "LK123LK", "customer_id": customer["id"]}).json()
+    case = c.post("/api/v1/cases", json={"customer_id": customer["id"], "vehicle_id": vehicle["id"], "work_type": "MECHANICAL"}).json()
+    base = f"/api/v1/cases/{case['id']}/tracking-link"
+    assert mechanic.post(base).status_code == 403
+    assert c.post(base).status_code in (200, 201)
+    assert mechanic.delete(base).status_code == 403
+    assert mechanic.get(base).status_code == 200
