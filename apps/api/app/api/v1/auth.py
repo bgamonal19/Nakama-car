@@ -138,6 +138,22 @@ def bootstrap(
     if (db.scalar(select(func.count(User.id))) or 0) > 0:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Application already initialized")
 
+    tenant, user = create_workshop(db, payload)
+    permissions = DEFAULT_PERMISSIONS.copy()
+    token = create_access_token(user_id=user.id, tenant_id=tenant.id, permissions=permissions)
+    return LoginResponse(
+        access_token=token,
+        user_id=user.id,
+        tenant_id=tenant.id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        permissions=permissions,
+        legal_required=access.legal_required(user),
+    )
+
+
+def create_workshop(db: Session, payload: BootstrapRequest) -> tuple[Tenant, User]:
+    """First tenant, roles and administrator of an empty database (also used for test environments)."""
     tenant = Tenant(name=payload.tenant_name, slug=payload.tenant_slug)
     db.add(tenant)
     db.flush()
@@ -190,15 +206,4 @@ def bootstrap(
     db.add(UserTenant(user_id=user.id, tenant_id=tenant.id, is_default=True))
     db.add(UserRole(user_id=user.id, tenant_id=tenant.id, role_id=admin_role.id))
     db.commit()
-
-    permissions = DEFAULT_PERMISSIONS.copy()
-    token = create_access_token(user_id=user.id, tenant_id=tenant.id, permissions=permissions)
-    return LoginResponse(
-        access_token=token,
-        user_id=user.id,
-        tenant_id=tenant.id,
-        first_name=user.first_name,
-        last_name=user.last_name,
-        permissions=permissions,
-        legal_required=access.legal_required(user),
-    )
+    return tenant, user
